@@ -1,7 +1,9 @@
 const { getDb } = require('../db/connection');
 
 /**
- * Seed demo data for development/demonstration
+ * Seed data for development/demonstration OR production
+ * In production (ODOO_API_KEY env set), seeds real Odoo instance config
+ * In dev, seeds fake demo data for testing
  */
 function seedDemoData() {
   const db = getDb();
@@ -10,6 +12,16 @@ function seedDemoData() {
   const existing = db.prepare('SELECT COUNT(*) as count FROM companies').get();
   if (existing.count > 0) {
     console.log('[Demo] Data already exists, skipping seed');
+    // Seed admin user if needed
+    seedAdmin(db);
+    return;
+  }
+
+  // Production mode: seed real Odoo config from environment variables
+  if (process.env.ODOO_API_KEY) {
+    console.log('[Production] Seeding real Odoo configuration...');
+    seedProduction(db);
+    seedAdmin(db);
     return;
   }
 
@@ -251,20 +263,71 @@ function seedDemoData() {
 
   seed();
   console.log('[Demo] Demo data seeded successfully');
+  seedAdmin(db);
+}
 
-  // Seed default admin user if none exists
+/**
+ * Seed real Odoo configuration for production deployment
+ * Uses environment variables:
+ *   ODOO_API_KEY      — API key for aboghaliaoffice.com
+ *   ODOO_API_KEY_2    — API key for jbhconsultingsa.com (defaults to ODOO_API_KEY)
+ *   ODOO_USERNAME     — Odoo username (default: saad@aboghaliaoffice.com)
+ */
+function seedProduction(db) {
+  const apiKey1 = process.env.ODOO_API_KEY || '';
+  const apiKey2 = process.env.ODOO_API_KEY_2 || apiKey1;
+  const username = process.env.ODOO_USERNAME || 'saad@aboghaliaoffice.com';
+
+  const tx = db.transaction(() => {
+    // Instance 1: أبو غلية
+    const r1 = db.prepare(`
+      INSERT INTO odoo_instances (name, url, db_name, username, api_key, is_active)
+      VALUES ('خادم أبو غلية - aboghaliaoffice.com', 'https://aboghaliaoffice.com', '', ?, ?, 1)
+    `).run(username, apiKey1);
+    const inst1Id = r1.lastInsertRowid;
+
+    // Instance 2: حريري
+    const r2 = db.prepare(`
+      INSERT INTO odoo_instances (name, url, db_name, username, api_key, is_active)
+      VALUES ('خادم حريري - jbhconsultingsa.com', 'https://jbhconsultingsa.com', '', ?, ?, 1)
+    `).run(username, apiKey2);
+    const inst2Id = r2.lastInsertRowid;
+
+    // Companies — mapping to correct Odoo instances
+    db.prepare(`
+      INSERT INTO companies (odoo_instance_id, odoo_company_id, name, currency, color) VALUES
+      (?, 1, 'مكتب أبو غالية للاستشارات الهندسية', 'SAR', '#3b82f6'),
+      (?, 2, 'شركة ابو غالية للمقاولات العامة', 'SAR', '#10b981'),
+      (?, 5, 'شركة جمال بكر حريري للاستشارات الهندسية', 'SAR', '#f59e0b'),
+      (?, 4, 'شركة جمال بكر حريري للمقاولات', 'SAR', '#ef4444')
+    `).run(inst1Id, inst1Id, inst2Id, inst2Id);
+
+    console.log(`[Production] Created instance ${inst1Id}: aboghaliaoffice.com (companies 1,2)`);
+    console.log(`[Production] Created instance ${inst2Id}: jbhconsultingsa.com (companies 4,5)`);
+    console.log(`[Production] Created 4 companies`);
+  });
+
+  tx();
+  console.log('[Production] Real Odoo configuration seeded successfully');
+}
+
+/**
+ * Seed default admin user if none exists
+ */
+function seedAdmin(db) {
   try {
     const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get();
     if (adminCount.count === 0) {
       const { hashPassword } = require('../middleware/auth');
-      const passwordHash = hashPassword('123456');
+      const password = process.env.ADMIN_PASSWORD || '123456';
+      const email = process.env.ADMIN_EMAIL || 'saadm7294@gmail.com';
+      const passwordHash = hashPassword(password);
       db.prepare('INSERT INTO admin_users (email, password_hash, name) VALUES (?, ?, ?)')
-        .run('saadm7294@gmail.com', passwordHash, 'مدير النظام');
-      console.log('[Demo] Default admin created: saadm7294@gmail.com');
+        .run(email, passwordHash, 'مدير النظام');
+      console.log(`[Seed] Default admin created: ${email}`);
     }
   } catch (e) {
-    // Table might not exist yet on first run, seed-demo runs before schema sometimes
-    console.log('[Demo] Admin seeding deferred:', e.message);
+    console.log('[Seed] Admin seeding deferred:', e.message);
   }
 }
 
