@@ -80,6 +80,28 @@ async function start() {
     
     // Start cron scheduler
     startScheduler();
+
+    // Auto-sync on startup if database is empty (fresh deploy)
+    try {
+      const { getDb } = require('./db/connection');
+      const db = getDb();
+      const count = db.prepare('SELECT COUNT(*) as c FROM journal_items').get();
+      if (!count || count.c === 0) {
+        console.log('[Startup] Empty database detected — triggering initial sync from Odoo...');
+        const SyncEngine = require('./services/sync-engine');
+        const engine = new SyncEngine();
+        engine.syncAll().then(results => {
+          const total = results.reduce((s, r) => s + (r.records_synced || 0), 0);
+          console.log(`[Startup] Initial sync completed: ${total} records`);
+        }).catch(err => {
+          console.error('[Startup] Initial sync failed:', err.message);
+        });
+      } else {
+        console.log(`[Startup] Database has ${count.c} journal entries — skipping auto-sync`);
+      }
+    } catch (syncErr) {
+      console.error('[Startup] Auto-sync check failed:', syncErr.message);
+    }
     
     app.listen(PORT, () => {
       console.log(`\n🚀 Mizaniat BI Server running at http://localhost:${PORT}`);
