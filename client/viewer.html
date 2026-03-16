@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mizaniat BI — لوحة تفاعلية</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+Arabic:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--font-ar:'Noto Sans Arabic',sans-serif;--font-en:'Inter',sans-serif;--bg-card:rgba(15,23,60,0.65);--bg-dark:#050816}
+    html{font-size:14px;scroll-behavior:smooth}
+    body{font-family:var(--font-ar);background:#050816;color:#e8eaf6;min-height:100vh;direction:rtl;line-height:1.7;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+    body::before{content:'';position:fixed;top:0;left:0;right:0;bottom:0;background:radial-gradient(ellipse 80% 50% at 20% 10%,rgba(59,130,246,0.06) 0%,transparent 50%),radial-gradient(ellipse 60% 40% at 80% 80%,rgba(16,185,129,0.04) 0%,transparent 50%),radial-gradient(ellipse 40% 60% at 50% 50%,rgba(139,92,246,0.03) 0%,transparent 50%);pointer-events:none;z-index:0}
+    ::-webkit-scrollbar{width:7px;height:7px}::-webkit-scrollbar-track{background:rgba(10,15,40,0.3)}::-webkit-scrollbar-thumb{background:rgba(99,130,255,0.2);border-radius:10px}::-webkit-scrollbar-thumb:hover{background:rgba(99,130,255,0.35)}
+    #loading{text-align:center;padding:100px;color:rgba(255,255,255,0.5);position:relative;z-index:1}
+    #loading .spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    #error{display:none;text-align:center;color:#ef4444;padding:40px;font-size:1rem;position:relative;z-index:1}
+    #dashboard{position:relative;z-index:1}
+    .bi-topbar{display:flex;align-items:center;gap:16px;padding:16px 28px;background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;position:sticky;top:0;z-index:50;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+    .bi-topbar .sl{font-size:0.95rem;color:rgba(255,255,255,0.55);font-weight:700;white-space:nowrap}
+    .bi-chip{padding:9px 20px;border-radius:22px;font-size:0.95rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.45);font-weight:600;-webkit-user-select:none;user-select:none;white-space:nowrap}
+    .bi-chip.active{color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+    .bi-chip:hover{background:rgba(255,255,255,0.07);transform:translateY(-1px)}
+    .bi-tabs{display:flex;gap:0;padding:0 28px;background:rgba(255,255,255,0.015);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto}
+    .bi-tab{padding:16px 26px;font-size:1.02rem;font-weight:700;color:rgba(255,255,255,0.35);cursor:pointer;border-bottom:3px solid transparent;transition:all 0.2s;white-space:nowrap}
+    .bi-tab:hover{color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.02)}
+    .bi-tab.active{color:#60a5fa;border-bottom-color:#3b82f6;background:rgba(59,130,246,0.05)}
+    .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:24px 28px}
+    .bi-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px}
+    .bi-kpi{background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:26px 20px;text-align:center;transition:transform 0.2s,box-shadow 0.2s}
+    .bi-kpi:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,0.25)}
+    .bi-kpi-label{font-size:1rem;color:rgba(255,255,255,0.55);margin-bottom:12px;font-weight:700}
+    .bi-kpi-value{font-size:2.2rem;font-weight:800;font-family:var(--font-en);letter-spacing:-0.5px}
+    .bi-kpi-sub{font-size:0.92rem;color:rgba(255,255,255,0.45);margin-top:6px;font-family:var(--font-en);font-weight:500}
+    .bi-charts{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    .bi-card{background:linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:24px;overflow:hidden}
+    .bi-card-title{font-size:1.1rem;font-weight:700;color:rgba(255,255,255,0.65);margin-bottom:20px;display:flex;align-items:center;gap:10px}
+    .bi-card canvas{width:100%;display:block}
+    .bi-table{width:100%;border-collapse:separate;border-spacing:0;font-size:1.05rem}
+    .bi-table th{padding:16px 18px;text-align:right;color:rgba(255,255,255,0.55);font-size:0.92rem;font-weight:700;border-bottom:2px solid rgba(255,255,255,0.1);white-space:nowrap;text-transform:uppercase;letter-spacing:0.3px;border-left:1px solid rgba(255,255,255,0.08)}
+    .bi-table th:last-child{border-left:none}
+    .bi-table th.n{text-align:left}
+    .bi-table td{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,0.05);color:rgba(255,255,255,0.9);font-size:1rem;border-left:1px solid rgba(255,255,255,0.06)}
+    .bi-table td:last-child{border-left:none}
+    .bi-table td.n{font-family:var(--font-en);text-align:left;font-weight:700;font-size:1.05rem;letter-spacing:-0.3px}
+    .bi-table tr:hover td{background:rgba(255,255,255,0.025)}
+    .bi-table tfoot td{font-weight:800;border-top:2px solid rgba(255,255,255,0.15);font-size:1.08rem;padding:18px}
+    .bi-table th.sortable{cursor:pointer;-webkit-user-select:none;user-select:none;transition:color 0.2s}
+    .bi-table th.sortable:hover{color:rgba(255,255,255,0.85)}
+    .bi-table th.sortable::after{content:'⇅';margin-right:6px;font-size:0.75rem;opacity:0.4}
+    .bi-table th.sortable.asc::after{content:'▲';opacity:0.9;color:#10b981}
+    .bi-table th.sortable.desc::after{content:'▼';opacity:0.9;color:#ef4444}
+    .bi-table .row-co{cursor:pointer;transition:background 0.15s}
+    .bi-table .row-co:hover td{background:rgba(255,255,255,0.04)}
+    .bi-table .row-co td:first-child::before{content:'\25B6';margin-left:8px;font-size:0.7rem;transition:transform 0.2s;display:inline-block}
+    .bi-table .row-co.open td:first-child::before{transform:rotate(90deg)}
+    .bi-table .row-cc{display:none;cursor:pointer;transition:background 0.15s}
+    .bi-table .row-cc.show{display:table-row}
+    .bi-table .row-cc:hover td{background:rgba(255,255,255,0.03)}
+    .bi-table .row-cc td{font-size:0.96rem;color:rgba(255,255,255,0.8);padding:12px 18px}
+    .bi-table .row-cc td:first-child{padding-right:32px;font-weight:600}
+    .bi-table .row-cc td:first-child::before{content:'\25B6';margin-left:6px;font-size:0.55rem;transition:transform 0.2s;display:inline-block}
+    .bi-table .row-cc.open td:first-child::before{transform:rotate(90deg)}
+    .bi-table .row-pt{display:none}
+    .bi-table .row-pt.show{display:table-row}
+    .bi-table .row-pt td{font-size:0.92rem;color:rgba(255,255,255,0.6);padding:10px 18px}
+    .bi-table .row-pt td:first-child{padding-right:52px;font-weight:400}
+    .bi-pbar{height:14px;border-radius:7px;background:rgba(255,255,255,0.07);overflow:hidden;margin:8px 0}
+    .bi-pbar-fill{height:100%;border-radius:7px;transition:width 0.6s ease}
+    .bi-pbar-label{display:flex;justify-content:space-between;font-size:0.92rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-weight:500}
+    .bi-full{grid-column:1/-1}
+    .bi-empty{text-align:center;padding:60px 20px;color:rgba(255,255,255,0.3);font-size:1.1rem;line-height:2}
+    .bi-branding{position:fixed;bottom:6px;left:12px;font-size:0.45rem;color:rgba(255,255,255,0.06);font-family:var(--font-en)}
+    .bi-refresh-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:12px;font-size:0.88rem;cursor:pointer;transition:all 0.25s;border:1.5px solid rgba(16,185,129,0.35);background:rgba(16,185,129,0.08);color:#10b981;font-weight:700;font-family:var(--font-ar);white-space:nowrap;-webkit-user-select:none;user-select:none}
+    .bi-refresh-btn:hover{background:rgba(16,185,129,0.18);transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,0.15)}
+    .bi-refresh-btn:active{transform:scale(0.96)}
+    .bi-refresh-btn.loading{pointer-events:none;opacity:0.6}
+    .bi-refresh-btn .spin-icon{display:inline-block;transition:transform 0.3s}
+    .bi-refresh-btn.loading .spin-icon{animation:spin 0.8s linear infinite}
+    .bi-last-updated{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:12px;font-size:0.82rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:rgba(255,255,255,0.45);font-family:var(--font-ar);white-space:nowrap}
+    .bi-last-updated .ts{color:rgba(255,255,255,0.65);font-family:var(--font-en);font-weight:600;direction:ltr}
+    @media(max-width:900px){.bi-charts{grid-template-columns:1fr}.bi-kpi-row{grid-template-columns:repeat(3,1fr)}.bi-topbar{padding:12px 16px;gap:10px}.bi-body{padding:16px}.bi-tabs{padding:0 16px}}
+    @media(max-width:600px){.bi-kpi-row{grid-template-columns:repeat(2,1fr)}.bi-topbar{padding:10px 12px;gap:8px}.bi-chip{padding:7px 14px;font-size:0.82rem}.bi-tab{padding:12px 16px;font-size:0.88rem}.bi-body{padding:12px}.bi-kpi{padding:18px 14px}.bi-kpi-value{font-size:1.5rem}.bi-card{padding:16px}.bi-table{font-size:0.88rem}.bi-table th{padding:10px 12px;font-size:0.78rem}.bi-table td{padding:10px 12px;font-size:0.85rem}.bi-table td.n{font-size:0.88rem}.bi-table tfoot td{font-size:0.92rem;padding:12px}.bi-last-updated{font-size:0.72rem;padding:5px 10px}.bi-refresh-btn{font-size:0.78rem;padding:6px 12px}}
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div>جاري تحميل اللوحة التفاعلية...</div>
+  <div id="error">❌ <span id="err-txt"></span></div>
+  <div id="dashboard" style="display:none;"></div>
+
+  <!-- Phone Login Overlay -->
+  <div id="phone-login-overlay" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#050816;z-index:200;display:flex;align-items:center;justify-content:center;">
+    <div style="text-align:center;max-width:400px;width:90%;">
+      <div style="width:80px;height:80px;border-radius:22px;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:24px;"><img src="./assets/logo.png" alt="SJC" style="width:100%;height:100%;object-fit:contain;"></div>
+      <h1 style="font-size:1.6rem;font-weight:800;color:#e8eaf6;margin-bottom:6px;">تقارير مالية</h1>
+      <p style="font-size:0.92rem;color:rgba(255,255,255,0.45);margin-bottom:36px;font-weight:500;">العرض التقديمي التفاعلي</p>
+      <div id="phone-error" style="display:none;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:14px;padding:14px;color:#fca5a5;font-size:0.92rem;margin-bottom:18px;font-weight:600;"></div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block;text-align:right;font-size:0.85rem;color:rgba(255,255,255,0.55);margin-bottom:8px;font-weight:700;">أدخل رقم الجوال للمتابعة</label>
+        <input type="tel" id="phone-input" placeholder="05xxxxxxxx" dir="ltr" autocomplete="tel"
+          style="width:100%;padding:16px 18px;background:rgba(255,255,255,0.05);border:1.5px solid rgba(255,255,255,0.1);border-radius:16px;color:#fff;font-size:1.15rem;font-family:var(--font-en);text-align:center;outline:none;letter-spacing:2px;transition:border-color 0.25s,box-shadow 0.25s;"
+          onfocus="this.style.borderColor='#3b82f6';this.style.boxShadow='0 0 0 3px rgba(59,130,246,0.25)'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.1)';this.style.boxShadow='none'">
+      </div>
+      <button id="phone-login-btn"
+        style="width:100%;padding:16px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:16px;color:#fff;font-size:1.08rem;font-weight:700;font-family:var(--font-ar);cursor:pointer;box-shadow:0 4px 24px rgba(59,130,246,0.3);transition:transform 0.15s,box-shadow 0.25s;margin-top:8px;"
+        onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 32px rgba(59,130,246,0.4)'"
+        onmouseout="this.style.transform='';this.style.boxShadow='0 4px 24px rgba(59,130,246,0.3)'">
+        دخول
+      </button>
+      <p style="font-size:0.78rem;color:rgba(255,255,255,0.25);margin-top:20px;">تواصل مع المسؤول إذا لم يكن رقمك مسجلاً</p>
+    </div>
+  </div>
+
+  <div class="bi-branding">Mizaniat BI</div>
+
+<script src="js/viewer-canvas.js"></script>
+<script src="js/viewer-tables.js"></script>
+<script src="js/viewer-renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+[
+  {
+    "id": 87899,
+    "name": false,
+    "account_id": [
+      100,
+      "201002 الذمم الدائنة"
+    ],
+    "partner_id": [
+      4480,
+      "مؤسسة دار الصفاء للتجارة"
+    ],
+    "journal_id": [
+      9,
+      "Vendor Bills Jeda"
+    ],
+    "move_id": [
+      25177,
+      "BILLJ/2026/03/0001 (101177)"
+    ],
+    "move_name": "BILLJ/2026/03/0001",
+    "ref": "101177",
+    "debit": 0,
+    "credit": 19548.85,
+    "balance": -19548.85,
+    "date": "2026-03-15",
+    "analytic_distribution": false,
+    "company_id": [
+      1,
+      "مكتب المهندس سمير صالح ابو غلية للاشتشارات الهندسية"
+    ],
+    "account_type": "liability_payable",
+    "parent_state": "posted"
+  },
+  {
+    "id": 87898,
+    "name": "15%",
+    "account_id": [
+      88,
+      "104041 مدخلات ضريبة القيمة المضافة"
+    ],
+    "partner_id": [
+      4480,
+      "مؤسسة دار الصفاء للتجارة"
+    ],
+    "journal_id": [
+      9,
+      "Vendor Bills Jeda"
+    ],
+    "move_id": [
+      25177,
+      "BILLJ/2026/03/0001 (101177)"
+    ],
+    "move_name": "BILLJ/2026/03/0001",
+    "ref": "101177",
+    "debit": 2549.85,
+    "credit": 0,
+    "balance": 2549.85,
+    "date": "2026-03-15",
+    "analytic_distribution": false,
+    "company_id": [
+      1,
+      "مكتب المهندس سمير صالح ابو غلية للاشتشارات الهندسية"
+    ],
+    "account_type": "asset_current",
+    "parent_state": "posted"
+  },
+  {
+    "id": 87897,
+    "name": "[330206] عدد وادوات - تشغيلي",
+    "account_id": [
+      764,
+      "330206 عدد وادوات - تشغيلي"
+    ],
+    "partner_id": [
+      4480,
+      "مؤسسة دار الصفاء للتجارة"
+    ],
+    "journal_id": [
+      9,
+      "Vendor Bills Jeda"
+    ],
+    "move_id": [
+      25177,
+      "BILLJ/2026/03/0001 (101177)"
+    ],
+    "move_name": "BILLJ/2026/03/0001",
+    "ref": "101177",
+    "debit": 8499.5,
+    "credit": 0,
+    "balance": 8499.5,
+    "date": "2026-03-15",
+    "analytic_distribution": {
+      "28": 100
+    },
+    "company_id": [
+      1,
+      "مكتب المهندس سمير صالح ابو غلية للاشتشارات الهندسية"
+    ],
+    "account_type": "expense",
+    "parent_state": "posted"
+  }
+]

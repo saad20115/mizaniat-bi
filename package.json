@@ -1,0 +1,28 @@
+{
+  "name": "mizaniat-bi",
+  "version": "1.0.0",
+  "description": "BI Web App for Odoo Consolidated Financial Reports",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "cd client && npx vite --port 5173",
+    "build": "cd client && npx vite build",
+    "sync": "node server/scripts/sync-now.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "concurrently": "^8.2.2",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "html2canvas": "^1.4.1",
+    "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.0",
+    "node-cache": "^5.1.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

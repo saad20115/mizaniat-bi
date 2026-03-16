@@ -1,0 +1,95 @@
+[
+  {
+    "id": 16174,
+    "name": "فواتير شهر فبراير 2026 رضا محمد شاكر محمد",
+    "account_id": [
+      4998,
+      "111006 بنك الرياض 41"
+    ],
+    "partner_id": false,
+    "journal_id": [
+      103,
+      "Miscellaneous Operations"
+    ],
+    "move_id": [
+      6829,
+      "MISC/2026/03/0003 (فواتير شهر فبراير 2026 رضا محمد شاكر محمد)"
+    ],
+    "move_name": "MISC/2026/03/0003",
+    "ref": "فواتير شهر فبراير 2026 رضا محمد شاكر محمد",
+    "debit": 0,
+    "credit": 213,
+    "balance": -213,
+    "date": "2026-03-12",
+    "analytic_distribution": false,
+    "company_id": [
+      5,
+      "شركة جمال بكر حريري للاستشارات الهندسية"
+    ],
+    "account_type": "asset_cash",
+    "parent_state": "posted"
+  },
+  {
+    "id": 16173,
+    "name": "فواتير شهر فبراير 2026 رضا محمد شاكر محمد",
+    "account_id": [
+      5006,
+      "201021 مصروفات مستحقة"
+    ],
+    "partner_id": false,
+    "journal_id": [
+      103,
+      "Miscellaneous Operations"
+    ],
+    "move_id": [
+      6829,
+      "MISC/2026/03/0003 (فواتير شهر فبراير 2026 رضا محمد شاكر محمد)"
+    ],
+    "move_name": "MISC/2026/03/0003",
+    "ref": "فواتير شهر فبراير 2026 رضا محمد شاكر محمد",
+    "debit": 213,
+    "credit": 0,
+    "balance": 213,
+    "date": "2026-03-12",
+    "analytic_distribution": false,
+    "company_id": [
+      5,
+      "شركة جمال بكر حريري للاستشارات الهندسية"
+    ],
+    "account_type": "liability_current",
+    "parent_state": "posted"
+  },
+  {
+    "id": 16012,
+    "name": "",
+    "account_id": [
+      4661,
+      "201002 الذمم الدائنة"
+    ],
+    "partner_id": [
+      733,
+      "شركة عبداللطيف حسين ابوالجدائل"
+    ],
+    "journal_id": [
+      102,
+      "Vendor Bills"
+    ],
+    "move_id": [
+      6770,
+      "BILL/2026/03/0001 (231253898)"
+    ],
+    "move_name": "BILL/2026/03/0001",
+    "ref": "231253898",
+    "debit": 0,
+    "credit": 9419.86,
+    "balance": -9419.86,
+    "date": "2026-03-09",
+    "analytic_distribution": false,
+    "company_id": [
+      5,
+      "شركة جمال بكر حريري للاستشارات الهندسية"
+    ],
+    "account_type": "liability_payable",
+    "parent_state": "posted"
+  }
+]
