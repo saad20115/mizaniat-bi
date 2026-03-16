@@ -8,6 +8,7 @@
     "server": "node server/index.js",
     "client": "cd client && npx vite --port 5173",
     "build": "cd client && npx vite build",
+    "start": "node server/index.js",
     "sync": "node server/scripts/sync-now.js"
   },
   "dependencies": {

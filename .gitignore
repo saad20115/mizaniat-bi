@@ -33,7 +33,10 @@ Desktop.ini
 npm-debug.log*
 
 # Temp fix scripts
-_fix_*.js
+_*.js
+check_*.js
+test-*.js
+raw_sample_*.json
 
 # Gemini brain (artifacts)
 .gemini/

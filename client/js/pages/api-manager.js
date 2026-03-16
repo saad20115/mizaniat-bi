@@ -3,7 +3,7 @@ import { api } from '../api.js';
 const STORAGE_KEY = 'mizaniat_api_configs';
 
 export async function renderApiManager(container) {
-  const baseUrl = `${window.location.protocol}//${window.location.hostname}:3090/api/external`;
+  const baseUrl = `${window.location.origin}/api/external`;
 
   container.innerHTML = `
     <style>

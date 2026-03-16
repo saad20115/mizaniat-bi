@@ -53,11 +53,14 @@ app.use('/api/external', externalRoutes);
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
 
-// SPA fallback
+// SPA fallback — serve correct HTML for each route
 app.get('*', (req, res) => {
-  if (!req.path.startsWith('/api')) {
-    res.sendFile(path.join(clientDist, 'index.html'));
-  }
+  if (req.path.startsWith('/api')) return;
+  const p = req.path;
+  if (p.startsWith('/login')) return res.sendFile(path.join(clientDist, 'login.html'));
+  if (p.startsWith('/viewer')) return res.sendFile(path.join(clientDist, 'viewer.html'));
+  if (p.startsWith('/view')) return res.sendFile(path.join(clientDist, 'view.html'));
+  res.sendFile(path.join(clientDist, 'index.html'));
 });
 
 // Error handler
