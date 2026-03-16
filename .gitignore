@@ -5,6 +5,9 @@ node_modules/
 *.db
 *.sqlite
 *.sqlite3
+*.db-shm
+*.db-wal
+data/
 
 # Build output
 client/dist/
