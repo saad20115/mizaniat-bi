@@ -12,12 +12,16 @@ const navItems = [
   { id: 'closing-entries', icon: '🔒', label: 'قيود الإقفال', section: 'التقارير المالية' },
   { id: 'pivot', icon: '🔄', label: 'الجداول المحورية', section: 'التحليل' },
   { id: 'presentation', icon: '🎬', label: 'عرض تقديمي', section: 'التحليل' },
+  { id: 'tax-builder', icon: '🧾', label: 'مصمم التقرير الضريبي', section: 'التحليل' },
   { id: 'journal-items', icon: '📋', label: 'القيود المحاسبية', section: 'التحليل' },
   { id: 'data-preview', icon: '🗂️', label: 'معاينة بيانات API', section: 'التحليل' },
+  { id: 'sales-data-preview', icon: '🛒', label: 'معاينة المبيعات API', section: 'التحليل' },
   { id: 'analytic-accounts', icon: '📂', label: 'الحسابات التحليلية', section: 'الإعدادات' },
   { id: 'mapping', icon: '🔗', label: 'توحيد الحسابات', section: 'الإعدادات' },
+  { id: 'journal-mapping', icon: '🎯', label: 'توحيد اليوميات', section: 'الإعدادات' },
   { id: 'viewers-management', icon: '👥', label: 'إدارة المشاهدين', section: 'الإعدادات' },
   { id: 'settings', icon: '⚙️', label: 'إعدادات النظام', section: 'الإعدادات' },
+  { id: 'sales-settings', icon: '🛍️', label: 'إعدادات نظام المبيعات', section: 'الإعدادات' },
   { id: 'api-manager', icon: '🔌', label: 'إدارة الـ APIs', section: 'الإعدادات' },
 ];
 

@@ -15,10 +15,14 @@ import { renderTrialBalance } from './pages/trial-balance.js';
 import { renderDetailedTrialBalance } from './pages/detailed-trial-balance.js';
 import { renderClosingEntries } from './pages/closing-entries.js';
 import { renderAnalyticAccounts } from './pages/analytic-accounts.js';
+import { renderJournalMapping } from './pages/journal-mapping.js';
 import { renderPresentation } from './pages/presentation.js';
 import { renderAccountStatement } from './pages/account-statement.js';
 import { renderGuaranteesPage } from './pages/guarantees.js';
 import { renderApiManager } from './pages/api-manager.js';
+import { renderSalesSettings } from './pages/sales-settings.js';
+import { renderSalesDataPreview } from './pages/sales-data-preview.js';
+import { showTaxReportBuilder } from './pages/tax-report-builder.js';
 import { showToast } from './utils/ui.js';
 
 // Page router
@@ -30,6 +34,7 @@ const pages = {
   'pivot': renderPivotTable,
   'journal-items': renderJournalItems,
   'mapping': renderMapping,
+  'journal-mapping': renderJournalMapping,
   'settings': renderSettings,
   'data-preview': renderDataPreview,
   'trial-balance': renderTrialBalance,
@@ -40,6 +45,9 @@ const pages = {
   'account-statement': renderAccountStatement,
   'guarantees': renderGuaranteesPage,
   'api-manager': renderApiManager,
+  'sales-settings': renderSalesSettings,
+  'sales-data-preview': renderSalesDataPreview,
+  'tax-builder': showTaxReportBuilder,
 };
 
 async function navigateTo(pageName) {

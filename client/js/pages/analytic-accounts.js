@@ -10,6 +10,7 @@ const GROUP_COLORS = [
 let groups = [];
 let analyticAccounts = [];
 let mappings = [];
+let companyJournals = [];
 
 export async function renderAnalyticAccounts(container) {
   const companies = store.get('companies') || [];
@@ -216,13 +217,15 @@ async function loadAccounts(container) {
   el.innerHTML = '<div class="skeleton" style="height:300px;"></div>';
 
   try {
-    const [accounts, existingMappings] = await Promise.all([
+    const [accounts, existingMappings, journals] = await Promise.all([
       api.getAnalyticAccounts({ companyId }),
       api.getAnalyticGroupMappings({ companyId }),
+      api.getCompanyJournalNames(companyId)
     ]);
 
     analyticAccounts = accounts;
     mappings = existingMappings;
+    companyJournals = journals || [];
     
     renderAccountsTable(container);
     container.querySelector('#btn-save-mappings').disabled = false;
@@ -245,9 +248,11 @@ function renderAccountsTable(container) {
   // Build mapping lookup
   const mappingLookup = {};
   const redistLookup = {};
+  const journalLookup = {};
   for (const m of mappings) {
     mappingLookup[m.analytic_account] = m.group_id;
     redistLookup[m.analytic_account] = m.redistributable ? 1 : 0;
+    journalLookup[m.analytic_account] = m.journal_name || '';
   }
 
   // Group counts
@@ -258,6 +263,7 @@ function renderAccountsTable(container) {
   const unmappedCount = analyticAccounts.filter(a => !mappingLookup[a.analytic_account]).length;
 
   const groupOptions = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  const journalOptions = companyJournals.map(j => `<option value="${j}">${j}</option>`).join('');
 
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
@@ -285,10 +291,12 @@ function renderAccountsTable(container) {
       <table class="data-table" style="font-size:0.82rem;">
         <thead>
           <tr>
+            <th style="width:40px;text-align:center;"><input type="checkbox" id="check-all-aa" style="cursor:pointer;" title="تحديد الكل" /></th>
             <th style="width:50px;">#</th>
             <th style="text-align:right;">الحساب التحليلي</th>
             <th style="width:100px;text-align:center;">عدد القيود</th>
             <th style="width:220px;text-align:center;">المجموعة</th>
+            <th style="width:160px;text-align:center;">اسم اليومية</th>
             <th style="width:140px;text-align:center;">قابل لإعادة التوزيع</th>
           </tr>
         </thead>
@@ -296,9 +304,11 @@ function renderAccountsTable(container) {
           ${analyticAccounts.map((a, i) => {
             const currentGroup = mappingLookup[a.analytic_account] || '';
             const currentRedist = redistLookup[a.analytic_account] || 0;
+            const currentJournal = journalLookup[a.analytic_account] || '';
             const group = groups.find(g => g.id == currentGroup);
             return `
               <tr style="${group ? `border-right:3px solid ${group.color};` : ''}">
+                <td style="text-align:center;"><input type="checkbox" class="aa-row-check" value="${a.analytic_account}" style="cursor:pointer;" /></td>
                 <td style="color:var(--text-muted);font-size:0.75rem;">${i + 1}</td>
                 <td style="font-weight:500;">${a.analytic_account}</td>
                 <td style="text-align:center;color:var(--text-muted);">
@@ -310,6 +320,12 @@ function renderAccountsTable(container) {
                   <select class="filter-select account-group-select" data-account="${a.analytic_account}" style="font-size:0.78rem;padding:4px 8px;width:100%;">
                     <option value="">— غير مصنف —</option>
                     ${groupOptions.replace(`value="${currentGroup}"`, `value="${currentGroup}" selected`)}
+                  </select>
+                </td>
+                <td style="text-align:center;">
+                  <select class="filter-select account-journal-select" data-account="${a.analytic_account}" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                    <option value="">— غير محدد —</option>
+                    ${journalOptions.replace(`value="${currentJournal}"`, `value="${currentJournal}" selected`)}
                   </select>
                 </td>
                 <td style="text-align:center;">
@@ -326,13 +342,42 @@ function renderAccountsTable(container) {
     </div>
   `;
 
+  // Check All handler
+  const checkAll = el.querySelector('#check-all-aa');
+  const rowChecks = el.querySelectorAll('.aa-row-check');
+  if (checkAll) {
+    checkAll.addEventListener('change', (e) => {
+      rowChecks.forEach(chk => { chk.checked = e.target.checked; });
+    });
+  }
+
   // Bulk assign buttons
   el.querySelectorAll('.btn-assign-all').forEach(btn => {
     btn.addEventListener('click', () => {
       const groupId = btn.dataset.group;
-      el.querySelectorAll('.account-group-select').forEach(sel => {
-        sel.value = groupId;
-      });
+      let targetRows = Array.from(rowChecks).filter(chk => chk.checked);
+      
+      // If none selected, apply to all
+      if (targetRows.length === 0) {
+        if (!confirm('لم يتم تحديد أي حسابات. هل تريد تطبيق هذه المجموعة على جميع الحسابات في الجدول؟')) {
+          return;
+        }
+        el.querySelectorAll('.account-group-select').forEach(sel => {
+          sel.value = groupId;
+          sel.dispatchEvent(new Event('change'));
+        });
+      } else {
+        const selectedAccounts = targetRows.map(chk => chk.value);
+        el.querySelectorAll('.account-group-select').forEach(sel => {
+          if (selectedAccounts.includes(sel.dataset.account)) {
+            sel.value = groupId;
+            sel.dispatchEvent(new Event('change'));
+          }
+        });
+        // Uncheck all after bulk apply
+        if (checkAll) checkAll.checked = false;
+        rowChecks.forEach(chk => chk.checked = false);
+      }
     });
   });
 
@@ -350,13 +395,14 @@ async function saveMappings(container) {
   const companyId = container.querySelector('#aa-company').value;
   const groupSelects = container.querySelectorAll('.account-group-select');
   const redistSelects = container.querySelectorAll('.account-redist-select');
+  const journalSelects = container.querySelectorAll('.account-journal-select');
   const newMappings = [];
 
-  // Build redist lookup from redist selects
+  // Build redist & journal lookups
   const redistMap = {};
-  redistSelects.forEach(sel => {
-    redistMap[sel.dataset.account] = parseInt(sel.value) || 0;
-  });
+  const journalMap = {};
+  redistSelects.forEach(sel => { redistMap[sel.dataset.account] = parseInt(sel.value) || 0; });
+  journalSelects.forEach(sel => { journalMap[sel.dataset.account] = sel.value || null; });
 
   groupSelects.forEach(sel => {
     if (sel.value) {
@@ -364,6 +410,7 @@ async function saveMappings(container) {
         analytic_account: sel.dataset.account,
         group_id: parseInt(sel.value),
         redistributable: redistMap[sel.dataset.account] || 0,
+        journal_name: journalMap[sel.dataset.account] || null,
       });
     }
   });

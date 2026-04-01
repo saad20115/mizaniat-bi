@@ -332,7 +332,7 @@ router.get('/analytic-group-mappings', (req, res) => {
     let mappings;
     if (companyId) {
       mappings = db.prepare(`
-        SELECT m.*, m.redistributable, g.name as group_name, g.color as group_color
+        SELECT m.*, m.redistributable, m.journal_name, g.name as group_name, g.color as group_color
         FROM analytic_group_mapping m
         JOIN analytic_groups g ON g.id = m.group_id
         WHERE m.company_id = ?
@@ -340,7 +340,7 @@ router.get('/analytic-group-mappings', (req, res) => {
       `).all(parseInt(companyId));
     } else {
       mappings = db.prepare(`
-        SELECT m.*, m.redistributable, g.name as group_name, g.color as group_color
+        SELECT m.*, m.redistributable, m.journal_name, g.name as group_name, g.color as group_color
         FROM analytic_group_mapping m
         JOIN analytic_groups g ON g.id = m.group_id
         ORDER BY m.company_id, g.sort_order
@@ -359,13 +359,13 @@ router.post('/analytic-group-mappings', (req, res) => {
     const db = getDb();
     
     const deleteStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ?');
-    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable) VALUES (?, ?, ?, ?)');
+    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name) VALUES (?, ?, ?, ?, ?)');
     
     db.transaction(() => {
       deleteStmt.run(parseInt(companyId));
       for (const m of mappings) {
         if (m.analytic_account && m.group_id) {
-          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0);
+          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, m.journal_name || null);
         }
       }
     })();
@@ -374,6 +374,100 @@ router.post('/analytic-group-mappings', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Get distinct journal names from journal items
+router.get('/company-journal-names', (req, res) => {
+  try {
+    const { companyId } = req.query;
+    if (!companyId) return res.status(400).json({ error: 'companyId required' });
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    const rows = db.prepare('SELECT DISTINCT journal_name FROM journal_items WHERE company_id = ? AND journal_name IS NOT NULL AND journal_name != \'\' ORDER BY journal_name').all(parseInt(companyId));
+    res.json(rows.map(r => r.journal_name));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Get journal names with counts & mappings for consolidation
+router.get('/journal-mappings', (req, res) => {
+  try {
+    const { companyId } = req.query;
+    if (!companyId) return res.status(400).json({ error: 'companyId required' });
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    
+    // Get unique journal names directly from items to see what currently exists
+    const journals = db.prepare(`
+      SELECT journal_name, COUNT(*) as count 
+      FROM journal_items 
+      WHERE company_id = ? AND journal_name IS NOT NULL AND journal_name != ''
+      GROUP BY journal_name
+      ORDER BY journal_name
+    `).all(parseInt(companyId));
+    
+    // Get stored mappings
+    const mappings = db.prepare('SELECT * FROM journal_name_mappings WHERE company_id = ?').all(parseInt(companyId));
+    
+    res.json({ journals, mappings });
+  } catch (err) { 
+    console.error('journal-mappings error:', err);
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
+// Perform manual journal name merge
+router.post('/journal-mappings/merge', (req, res) => {
+  try {
+    const { companyId, sourceNames, targetName } = req.body;
+    if (!companyId || !sourceNames || !sourceNames.length || !targetName) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    
+    const insertMappingStmt = db.prepare(`
+      INSERT OR REPLACE INTO journal_name_mappings (company_id, original_name, mapped_name)
+      VALUES (?, ?, ?)
+    `);
+    
+    // Create params for the IN clause
+    const placeholders = sourceNames.map(() => '?').join(',');
+    const updateJournalItemsStmt = db.prepare(`
+      UPDATE journal_items
+      SET journal_name = ?
+      WHERE company_id = ? AND journal_name IN (${placeholders})
+    `);
+    
+    const updateAnalyticMappingStmt = db.prepare(`
+      UPDATE analytic_group_mapping
+      SET journal_name = ?
+      WHERE company_id = ? AND journal_name IN (${placeholders})
+    `);
+    
+    db.transaction(() => {
+      // 1. Add mappings so future syncs use the new targetName
+      for (const name of sourceNames) {
+        if (name !== targetName) {
+          insertMappingStmt.run(companyId, name, targetName);
+        }
+      }
+      
+      // 2. Update existing journal items
+      const updateParams = [targetName, companyId, ...sourceNames];
+      updateJournalItemsStmt.run(...updateParams);
+      
+      // 3. Update existing analytic mapping journals
+      updateAnalyticMappingStmt.run(...updateParams);
+    })();
+    
+    // Flush cache to ensure dashboard/reports pick up the changes
+    const CacheService = require('../services/cache');
+    CacheService.flush();
+    
+    res.json({ success: true, targetName });
+  } catch (err) { 
+    console.error('Merge journals error:', err);
+    res.status(500).json({ error: err.message }); 
+  }
+});
 // Detailed trial balance by partner
 router.get('/reports/detailed-trial-balance', (req, res) => {
   try {
@@ -886,6 +980,369 @@ router.get('/journal-items', (req, res) => {
   res.json({ items, total: total.count, accountTypes: accountTypes.map(a => a.account_type), analyticAccounts: analyticAccounts.map(a => a.analytic_account) });
 });
 
+// ===== VAT REPORT =====
+router.get('/vat-report', (req, res) => {
+  try {
+    const db = getDb();
+    const companyIds = parseCompanyIds(req.query);
+    const { year, period } = req.query; // period: monthly | quarterly | annual
+
+    if (!companyIds?.length || !year) {
+      return res.status(400).json({ error: 'companyIds and year are required' });
+    }
+
+    const coPlaceholders = companyIds.map((_, i) => `@c${i}`).join(',');
+    const params = {};
+    companyIds.forEach((id, i) => { params[`c${i}`] = id; });
+    params.yearStart = `${year}-01-01`;
+    params.yearEnd = `${year}-12-31`;
+
+    // Query all tax-related journal items for the selected companies and year
+    // We only want posted entries during the year, excluding closing/opening entries and draft records
+    const taxItems = db.prepare(`
+      SELECT ji.company_id, c.name as company_name,
+             ji.account_code, ji.account_name, ji.debit, ji.credit, ji.date, ji.period,
+             ji.partner_name, ji.move_name, ji.move_ref as ref, ji.label
+      FROM journal_items ji
+      JOIN companies c ON c.id = ji.company_id
+      WHERE ji.company_id IN (${coPlaceholders})
+        AND ji.date >= @yearStart AND ji.date <= @yearEnd
+        AND ji.move_state = 'posted'
+        AND (ji.move_name IS NULL OR (ji.move_name NOT LIKE 'CLOSING/%' AND ji.move_name NOT LIKE '%OPN%'))
+        AND (ji.account_name LIKE '%مدخلات%' OR ji.account_name LIKE '%مخرجات%')
+        AND ji.account_name LIKE '%ضريب%'
+      ORDER BY ji.date
+    `).all(params);
+
+    // Classify: input VAT (مدخلات) vs output VAT (مخرجات)
+    const periodMode = period || 'monthly';
+    const periodsMap = {};
+
+    for (const item of taxItems) {
+      let periodKey;
+      const month = item.date?.substring(0, 7) || ''; // YYYY-MM
+      const monthNum = parseInt(item.date?.substring(5, 7) || '1');
+
+      if (periodMode === 'monthly') {
+        periodKey = month;
+      } else if (periodMode === 'quarterly') {
+        const q = Math.ceil(monthNum / 3);
+        periodKey = `${year}-Q${q}`;
+      } else {
+        periodKey = year;
+      }
+
+      if (!periodsMap[periodKey]) {
+        periodsMap[periodKey] = { period: periodKey, inputVAT: 0, outputVAT: 0, items: [] };
+      }
+
+      const p = periodsMap[periodKey];
+      const accName = (item.account_name || '').trim();
+      const isInput = accName.includes('مدخلات');
+      const isOutput = accName.includes('مخرجات');
+
+      // Only process valid Input/Output accounts
+      if (isInput || isOutput) {
+        const type = isInput ? 'input' : 'output';
+        const amount = isInput ? ((item.debit || 0) - (item.credit || 0)) : ((item.credit || 0) - (item.debit || 0));
+
+        if (isInput) p.inputVAT += amount;
+        else p.outputVAT += amount;
+
+        // Add to details
+        p.items.push({
+          date: item.date,
+          company: item.company_name,
+          account: item.account_name,
+          type: type,
+          amount: amount,
+          journalEntry: item.move_name,
+          partner: item.partner_name || '',
+          label: item.label || item.ref || ''
+        });
+      }
+    }
+
+    // Build sorted periods array
+    const periods = Object.values(periodsMap).sort((a, b) => a.period.localeCompare(b.period));
+
+    // Compute net for each period
+    periods.forEach(p => {
+      p.netVAT = p.outputVAT - p.inputVAT;
+      p.inputVAT = Math.round(p.inputVAT * 100) / 100;
+      p.outputVAT = Math.round(p.outputVAT * 100) / 100;
+      p.netVAT = Math.round(p.netVAT * 100) / 100;
+      p.items.sort((a, b) => (a.date > b.date ? 1 : -1));
+    });
+
+    // Summary
+    const totalInput = periods.reduce((s, p) => s + p.inputVAT, 0);
+    const totalOutput = periods.reduce((s, p) => s + p.outputVAT, 0);
+    const totalNet = periods.reduce((s, p) => s + p.netVAT, 0);
+
+    // Per-company breakdown
+    const byCompany = {};
+    for (const item of taxItems) {
+      const cid = item.company_id;
+      if (!byCompany[cid]) byCompany[cid] = { companyId: cid, companyName: item.company_name, inputVAT: 0, outputVAT: 0 };
+      const accName = (item.account_name || '').trim();
+      if (accName.includes('مدخلات')) {
+        byCompany[cid].inputVAT += (item.debit || 0) - (item.credit || 0);
+      } else if (accName.includes('مخرجات')) {
+        byCompany[cid].outputVAT += (item.credit || 0) - (item.debit || 0);
+      }
+    }
+    const companies = Object.values(byCompany).map(c => ({
+      ...c,
+      inputVAT: Math.round(c.inputVAT * 100) / 100,
+      outputVAT: Math.round(c.outputVAT * 100) / 100,
+      netVAT: Math.round((c.outputVAT - c.inputVAT) * 100) / 100
+    }));
+
+    res.json({
+      year,
+      periodMode,
+      periods,
+      companies,
+      summary: {
+        totalInput: Math.round(totalInput * 100) / 100,
+        totalOutput: Math.round(totalOutput * 100) / 100,
+        totalNet: Math.round(totalNet * 100) / 100
+      }
+    });
+  } catch (err) {
+    console.error('VAT report error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== TAX REPORT BUILDER (CUSTOM CONFIG) =====
+
+router.get('/tax-report-config/:companyId', (req, res) => {
+  try {
+    const companyId = parseInt(req.params.companyId);
+    if (isNaN(companyId)) return res.status(400).json({ error: 'Invalid company ID' });
+    const db = getDb();
+    
+    // Fetch configuration
+    const config = db.prepare('SELECT * FROM tax_report_config WHERE company_id = ?').get(companyId);
+    
+    let parsedConfig = { inputAccounts: [], outputAccounts: [], excludedJournals: [], excludedMoveNames: [] };
+    if (config) {
+      try {
+        parsedConfig.inputAccounts = JSON.parse(config.input_accounts || '[]');
+        parsedConfig.outputAccounts = JSON.parse(config.output_accounts || '[]');
+        parsedConfig.excludedJournals = JSON.parse(config.excluded_journals || '[]');
+        parsedConfig.excludedMoveNames = JSON.parse(config.excluded_move_names || '[]');
+      } catch (e) {
+        console.error('Error parsing tax report config JSON', e);
+      }
+    }
+
+    // Fetch options for the builder
+    const vatAccounts = db.prepare(`
+      SELECT DISTINCT account_code, account_name 
+      FROM journal_items 
+      WHERE company_id = ? AND account_name LIKE '%ضريب%'
+      ORDER BY account_code
+    `).all(companyId);
+    
+    const journals = db.prepare(`
+      SELECT DISTINCT journal_name 
+      FROM journal_items 
+      WHERE company_id = ? AND account_name LIKE '%ضريب%' AND journal_name IS NOT NULL AND journal_name != ''
+      ORDER BY journal_name
+    `).all(companyId);
+
+    const moveNames = db.prepare(`
+      SELECT move_name, 
+             MAX(date) as date,
+             MAX(journal_name) as journal,
+             SUM(ABS(debit) + ABS(credit)) as total_vat,
+             MAX(label) as label
+      FROM journal_items 
+      WHERE company_id = ? AND account_name LIKE '%ضريب%' AND move_name IS NOT NULL AND move_name != ''
+      GROUP BY move_name
+      ORDER BY total_vat DESC, date DESC
+    `).all(companyId);
+
+    res.json({
+      config: parsedConfig,
+      options: {
+        vatAccounts,
+        journals: journals.map(j => j.journal_name),
+        moveNames
+      }
+    });
+  } catch (err) {
+    console.error('Get tax config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/tax-report-config', (req, res) => {
+  try {
+    const { companyId, inputAccounts, outputAccounts, excludedJournals, excludedMoveNames } = req.body;
+    if (!companyId) return res.status(400).json({ error: 'Company ID required' });
+    
+    const db = getDb();
+    const stmt = db.prepare(`
+      INSERT INTO tax_report_config (company_id, input_accounts, output_accounts, excluded_journals, excluded_move_names)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(company_id) DO UPDATE SET 
+        input_accounts = excluded.input_accounts,
+        output_accounts = excluded.output_accounts,
+        excluded_journals = excluded.excluded_journals,
+        excluded_move_names = excluded.excluded_move_names
+    `);
+    
+    stmt.run(
+      parseInt(companyId),
+      JSON.stringify(inputAccounts || []),
+      JSON.stringify(outputAccounts || []),
+      JSON.stringify(excludedJournals || []),
+      JSON.stringify(excludedMoveNames || [])
+    );
+    
+    res.json({ success: true, message: 'Tax report configuration saved successfully' });
+  } catch (err) {
+    console.error('Save tax config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/tax-report-custom', (req, res) => {
+  try {
+    const { companyId, year, period, inputAccounts, outputAccounts, excludedJournals, excludedMoveNames } = req.body;
+    if (!companyId || !year) return res.status(400).json({ error: 'Missing parameters' });
+    
+    const db = getDb();
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    
+    // Default to 'ضريب' if no specific accounts selected
+    const allExpectedAccounts = [...(inputAccounts || []), ...(outputAccounts || [])];
+    const hasSpecificAccounts = allExpectedAccounts.length > 0;
+    
+    let query = `
+      SELECT ji.company_id, c.name as company_name,
+             ji.account_code, ji.account_name, ji.debit, ji.credit, ji.date, ji.period,
+             ji.partner_name, ji.move_name, ji.move_ref as ref, ji.label, ji.journal_name, ji.journal_type
+      FROM journal_items ji
+      JOIN companies c ON c.id = ji.company_id
+      WHERE ji.company_id = ?
+        AND ji.date >= ? AND ji.date <= ?
+        AND ji.move_state = 'posted'
+        AND ji.journal_type IN ('sale', 'purchase')
+    `;
+    
+    const params = [parseInt(companyId), yearStart, yearEnd];
+    
+    if (hasSpecificAccounts) {
+      const placeholders = allExpectedAccounts.map(() => '?').join(',');
+      query += ` AND ji.account_name IN (${placeholders})`;
+      allExpectedAccounts.forEach(acc => params.push(acc));
+    } else {
+      query += ` AND ji.account_name LIKE '%ضريب%'`;
+    }
+
+    query += ` ORDER BY ji.date`;
+    
+    const taxItems = db.prepare(query).all(params);
+    
+    // Grouping
+    const periodMode = period || 'monthly';
+    const periodsMap = {};
+    
+    for (const item of taxItems) {
+      const monthNum = parseInt(item.date?.substring(5, 7) || '1');
+      let periodKey = year;
+      if (periodMode === 'monthly') periodKey = item.date?.substring(0, 7) || '';
+      else if (periodMode === 'quarterly') periodKey = `${year}-Q${Math.ceil(monthNum / 3)}`;
+      
+      if (!periodsMap[periodKey]) {
+        periodsMap[periodKey] = { 
+          period: periodKey, 
+          inputBase: 0, inputRefund: 0, inputVAT: 0, 
+          outputBase: 0, outputRefund: 0, outputVAT: 0, 
+          items: [] 
+        };
+      }
+      
+      const p = periodsMap[periodKey];
+      const accName = (item.account_name || '').trim();
+      
+      const isInput = item.journal_type === 'purchase';
+      const isOutput = item.journal_type === 'sale';
+
+      if (hasSpecificAccounts) {
+        // Enforce exact matching per side
+        if (isInput && !(inputAccounts || []).includes(accName)) continue;
+        if (isOutput && !(outputAccounts || []).includes(accName)) continue;
+      }
+
+      const type = isInput ? 'input' : 'output';
+      
+      let baseAmount = 0;
+      let refundAmount = 0;
+      
+      if (isOutput) {
+        baseAmount = item.credit || 0;
+        refundAmount = item.debit || 0;
+      } else {
+        baseAmount = item.debit || 0;
+        refundAmount = item.credit || 0;
+      }
+      
+      const netAmount = baseAmount - refundAmount;
+      
+      if (isInput) {
+        p.inputBase += baseAmount;
+        p.inputRefund += refundAmount;
+        p.inputVAT += netAmount;
+      } else {
+        p.outputBase += baseAmount;
+        p.outputRefund += refundAmount;
+        p.outputVAT += netAmount;
+      }
+      
+      p.items.push({ 
+        date: item.date, company: item.company_name, account: item.account_name, 
+        type, baseAmount, refundAmount, netAmount,
+        journalEntry: item.move_name, partner: item.partner_name || '', label: item.label || '' 
+      });
+    }
+    
+    const periodsArr = Object.values(periodsMap).sort((a,b) => a.period.localeCompare(b.period));
+    periodsArr.forEach(p => {
+      p.netVAT = Math.round((p.outputVAT - p.inputVAT)*100)/100;
+      p.inputVAT = Math.round(p.inputVAT*100)/100;
+      p.outputVAT = Math.round(p.outputVAT*100)/100;
+      p.inputBase = Math.round(p.inputBase*100)/100;
+      p.inputRefund = Math.round(p.inputRefund*100)/100;
+      p.outputBase = Math.round(p.outputBase*100)/100;
+      p.outputRefund = Math.round(p.outputRefund*100)/100;
+    });
+    
+    res.json({
+      year, periodMode, periods: periodsArr,
+      summary: {
+        totalInputBase: Math.round(periodsArr.reduce((s,p)=>s+p.inputBase,0)*100)/100,
+        totalInputRefund: Math.round(periodsArr.reduce((s,p)=>s+p.inputRefund,0)*100)/100,
+        totalInput: Math.round(periodsArr.reduce((s,p)=>s+p.inputVAT,0)*100)/100,
+        totalOutputBase: Math.round(periodsArr.reduce((s,p)=>s+p.outputBase,0)*100)/100,
+        totalOutputRefund: Math.round(periodsArr.reduce((s,p)=>s+p.outputRefund,0)*100)/100,
+        totalOutput: Math.round(periodsArr.reduce((s,p)=>s+p.outputVAT,0)*100)/100,
+        totalNet: Math.round(periodsArr.reduce((s,p)=>s+p.netVAT,0)*100)/100
+      }
+    });
+  } catch(err) {
+    console.error('Custom VAT error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
 // ===== PRESENTATION SHARES =====
 
 const crypto = require('crypto');

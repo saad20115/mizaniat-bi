@@ -184,6 +184,7 @@ export async function renderPresentation(container) {
         <div class="bi-tab" data-tab="pivot-cc">📊 تقاطعي - مراكز</div>
         <div class="bi-tab" data-tab="redist">🔄 إعادة التوزيع</div>
         <div class="bi-tab" data-tab="guarantees">🏦 الضمانات البنكية</div>
+        <div class="bi-tab" data-tab="sales">🛍️ المبيعات</div>
       </div>
 
       <!-- Dashboard Body -->
@@ -535,6 +536,7 @@ function renderDashboard(container) {
     case 'pivot-cc': renderPivotCC(body, d); break;
     case 'redist': renderRedistribution(body, d); break;
     case 'guarantees': renderGuarantees(body, d, yrs, yd); break;
+    case 'sales': renderSalesOverview(body, d, yrs); break;
   }
 }
 
@@ -847,7 +849,7 @@ function drawMonthlyBars(canvas, data, color1, color2) {
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.font = 'bold 10px Inter';
       ctx.textAlign = 'left';
-      ctx.fillText(fmt(val), 0, 0);
+      ctx.fillText(new Intl.NumberFormat('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}).format(val), 0, 0);
       ctx.restore();
     }
 
@@ -926,7 +928,7 @@ function drawBarGroup(canvas, data) {
       ctx.lineTo(x, y + barH); ctx.closePath(); ctx.fill();
 
       // Value at end of bar
-      const label = Math.abs(val) >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : Math.abs(val) >= 1e3 ? Math.round(val / 1e3) + 'K' : formatNumber(val, 0);
+      const label = data.exactValues ? new Intl.NumberFormat('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}).format(val) : (Math.abs(val) >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : (Math.abs(val) >= 1e3 ? Math.round(val / 1e3) + 'K' : formatNumber(val, 0)));
       ctx.fillStyle = 'rgba(255,255,255,0.95)';
       ctx.font = 'bold 13px Inter';
       ctx.textAlign = 'left';
@@ -1930,3 +1932,465 @@ async function renderGuarantees(body, d, yrs, yd) {
     body.innerHTML = `<div class="bi-empty" style="color:#ef4444">❌ خطأ: ${err.message}</div>`;
   }
 }
+
+// ===== SALES REPORT TAB =====
+async function renderSalesOverview(body, d, yrs) {
+  const selectedYrs = d._selectedYrs || [];
+  const selectedCos = d._selectedCos || [];
+  
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+      <h2 style="margin:0;color:rgba(255,255,255,0.85);font-size:1.3rem;">🛍️ لوحة التقرير العام للمبيعات — ${selectedYrs.join(', ') || 'الكل'}</h2>
+    </div>
+    <div id="sales-content"><div class="bi-empty">⏳ جاري تحميل بيانات المبيعات الموحدة...</div></div>
+  `;
+
+  try {
+    const fromInput = document.getElementById('date-from') ? document.getElementById('date-from').value : '';
+    const toInput = document.getElementById('date-to') ? document.getElementById('date-to').value : '';
+    
+    let dateFrom = fromInput;
+    let dateTo = toInput;
+    
+    if (!dateFrom && !dateTo && selectedYrs.length > 0) {
+      dateFrom = `${Math.min(...selectedYrs)}-01-01`;
+      dateTo = `${Math.max(...selectedYrs)}-12-31`;
+    }
+    
+    const params = { limit: 50000 };
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
+    if (selectedCos.length > 0) params.masterCompanyIds = selectedCos.join(',');
+    
+    const data = await api.sales.getInvoices(params);
+    
+    // Aggregation logic
+    let totalSales = 0;
+    let totalUntaxed = 0;
+    let totalTax = 0;
+    let totalPaid = 0;
+    let totalRem = 0;
+    let invCount = 0;
+    let totalRefunds = 0;
+    const refundsList = [];
+
+    const byCompany = {};
+    const byMonth = new Array(12).fill(0);
+    const byPartner = {};
+    
+    (data.items || []).forEach(inv => {
+      // Exclude draft invoices per user request
+      if (inv.state === 'draft') return;
+      invCount++;
+
+      const amt = parseFloat(inv.amount_total) || 0;
+      let paid = 0;
+      let unt = 0;
+      let moveType = '';
+      try {
+        const p = inv.raw_data ? JSON.parse(inv.raw_data) : {};
+        paid = parseFloat(p.total_paid) || 0;
+        unt = parseFloat(p.amount_untaxed) || 0;
+        moveType = p.move_type || '';
+      } catch(e) {}
+
+      if (moveType === 'Customer Credit Note' || moveType === 'out_refund' || amt < 0) {
+        // Handled in totalRefunds
+      } else {
+        totalSales += amt;
+        totalUntaxed += unt;
+        totalTax += (amt - unt);
+      }
+      totalPaid += paid;
+      
+      if (moveType === 'Customer Credit Note' || moveType === 'out_refund') {
+        totalRefunds += Math.abs(amt);
+        let ref = '';
+        try { if (inv.raw_data) ref = JSON.parse(inv.raw_data).reference || ''; } catch(e){}
+        refundsList.push({
+          name: inv.name || inv.invoice_number || 'بدون رقم',
+          partner: inv.partner_name || 'غير معروف',
+          date: inv.date || '',
+          amount: Math.abs(amt),
+          ref: ref
+        });
+      }
+      
+      const coName = inv.company_name && inv.company_name.trim() !== '' ? inv.company_name : 'أخرى';
+      if (!byCompany[coName]) byCompany[coName] = 0;
+      byCompany[coName] += amt;
+      
+      if (inv.date) {
+        const parts = inv.date.split('-');
+        if (parts.length >= 2) {
+          const m = parseInt(parts[1], 10);
+          if (m >= 1 && m <= 12) byMonth[m - 1] += amt;
+        }
+      }
+      
+      const partner = inv.partner_name && inv.partner_name.trim() !== '' ? inv.partner_name : 'عميل غير معروف';
+      if (!byPartner[partner]) {
+        byPartner[partner] = { name: partner, total: 0, untaxed: 0, tax: 0, paid: 0, rem: 0, refunds: 0 };
+      }
+      if (moveType === 'Customer Credit Note' || moveType === 'out_refund' || amt < 0) {
+        byPartner[partner].refunds += Math.abs(amt);
+      } else {
+        byPartner[partner].total += amt;
+        byPartner[partner].untaxed += unt;
+        byPartner[partner].tax += (amt - unt);
+      }
+      
+      // We assume paid accumulates normally (it might be positive or negative from Odoo based on reconciliation).
+      // If paid is absolute for both invoices and refunds, we just sum it. Usually paid = Math.abs(paid) from API if it's already reconciled.
+      // Actually, from JSON-rpc, we did total_paid: r.amount_total_signed - r.amount_residual_signed.
+      // So paid is inherently negative for refunds if they are paid/reconciled. So summing it works nicely.
+      byPartner[partner].paid += paid;
+      
+      // Calculate remaining mathematically: Gross Sales - Refunds - Net Paid.
+      // Wait, if paid is already negative for refunds, then (total - refunds) is the net invoiced.
+      // If a refund is reconciled, its residual is 0. So paid = -100.
+      // Net paid = sum of positive payments and negative refunds.
+      // So effectively Remaining = byPartner[partner].total - byPartner[partner].refunds - byPartner[partner].paid;
+      byPartner[partner].rem = byPartner[partner].total - byPartner[partner].refunds - byPartner[partner].paid;
+    });
+    
+    totalRem = totalSales - totalRefunds - totalPaid;
+    // Sort all partners by total sales descending
+    const allPartnersArr = Object.values(byPartner).sort((a,b) => b.total - a.total);
+    const topPartnersArr = allPartnersArr.slice(0, 10);
+      
+    // HTML Generation
+    const colRate = totalSales > 0 ? (totalPaid / totalSales * 100) : 0;
+    const remRate = totalSales > 0 ? (totalRem / totalSales * 100) : 0;
+
+    let html = `
+      <style>
+        .skpi-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; margin-bottom: 24px; }
+        .skpi { background: rgba(255,255,255,0.02); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; justify-content: center; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid rgba(255,255,255,0.05); }
+        .skpi:hover { transform: translateY(-4px); box-shadow: 0 12px 24px -8px rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.1); }
+        .skpi-lbl { font-size: 0.95rem; color: rgba(255,255,255,0.6); margin-bottom: 8px; font-weight: 600; display:flex; align-items:center; gap:8px; }
+        .skpi-val { font-size: 1.6rem; font-weight: 800; font-family: var(--font-en); }
+        .skpi-4 { grid-column: span 4; }
+        .skpi-6 { grid-column: span 6; }
+        @media (max-width: 1200px) { .skpi-4 { grid-column: span 6; } }
+        @media (max-width: 768px) { .skpi-4, .skpi-6 { grid-column: span 12; } }
+        
+        .skpi-hero-gross { border-right: 4px solid #10b981; background: linear-gradient(135deg, rgba(16,185,129,0.08) 0%, transparent 100%); }
+        .skpi-hero-refund { border-right: 4px solid #f43f5e; background: linear-gradient(135deg, rgba(244,63,94,0.08) 0%, transparent 100%); }
+        .skpi-hero-net { border-right: 4px solid #3b82f6; background: linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(15,23,42,0.8) 100%); box-shadow: inset 0 0 20px rgba(59,130,246,0.05); }
+        .skpi-hero-net .skpi-val { font-size: 2.2rem; text-shadow: 0 0 20px rgba(59,130,246,0.4); }
+        .skpi-hero-net .skpi-lbl { color: #93c5fd; font-size: 1.1rem; }
+        
+        .skpi-prog-paid { border-top: 3px solid #06b6d4; background: linear-gradient(180deg, rgba(6,182,212,0.05) 0%, transparent 100%); }
+        .skpi-prog-rem { border-top: 3px solid #f59e0b; background: linear-gradient(180deg, rgba(245,158,11,0.05) 0%, transparent 100%); }
+      </style>
+      <div class="skpi-grid">
+        <div class="skpi skpi-4 skpi-hero-gross">
+          <div class="skpi-lbl">🛍️ إجمالي المبيعات المفوترة</div>
+          <div class="skpi-val" style="color:#10b981;">${fmt(totalSales)}</div>
+        </div>
+        <div class="skpi skpi-4 skpi-hero-refund">
+          <div class="skpi-lbl">💸 إشعارات المرتجعات</div>
+          <div class="skpi-val" style="color:#f43f5e;">${fmt(totalRefunds)}</div>
+        </div>
+        <div class="skpi skpi-4 skpi-hero-net">
+          <div class="skpi-lbl">📈 صافي المبيعات</div>
+          <div class="skpi-val" style="color:#60a5fa;">${fmt(totalSales - totalRefunds)}</div>
+        </div>
+
+        <div class="skpi skpi-4">
+          <div class="skpi-lbl">📝 قبل الضريبة</div>
+          <div class="skpi-val" style="color:#8b5cf6;">${fmt(totalUntaxed)}</div>
+        </div>
+        <div class="skpi skpi-4">
+          <div class="skpi-lbl">⚖️ قيمة الضريبة</div>
+          <div class="skpi-val" style="color:#f43f5e;">${fmt(totalTax)}</div>
+        </div>
+        <div class="skpi skpi-4">
+          <div class="skpi-lbl">🧾 عدد الفواتير الإجمالي</div>
+          <div class="skpi-val" style="color:#a78bfa;">${fmt(invCount)}</div>
+        </div>
+
+        <div class="skpi skpi-6 skpi-prog-paid">
+          <div class="skpi-lbl">✅ إجمالي المحصّل</div>
+          <div class="skpi-val" style="color:#06b6d4;font-size:1.8rem;">${fmt(totalPaid)}</div>
+          <div style="margin-top:16px;display:flex;align-items:center;gap:16px;">
+            <div style="flex:1;height:8px;background:rgba(0,0,0,0.4);border-radius:4px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.5);">
+              <div style="width:${colRate}%;height:100%;background:linear-gradient(90deg, #0891b2, #22d3ee);border-radius:4px;box-shadow:0 0 12px #06b6d4;"></div>
+            </div>
+            <span style="color:#22d3ee;font-size:1.05rem;font-weight:700;"><span style="font-family:var(--font-en);">${fmtP(colRate)}</span></span>
+          </div>
+        </div>
+        <div class="skpi skpi-6 skpi-prog-rem">
+          <div class="skpi-lbl">⏳ المتبقي للتحصيل</div>
+          <div class="skpi-val" style="color:#f59e0b;font-size:1.8rem;">${fmt(Math.max(0, totalRem))}</div>
+          <div style="margin-top:16px;display:flex;align-items:center;gap:16px;">
+            <div style="flex:1;height:8px;background:rgba(0,0,0,0.4);border-radius:4px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.5);">
+              <div style="width:${Math.max(0, remRate)}%;height:100%;background:linear-gradient(90deg, #d97706, #fbbf24);border-radius:4px;box-shadow:0 0 12px #f59e0b;"></div>
+            </div>
+            <span style="color:#fbbf24;font-size:1.05rem;font-weight:700;"><span style="font-family:var(--font-en);">${fmtP(Math.max(0, remRate))}</span></span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="bi-charts">
+        <div class="bi-card">
+          <div class="bi-card-title">📈 حجم المبيعات الشهرية</div>
+          <canvas id="ch-sales-monthly" height="260"></canvas>
+        </div>
+        <div class="bi-card">
+          <div class="bi-card-title">🏢 مساهمة الشركات في المبيعات</div>
+          <canvas id="ch-sales-companies" height="260"></canvas>
+        </div>
+      </div>
+      
+      <div class="bi-card bi-full" style="margin-top:20px;">
+        <div class="bi-card-title">📊 أهم 10 عملاء (حجم المبيعات)</div>
+        <canvas id="ch-sales-partners" height="120"></canvas>
+      </div>
+      
+      <div class="bi-card bi-full" style="margin-top:20px;">
+        <div class="bi-card-title" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;">
+          <div style="margin:0;">🏆 تفاصيل جميع العملاء</div>
+          <input type="text" id="sales-partner-search" placeholder="🔍 ابحث عن عميل..." style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:#fff;width:300px;font-family:var(--font-ar);outline:none;">
+        </div>
+        <div style="overflow-x:auto;max-height:500px;">
+          <table class="bi-table">
+            <thead style="position:sticky;top:0;background:#0c122f;z-index:10;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
+              <tr>
+                <th style="width:40px;">#</th>
+                <th style="text-align:right;cursor:pointer;user-select:none;" onclick="salesTableSort('name')">اسم العميل ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('untaxed')">قبل الضريبة ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('tax')">الضريبة ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('total')">الإجمالي ⇅</th>
+                <th class="n" style="color:#ef4444;cursor:pointer;user-select:none;" onclick="salesTableSort('refunds')">المرتجعات ⇅</th>
+                <th class="n" style="color:#3b82f6;cursor:pointer;user-select:none;" onclick="salesTableSort('net')">صافي المبيعات ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('paid')">المحصّل ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('rem')">المتبقي ⇅</th>
+                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('share')">نسبة الشراء ⇅</th>
+              </tr>
+            </thead>
+            <tbody id="sales-partner-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot id="sales-partner-tfoot" style="position:sticky;bottom:-1px;background:#0c122f;z-index:10;box-shadow:0 -4px 6px -1px rgba(0,0,0,0.4);">
+            </tfoot>
+          </table>
+        </div>
+      </div>
+      
+      <div class="bi-card bi-full" style="margin-top:20px; border:1px solid rgba(239, 68, 68, 0.2);">
+        <div class="bi-card-title" style="color:#ef4444;">💸 تفاصيل الإشعارات المرتجعة المخصومة</div>
+        <div style="overflow-x:auto;max-height:400px;">
+          <table class="bi-table">
+            <thead style="position:sticky;top:0;background:#1e1424;z-index:10;box-shadow:0 4px 6px -1px rgba(0,0,0,0.2);">
+              <tr>
+                <th style="width:40px;color:#fca5a5;">#</th>
+                <th style="text-align:right;color:#fca5a5;">الإشعار</th>
+                <th style="text-align:right;color:#fca5a5;">التاريخ</th>
+                <th style="text-align:right;color:#fca5a5;">العميل</th>
+                <th style="text-align:right;color:#fca5a5;">الفاتورة المرتبطة</th>
+                <th class="n" style="color:#fca5a5;">المبلغ</th>
+              </tr>
+            </thead>
+            <tbody id="sales-refunds-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+            <tfoot id="sales-refunds-tfoot" style="position:sticky;bottom:-1px;background:#1e1424;z-index:10;box-shadow:0 -4px 6px -1px rgba(0,0,0,0.4);">
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    const contentBox = body.querySelector('#sales-content');
+    contentBox.innerHTML = html;
+    
+    requestAnimationFrame(() => {
+      // Monthly Bars
+      drawMonthlyBars(document.getElementById('ch-sales-monthly'), byMonth, '#10b981', '#34d399');
+      
+      // Companies Donut chart
+      const coNames = Object.keys(byCompany);
+      const coVals = Object.values(byCompany);
+      if (coVals.length > 0) {
+        drawDonut(document.getElementById('ch-sales-companies'), {
+          labels: coNames,
+          values: coVals,
+          colors: COLORS
+        });
+      }
+      // Companies table below donut (keep as reference but hidden)
+      const _unused = null;
+      if (false) {
+        const coGrand = coVals.reduce((s,v)=>s+v,0);
+        const coSorted = coNames.map((n,i)=>({name:n,val:coVals[i]})).sort((a,b)=>b.val-a.val);
+        const fmtEx3 = v => new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+        const coRows = coSorted.map((c,i) =>
+          '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
+          '<td style="color:rgba(255,255,255,0.4);">' + (i+1) + '</td>' +
+          '<td style="font-weight:700;">' + c.name + '</td>' +
+          '<td class="n" style="color:#10b981;font-weight:700;">' + fmtEx3(c.val) + '</td>' +
+          '<td class="n"><div style="display:flex;align-items:center;gap:8px;">' +
+            '<div style="flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;min-width:60px;">' +
+              '<div style="width:' + (coGrand>0?(c.val/coGrand*100).toFixed(1):0) + '%;height:100%;background:' + COLORS[i%COLORS.length] + ';border-radius:3px;"></div>' +
+            '</div>' +
+            '<span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">' + (coGrand>0?(c.val/coGrand*100).toFixed(1):0) + '%</span>' +
+          '</div></td>' +
+          '</tr>'
+        ).join('');
+        coTblContainer.innerHTML =
+          '<table class="bi-table" style="font-size:0.9rem;"><thead style="position:sticky;top:0;background:var(--bg-card);z-index:10;"><tr>' +
+          '<th style="width:30px;">#</th>' +
+          '<th style="text-align:right;">الشركة</th>' +
+          '<th class="n">إجمالي المبيعات</th>' +
+          '<th class="n">النسبة</th>' +
+          '</tr></thead><tbody>' +
+          coRows +
+          '<tr style="border-top:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);font-weight:700;">' +
+          '<td>Σ</td><td style="color:#fff;">المجموع</td>' +
+          '<td class="n" style="color:#10b981;">' + fmtEx3(coGrand) + '</td>' +
+          '<td class="n" style="color:rgba(255,255,255,0.6);">100%</td>' +
+          '</tr></tbody></table>';
+      }
+      
+      // Top Partners Horizontal Bar chart
+      if (topPartnersArr.length > 0) {
+        const pNames = topPartnersArr.map(p => p.name.length>25 ? p.name.substring(0,25) + '..' : p.name);
+        const pVals = topPartnersArr.map(p => p.total);
+        const pMax = Math.max(...pVals, 1);
+        
+        drawBarGroup(document.getElementById('ch-sales-partners'), {
+          groups: pVals.map(v => [v]),
+          max: pMax,
+          colors: ['#3b82f6'],
+          labels: pNames,
+          exactValues: true
+        });
+      }
+      
+      // Refunds render handled by renderRefunds()
+
+      // Render interactive customers table
+      const tbody = document.getElementById('sales-partner-tbody');
+      const searchBox = document.getElementById('sales-partner-search');
+      
+      let _partnerSortCol = 'total', _partnerSortDir = -1;
+      let _refundSortCol = 'date', _refundSortDir = -1;
+      const fmtEx = v => new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+
+      window.salesTableSort = (col) => {
+        if (_partnerSortCol === col) _partnerSortDir *= -1;
+        else { _partnerSortCol = col; _partnerSortDir = -1; }
+        renderTable(document.getElementById('sales-partner-search')?.value || '');
+      };
+
+      window.refundsTableSort = (col) => {
+        if (_refundSortCol === col) _refundSortDir *= -1;
+        else { _refundSortCol = col; _refundSortDir = -1; }
+        renderRefunds();
+      };
+
+      const renderRefunds = () => {
+        const refundsTbody = document.getElementById('sales-refunds-tbody');
+        if (!refundsTbody) return;
+        if (refundsList.length === 0) {
+          refundsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:rgba(255,255,255,0.3);">لا توجد إشعارات أو مرتجعات</td></tr>';
+          return;
+        }
+        let rSorted = [...refundsList];
+        rSorted.sort((a,b) => {
+          const av = a[_refundSortCol] ?? 0;
+          const bv = b[_refundSortCol] ?? 0;
+          if (['name','date','partner'].includes(_refundSortCol)) return _refundSortDir * String(av).localeCompare(String(bv), 'ar');
+          return _refundSortDir * (Number(av) - Number(bv));
+        });
+        const totAmt = rSorted.reduce((s,r)=>s+r.amount,0);
+        const totRow = '<tr style="border-top:2px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);font-weight:700;">' +
+          '<td style="color:rgba(255,255,255,0.4);">Σ</td>' +
+          '<td style="color:#fca5a5;">المجموع (' + rSorted.length + ')</td>' +
+          '<td></td><td></td><td></td>' +
+          '<td class="n" style="color:#ef4444;font-weight:bold;">' + fmtEx(totAmt) + '</td>' +
+          '</tr>';
+        document.getElementById('sales-refunds-tfoot').innerHTML = totRow;
+        refundsTbody.innerHTML = rSorted.map((r, i) =>
+          '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+          '<td style="font-family:var(--font-en);color:rgba(252,165,165,0.7);">' + (i+1) + '</td>' +
+          '<td style="font-family:var(--font-en);">' + r.name + '</td>' +
+          '<td style="font-family:var(--font-en);">' + r.date + '</td>' +
+          '<td style="font-weight:700;">' + r.partner + '</td>' +
+          '<td style="font-family:var(--font-en);color:#93c5fd;">' + (r.ref || '—') + '</td>' +
+          '<td class="n" style="color:#ef4444;font-weight:bold;">' + fmtEx(r.amount) + '</td>' +
+          '</tr>'
+        ).join('');
+      };
+
+      const renderTable = (query) => {
+        let pSorted = [...allPartnersArr];
+        pSorted.sort((a, b) => {
+          const av = _partnerSortCol === 'name' ? a.name : (_partnerSortCol === 'net' ? ((a.total||0) - (a.refunds||0)) : (a[_partnerSortCol] || 0));
+          const bv = _partnerSortCol === 'name' ? b.name : (_partnerSortCol === 'net' ? ((b.total||0) - (b.refunds||0)) : (b[_partnerSortCol] || 0));
+          if (_partnerSortCol === 'name') return _partnerSortDir * String(av).localeCompare(String(bv), 'ar');
+          return _partnerSortDir * (Number(av) - Number(bv));
+        });
+        let filtered = query ? pSorted.filter(p => p.name.toLowerCase().includes(query.toLowerCase())) : pSorted;
+        if (filtered.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:rgba(255,255,255,0.4);">لا توجد نتائج مطابقة</td></tr>';
+          return;
+        }
+        const totUntaxed = filtered.reduce((s,p)=>s+p.untaxed,0);
+        const totTax = filtered.reduce((s,p)=>s+p.tax,0);
+        const totTotal = filtered.reduce((s,p)=>s+p.total,0);
+        const totRefunds = filtered.reduce((s,p)=>s+p.refunds,0);
+        const totNet = totTotal - totRefunds;
+        const totPaid = filtered.reduce((s,p)=>s+p.paid,0);
+        const totRem = filtered.reduce((s,p)=>s+Math.max(0,p.rem),0);
+        const totRow =
+          '<tr style="border-top:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);font-weight:700;">' +
+          '<td style="color:rgba(255,255,255,0.4);text-align:center;">Σ</td>' +
+          '<td style="color:#fff;">المجموع (' + filtered.length + ')</td>' +
+          '<td class="n" style="color:#8b5cf6;">' + fmtEx(totUntaxed) + '</td>' +
+          '<td class="n" style="color:#f43f5e;">' + fmtEx(totTax) + '</td>' +
+          '<td class="n" style="color:#10b981;">' + fmtEx(totTotal) + '</td>' +
+          '<td class="n" style="color:#ef4444;">' + (totRefunds>0?fmtEx(totRefunds):'—') + '</td>' +
+          '<td class="n" style="color:#3b82f6;">' + fmtEx(totNet) + '</td>' +
+          '<td class="n" style="color:#06b6d4;">' + fmtEx(totPaid) + '</td>' +
+          '<td class="n" style="color:#f59e0b;">' + fmtEx(totRem) + '</td>' +
+          '<td class="n" style="color:rgba(255,255,255,0.5);">100%</td>' +
+          '</tr>';
+        document.getElementById('sales-partner-tfoot').innerHTML = totRow;
+        tbody.innerHTML = filtered.map((p, i) => {
+          const pNet = p.total - p.refunds;
+          return '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+          '<td style="font-family:var(--font-en);color:rgba(255,255,255,0.4);">' + (i+1) + '</td>' +
+          '<td style="font-weight:700;color:var(--text-white);">' + p.name + '</td>' +
+          '<td class="n" style="color:#8b5cf6;">' + fmtEx(p.untaxed) + '</td>' +
+          '<td class="n" style="color:#f43f5e;">' + fmtEx(p.tax) + '</td>' +
+          '<td class="n" style="color:#10b981;font-weight:700;">' + fmtEx(p.total) + '</td>' +
+          '<td class="n" style="color:#ef4444;font-weight:bold;">' + (p.refunds>0?fmtEx(p.refunds):'—') + '</td>' +
+          '<td class="n" style="color:#3b82f6;font-weight:700;">' + fmtEx(pNet) + '</td>' +
+          '<td class="n" style="color:#06b6d4;">' + fmtEx(p.paid) + '</td>' +
+          '<td class="n" style="color:#f59e0b;">' + fmtEx(Math.max(0,p.rem)) + '</td>' +
+          '<td class="n" style="color:rgba(255,255,255,0.5);">' + (totalSales>0?fmtP(p.total/totalSales*100):'0%') + '</td>' +
+          '</tr>';
+        }).join('');
+      };
+
+      // Initial render
+      renderTable('');
+      renderRefunds();
+
+      // Search event
+      if (searchBox) {
+        searchBox.addEventListener('input', (e) => {
+          renderTable(e.target.value);
+        });
+      }
+    });
+    
+  } catch(err) {
+    console.error('Sales overview error:', err);
+    body.querySelector('#sales-content').innerHTML = `<div class="bi-empty" style="color:#ef4444;">❌ خطأ في عرض بيانات المبيعات: ${err.message}</div>`;
+  }
+}
+

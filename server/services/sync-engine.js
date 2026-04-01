@@ -100,6 +100,12 @@ class SyncEngine {
         }
       }
       
+      this._journalMappings = {};
+      const mappings = this.db.prepare('SELECT original_name, mapped_name FROM journal_name_mappings WHERE company_id = ?').all(companyId);
+      for (const m of mappings) {
+        this._journalMappings[m.original_name] = m.mapped_name;
+      }
+      
       this._progress[companyId] = { status: 'processing', fetched: totalItems, inserted: 0, total: totalItems, phase: `تم جلب ${totalItems} سجل. جاري المعالجة...` };
 
       // Process in chunks of 500
@@ -284,7 +290,15 @@ class SyncEngine {
     const partnerName = extractName(item.partner_id) || item.partner_name || '';
 
     // --- Journal ---
-    const journalName = extractName(item.journal_id) || item.journal_name || item.journal || '';
+    let journalName = String(extractName(item.journal_id) || item.journal_name || item.journal || '').trim();
+    // Remove unicode replacement characters if any garbled text happened
+    journalName = journalName.replace(/\uFFFD/g, '');
+    
+    // Apply manual mappings if any
+    if (this._journalMappings && this._journalMappings[journalName]) {
+      journalName = this._journalMappings[journalName];
+    }
+
 
     // --- Move (entry number) ---
     const moveName = item.move_name || extractName(item.move_id) || item.move || '';
@@ -312,8 +326,12 @@ class SyncEngine {
         });
         analyticAccount = names.join(', ');
       } else {
-        analyticAccount = String(item.analytic_distribution);
+        analyticAccount = String(item.analytic_distribution).trim().replace(/\uFFFD/g, '');
       }
+    }
+    
+    if (analyticAccount) {
+      analyticAccount = analyticAccount.trim().replace(/\uFFFD/g, '');
     }
 
     // --- Company name (for auto-detection) ---

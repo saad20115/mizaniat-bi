@@ -7,8 +7,10 @@ const { seedDemoData } = require('./db/seed-demo');
 const apiRoutes = require('./routes/api');
 const externalRoutes = require('./routes/external-api');
 const authRoutes = require('./routes/auth');
+const salesRoutes = require('./routes/sales');
 const { requireAdmin, requireViewer } = require('./middleware/auth');
 const { startScheduler } = require('./cron/scheduler');
+const { startScheduler: startSalesScheduler } = require('./cron/sales_scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -47,6 +49,7 @@ app.use('/api', (req, res, next) => {
 
 // API routes
 app.use('/api', apiRoutes);
+app.use('/api/sales', salesRoutes);
 app.use('/api/external', externalRoutes);
 
 // Serve static files from client build
@@ -80,6 +83,7 @@ async function start() {
     
     // Start cron scheduler
     startScheduler();
+    startSalesScheduler();
 
     // Auto-sync on startup if database is empty (fresh deploy)
     try {

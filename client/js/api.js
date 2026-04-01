@@ -30,7 +30,7 @@ async function request(endpoint, options = {}) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    throw new Error(err.error || err.message || `HTTP ${res.status}`);
   }
   return res.json();
 }
@@ -67,6 +67,15 @@ export const api = {
   getAnalyticAccounts: (params) => request(`/analytic-accounts?${buildQuery(params)}`),
   getAnalyticGroupMappings: (params) => request(`/analytic-group-mappings?${buildQuery(params)}`),
   saveAnalyticGroupMappings: (data) => request('/analytic-group-mappings', { method: 'POST', body: data }),
+  getCompanyJournalNames: (companyId) => request(`/company-journal-names?companyId=${companyId}`),
+  getJournalMappings: (companyId) => request(`/journal-mappings?companyId=${companyId}`),
+  mergeJournals: (data) => request('/journal-mappings/merge', { method: 'POST', body: data }),
+
+  // VAT Report
+  getVATReport: (params) => request(`/vat-report?${buildQuery(params)}`),
+  getTaxReportConfig: (companyId) => request(`/tax-report-config/${companyId}`),
+  saveTaxReportConfig: (data) => request('/tax-report-config', { method: 'POST', body: data }),
+  generateCustomTaxReport: (data) => request('/tax-report-custom', { method: 'POST', body: data }),
 
   // Presentation
   getPresentationData: (params) => request(`/presentation/data?${buildQuery(params)}`),
@@ -121,8 +130,39 @@ export const api = {
   unreleaseGuarantee: (params) => request(`/guarantees/release?${buildQuery(params)}`, { method: 'DELETE' }),
   getGuaranteeSubItems: (params) => request(`/guarantee-sub-items?${buildQuery(params)}`),
   addGuaranteeSubItem: (data) => request('/guarantee-sub-items', { method: 'POST', body: data }),
-  toggleGuaranteeSubItem: (id, data) => request(`/guarantee-sub-items/${id}`, { method: 'PUT', body: data }),
   deleteGuaranteeSubItem: (id) => request(`/guarantee-sub-items/${id}`, { method: 'DELETE' }),
+
+  // Sales System API
+  sales: {
+    getCompanies: () => request('/sales/companies'),
+    createCompany: (data) => request('/sales/companies', { method: 'POST', body: data }),
+    updateCompany: (id, data) => request(`/sales/companies/${id}`, { method: 'PUT', body: data }),
+    deleteCompany: (id) => request(`/sales/companies/${id}`, { method: 'DELETE' }),
+    
+    getInstances: () => request('/sales/instances'),
+    createInstance: (data) => request('/sales/instances', { method: 'POST', body: data }),
+    updateInstance: (id, data) => request(`/sales/instances/${id}`, { method: 'PUT', body: data }),
+    deleteInstance: (id) => request(`/sales/instances/${id}`, { method: 'DELETE' }),
+    testInstance: (id, companyId) => request(`/sales/instances/${id}/test`, { method: 'POST', body: { company_id: companyId } }),
+    testConnectionDirect: (data) => request('/sales/test-connection', { method: 'POST', body: data }),
+
+    getEliminationRules: () => request('/sales/eliminations'),
+    createEliminationRule: (data) => request('/sales/eliminations', { method: 'POST', body: data }),
+
+    syncCompany: (id) => request(`/sales/sync/company/${id}`, { method: 'POST' }),
+    syncAll: () => request('/sales/sync/all', { method: 'POST' }),
+    getSyncStatus: () => request('/sales/sync/status'),
+    getSyncProgress: (companyId) => request(`/sales/sync/progress/${companyId}`),
+    
+    // Sync schedule and notifications for sales system
+    getSchedule: () => request('/sales/settings/schedule'),
+    updateSchedule: (data) => request('/sales/settings/schedule', { method: 'POST', body: data }),
+    getNotifications: () => request('/sales/notifications'),
+    clearNotifications: () => request('/sales/notifications/clear', { method: 'POST' }),
+
+    // Invoices preview
+    getInvoices: (params) => request('/sales/invoices?' + buildQuery(params)),
+  }
 };
 
 function buildQuery(params) {

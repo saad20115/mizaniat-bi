@@ -1,0 +1,1564 @@
+﻿diff --git a/client/js/api.js b/client/js/api.js
+index a108d6a..fbc7165 100644
+--- a/client/js/api.js
++++ b/client/js/api.js
+@@ -30,7 +30,7 @@ async function request(endpoint, options = {}) {
+ 
+   if (!res.ok) {
+     const err = await res.json().catch(() => ({ error: res.statusText }));
+-    throw new Error(err.error || `HTTP ${res.status}`);
++    throw new Error(err.error || err.message || `HTTP ${res.status}`);
+   }
+   return res.json();
+ }
+@@ -67,6 +67,15 @@ export const api = {
+   getAnalyticAccounts: (params) => request(`/analytic-accounts?${buildQuery(params)}`),
+   getAnalyticGroupMappings: (params) => request(`/analytic-group-mappings?${buildQuery(params)}`),
+   saveAnalyticGroupMappings: (data) => request('/analytic-group-mappings', { method: 'POST', body: data }),
++  getCompanyJournalNames: (companyId) => request(`/company-journal-names?companyId=${companyId}`),
++  getJournalMappings: (companyId) => request(`/journal-mappings?companyId=${companyId}`),
++  mergeJournals: (data) => request('/journal-mappings/merge', { method: 'POST', body: data }),
++
++  // VAT Report
++  getVATReport: (params) => request(`/vat-report?${buildQuery(params)}`),
++  getTaxReportConfig: (companyId) => request(`/tax-report-config/${companyId}`),
++  saveTaxReportConfig: (data) => request('/tax-report-config', { method: 'POST', body: data }),
++  generateCustomTaxReport: (data) => request('/tax-report-custom', { method: 'POST', body: data }),
+ 
+   // Presentation
+   getPresentationData: (params) => request(`/presentation/data?${buildQuery(params)}`),
+@@ -121,8 +130,39 @@ export const api = {
+   unreleaseGuarantee: (params) => request(`/guarantees/release?${buildQuery(params)}`, { method: 'DELETE' }),
+   getGuaranteeSubItems: (params) => request(`/guarantee-sub-items?${buildQuery(params)}`),
+   addGuaranteeSubItem: (data) => request('/guarantee-sub-items', { method: 'POST', body: data }),
+-  toggleGuaranteeSubItem: (id, data) => request(`/guarantee-sub-items/${id}`, { method: 'PUT', body: data }),
+   deleteGuaranteeSubItem: (id) => request(`/guarantee-sub-items/${id}`, { method: 'DELETE' }),
++
++  // Sales System API
++  sales: {
++    getCompanies: () => request('/sales/companies'),
++    createCompany: (data) => request('/sales/companies', { method: 'POST', body: data }),
++    updateCompany: (id, data) => request(`/sales/companies/${id}`, { method: 'PUT', body: data }),
++    deleteCompany: (id) => request(`/sales/companies/${id}`, { method: 'DELETE' }),
++    
++    getInstances: () => request('/sales/instances'),
++    createInstance: (data) => request('/sales/instances', { method: 'POST', body: data }),
++    updateInstance: (id, data) => request(`/sales/instances/${id}`, { method: 'PUT', body: data }),
++    deleteInstance: (id) => request(`/sales/instances/${id}`, { method: 'DELETE' }),
++    testInstance: (id, companyId) => request(`/sales/instances/${id}/test`, { method: 'POST', body: { company_id: companyId } }),
++    testConnectionDirect: (data) => request('/sales/test-connection', { method: 'POST', body: data }),
++
++    getEliminationRules: () => request('/sales/eliminations'),
++    createEliminationRule: (data) => request('/sales/eliminations', { method: 'POST', body: data }),
++
++    syncCompany: (id) => request(`/sales/sync/company/${id}`, { method: 'POST' }),
++    syncAll: () => request('/sales/sync/all', { method: 'POST' }),
++    getSyncStatus: () => request('/sales/sync/status'),
++    getSyncProgress: (companyId) => request(`/sales/sync/progress/${companyId}`),
++    
++    // Sync schedule and notifications for sales system
++    getSchedule: () => request('/sales/settings/schedule'),
++    updateSchedule: (data) => request('/sales/settings/schedule', { method: 'POST', body: data }),
++    getNotifications: () => request('/sales/notifications'),
++    clearNotifications: () => request('/sales/notifications/clear', { method: 'POST' }),
++
++    // Invoices preview
++    getInvoices: (params) => request('/sales/invoices?' + buildQuery(params)),
++  }
+ };
+ 
+ function buildQuery(params) {
+diff --git a/client/js/app.js b/client/js/app.js
+index bf74d74..a483a70 100644
+--- a/client/js/app.js
++++ b/client/js/app.js
+@@ -15,10 +15,14 @@ import { renderTrialBalance } from './pages/trial-balance.js';
+ import { renderDetailedTrialBalance } from './pages/detailed-trial-balance.js';
+ import { renderClosingEntries } from './pages/closing-entries.js';
+ import { renderAnalyticAccounts } from './pages/analytic-accounts.js';
++import { renderJournalMapping } from './pages/journal-mapping.js';
+ import { renderPresentation } from './pages/presentation.js';
+ import { renderAccountStatement } from './pages/account-statement.js';
+ import { renderGuaranteesPage } from './pages/guarantees.js';
+ import { renderApiManager } from './pages/api-manager.js';
++import { renderSalesSettings } from './pages/sales-settings.js';
++import { renderSalesDataPreview } from './pages/sales-data-preview.js';
++import { showTaxReportBuilder } from './pages/tax-report-builder.js';
+ import { showToast } from './utils/ui.js';
+ 
+ // Page router
+@@ -30,6 +34,7 @@ const pages = {
+   'pivot': renderPivotTable,
+   'journal-items': renderJournalItems,
+   'mapping': renderMapping,
++  'journal-mapping': renderJournalMapping,
+   'settings': renderSettings,
+   'data-preview': renderDataPreview,
+   'trial-balance': renderTrialBalance,
+@@ -40,6 +45,9 @@ const pages = {
+   'account-statement': renderAccountStatement,
+   'guarantees': renderGuaranteesPage,
+   'api-manager': renderApiManager,
++  'sales-settings': renderSalesSettings,
++  'sales-data-preview': renderSalesDataPreview,
++  'tax-builder': showTaxReportBuilder,
+ };
+ 
+ async function navigateTo(pageName) {
+diff --git a/client/js/components/sidebar.js b/client/js/components/sidebar.js
+index 42d2f02..acf5dc3 100644
+--- a/client/js/components/sidebar.js
++++ b/client/js/components/sidebar.js
+@@ -12,12 +12,16 @@ const navItems = [
+   { id: 'closing-entries', icon: '≡ا¤ْ', label: '┘é┘è┘ê╪» ╪د┘╪ح┘é┘╪د┘', section: '╪د┘╪ز┘é╪د╪▒┘è╪▒ ╪د┘┘à╪د┘┘è╪ر' },
+   { id: 'pivot', icon: '≡ا¤', label: '╪د┘╪ش╪»╪د┘ê┘ ╪د┘┘à╪ص┘ê╪▒┘è╪ر', section: '╪د┘╪ز╪ص┘┘è┘' },
+   { id: 'presentation', icon: '≡اش', label: '╪╣╪▒╪╢ ╪ز┘é╪»┘è┘à┘è', section: '╪د┘╪ز╪ص┘┘è┘' },
++  { id: 'tax-builder', icon: '≡اد╛', label: '┘à╪╡┘à┘à ╪د┘╪ز┘é╪▒┘è╪▒ ╪د┘╪╢╪▒┘è╪ذ┘è', section: '╪د┘╪ز╪ص┘┘è┘' },
+   { id: 'journal-items', icon: '≡اôï', label: '╪د┘┘é┘è┘ê╪» ╪د┘┘à╪ص╪د╪│╪ذ┘è╪ر', section: '╪د┘╪ز╪ص┘┘è┘' },
+   { id: 'data-preview', icon: '≡اùéي╕', label: '┘à╪╣╪د┘è┘╪ر ╪ذ┘è╪د┘╪د╪ز API', section: '╪د┘╪ز╪ص┘┘è┘' },
++  { id: 'sales-data-preview', icon: '≡اؤْ', label: '┘à╪╣╪د┘è┘╪ر ╪د┘┘à╪ذ┘è╪╣╪د╪ز API', section: '╪د┘╪ز╪ص┘┘è┘' },
+   { id: 'analytic-accounts', icon: '≡اôé', label: '╪د┘╪ص╪│╪د╪ذ╪د╪ز ╪د┘╪ز╪ص┘┘è┘┘è╪ر', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
+   { id: 'mapping', icon: '≡ا¤ù', label: '╪ز┘ê╪ص┘è╪» ╪د┘╪ص╪│╪د╪ذ╪د╪ز', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
++  { id: 'journal-mapping', icon: '≡ا»', label: '╪ز┘ê╪ص┘è╪» ╪د┘┘è┘ê┘à┘è╪د╪ز', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
+   { id: 'viewers-management', icon: '≡اّح', label: '╪ح╪»╪د╪▒╪ر ╪د┘┘à╪┤╪د┘ç╪»┘è┘', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
+   { id: 'settings', icon: 'ظأآي╕', label: '╪ح╪╣╪»╪د╪»╪د╪ز ╪د┘┘╪╕╪د┘à', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
++  { id: 'sales-settings', icon: '≡اؤي╕', label: '╪ح╪╣╪»╪د╪»╪د╪ز ┘╪╕╪د┘à ╪د┘┘à╪ذ┘è╪╣╪د╪ز', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
+   { id: 'api-manager', icon: '≡ا¤î', label: '╪ح╪»╪د╪▒╪ر ╪د┘┘ APIs', section: '╪د┘╪ح╪╣╪»╪د╪»╪د╪ز' },
+ ];
+ 
+diff --git a/client/js/pages/analytic-accounts.js b/client/js/pages/analytic-accounts.js
+index eb50ede..71c85df 100644
+--- a/client/js/pages/analytic-accounts.js
++++ b/client/js/pages/analytic-accounts.js
+@@ -10,6 +10,7 @@ const GROUP_COLORS = [
+ let groups = [];
+ let analyticAccounts = [];
+ let mappings = [];
++let companyJournals = [];
+ 
+ export async function renderAnalyticAccounts(container) {
+   const companies = store.get('companies') || [];
+@@ -216,13 +217,15 @@ async function loadAccounts(container) {
+   el.innerHTML = '<div class="skeleton" style="height:300px;"></div>';
+ 
+   try {
+-    const [accounts, existingMappings] = await Promise.all([
++    const [accounts, existingMappings, journals] = await Promise.all([
+       api.getAnalyticAccounts({ companyId }),
+       api.getAnalyticGroupMappings({ companyId }),
++      api.getCompanyJournalNames(companyId)
+     ]);
+ 
+     analyticAccounts = accounts;
+     mappings = existingMappings;
++    companyJournals = journals || [];
+     
+     renderAccountsTable(container);
+     container.querySelector('#btn-save-mappings').disabled = false;
+@@ -245,9 +248,11 @@ function renderAccountsTable(container) {
+   // Build mapping lookup
+   const mappingLookup = {};
+   const redistLookup = {};
++  const journalLookup = {};
+   for (const m of mappings) {
+     mappingLookup[m.analytic_account] = m.group_id;
+     redistLookup[m.analytic_account] = m.redistributable ? 1 : 0;
++    journalLookup[m.analytic_account] = m.journal_name || '';
+   }
+ 
+   // Group counts
+@@ -258,6 +263,7 @@ function renderAccountsTable(container) {
+   const unmappedCount = analyticAccounts.filter(a => !mappingLookup[a.analytic_account]).length;
+ 
+   const groupOptions = groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
++  const journalOptions = companyJournals.map(j => `<option value="${j}">${j}</option>`).join('');
+ 
+   el.innerHTML = `
+     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
+@@ -285,10 +291,12 @@ function renderAccountsTable(container) {
+       <table class="data-table" style="font-size:0.82rem;">
+         <thead>
+           <tr>
++            <th style="width:40px;text-align:center;"><input type="checkbox" id="check-all-aa" style="cursor:pointer;" title="╪ز╪ص╪»┘è╪» ╪د┘┘â┘" /></th>
+             <th style="width:50px;">#</th>
+             <th style="text-align:right;">╪د┘╪ص╪│╪د╪ذ ╪د┘╪ز╪ص┘┘è┘┘è</th>
+             <th style="width:100px;text-align:center;">╪╣╪»╪» ╪د┘┘é┘è┘ê╪»</th>
+             <th style="width:220px;text-align:center;">╪د┘┘à╪ش┘à┘ê╪╣╪ر</th>
++            <th style="width:160px;text-align:center;">╪د╪│┘à ╪د┘┘è┘ê┘à┘è╪ر</th>
+             <th style="width:140px;text-align:center;">┘é╪د╪ذ┘ ┘╪ح╪╣╪د╪»╪ر ╪د┘╪ز┘ê╪▓┘è╪╣</th>
+           </tr>
+         </thead>
+@@ -296,9 +304,11 @@ function renderAccountsTable(container) {
+           ${analyticAccounts.map((a, i) => {
+             const currentGroup = mappingLookup[a.analytic_account] || '';
+             const currentRedist = redistLookup[a.analytic_account] || 0;
++            const currentJournal = journalLookup[a.analytic_account] || '';
+             const group = groups.find(g => g.id == currentGroup);
+             return `
+               <tr style="${group ? `border-right:3px solid ${group.color};` : ''}">
++                <td style="text-align:center;"><input type="checkbox" class="aa-row-check" value="${a.analytic_account}" style="cursor:pointer;" /></td>
+                 <td style="color:var(--text-muted);font-size:0.75rem;">${i + 1}</td>
+                 <td style="font-weight:500;">${a.analytic_account}</td>
+                 <td style="text-align:center;color:var(--text-muted);">
+@@ -312,6 +322,12 @@ function renderAccountsTable(container) {
+                     ${groupOptions.replace(`value="${currentGroup}"`, `value="${currentGroup}" selected`)}
+                   </select>
+                 </td>
++                <td style="text-align:center;">
++                  <select class="filter-select account-journal-select" data-account="${a.analytic_account}" style="font-size:0.78rem;padding:4px 8px;width:100%;">
++                    <option value="">ظ¤ ╪║┘è╪▒ ┘à╪ص╪»╪» ظ¤</option>
++                    ${journalOptions.replace(`value="${currentJournal}"`, `value="${currentJournal}" selected`)}
++                  </select>
++                </td>
+                 <td style="text-align:center;">
+                   <select class="filter-select account-redist-select" data-account="${a.analytic_account}" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                     <option value="0"${currentRedist ? '' : ' selected'}>┘╪د</option>
+@@ -326,13 +342,42 @@ function renderAccountsTable(container) {
+     </div>
+   `;
+ 
++  // Check All handler
++  const checkAll = el.querySelector('#check-all-aa');
++  const rowChecks = el.querySelectorAll('.aa-row-check');
++  if (checkAll) {
++    checkAll.addEventListener('change', (e) => {
++      rowChecks.forEach(chk => { chk.checked = e.target.checked; });
++    });
++  }
++
+   // Bulk assign buttons
+   el.querySelectorAll('.btn-assign-all').forEach(btn => {
+     btn.addEventListener('click', () => {
+       const groupId = btn.dataset.group;
+-      el.querySelectorAll('.account-group-select').forEach(sel => {
+-        sel.value = groupId;
+-      });
++      let targetRows = Array.from(rowChecks).filter(chk => chk.checked);
++      
++      // If none selected, apply to all
++      if (targetRows.length === 0) {
++        if (!confirm('┘┘à ┘è╪ز┘à ╪ز╪ص╪»┘è╪» ╪ث┘è ╪ص╪│╪د╪ذ╪د╪ز. ┘ç┘ ╪ز╪▒┘è╪» ╪ز╪╖╪ذ┘è┘é ┘ç╪░┘ç ╪د┘┘à╪ش┘à┘ê╪╣╪ر ╪╣┘┘ë ╪ش┘à┘è╪╣ ╪د┘╪ص╪│╪د╪ذ╪د╪ز ┘┘è ╪د┘╪ش╪»┘ê┘╪ا')) {
++          return;
++        }
++        el.querySelectorAll('.account-group-select').forEach(sel => {
++          sel.value = groupId;
++          sel.dispatchEvent(new Event('change'));
++        });
++      } else {
++        const selectedAccounts = targetRows.map(chk => chk.value);
++        el.querySelectorAll('.account-group-select').forEach(sel => {
++          if (selectedAccounts.includes(sel.dataset.account)) {
++            sel.value = groupId;
++            sel.dispatchEvent(new Event('change'));
++          }
++        });
++        // Uncheck all after bulk apply
++        if (checkAll) checkAll.checked = false;
++        rowChecks.forEach(chk => chk.checked = false);
++      }
+     });
+   });
+ 
+@@ -350,13 +395,14 @@ async function saveMappings(container) {
+   const companyId = container.querySelector('#aa-company').value;
+   const groupSelects = container.querySelectorAll('.account-group-select');
+   const redistSelects = container.querySelectorAll('.account-redist-select');
++  const journalSelects = container.querySelectorAll('.account-journal-select');
+   const newMappings = [];
+ 
+-  // Build redist lookup from redist selects
++  // Build redist & journal lookups
+   const redistMap = {};
+-  redistSelects.forEach(sel => {
+-    redistMap[sel.dataset.account] = parseInt(sel.value) || 0;
+-  });
++  const journalMap = {};
++  redistSelects.forEach(sel => { redistMap[sel.dataset.account] = parseInt(sel.value) || 0; });
++  journalSelects.forEach(sel => { journalMap[sel.dataset.account] = sel.value || null; });
+ 
+   groupSelects.forEach(sel => {
+     if (sel.value) {
+@@ -364,6 +410,7 @@ async function saveMappings(container) {
+         analytic_account: sel.dataset.account,
+         group_id: parseInt(sel.value),
+         redistributable: redistMap[sel.dataset.account] || 0,
++        journal_name: journalMap[sel.dataset.account] || null,
+       });
+     }
+   });
+diff --git a/client/js/pages/presentation.js b/client/js/pages/presentation.js
+index 978341f..e4381e2 100644
+--- a/client/js/pages/presentation.js
++++ b/client/js/pages/presentation.js
+@@ -184,6 +184,7 @@ export async function renderPresentation(container) {
+         <div class="bi-tab" data-tab="pivot-cc">≡اôè ╪ز┘é╪د╪╖╪╣┘è - ┘à╪▒╪د┘â╪▓</div>
+         <div class="bi-tab" data-tab="redist">≡ا¤ ╪ح╪╣╪د╪»╪ر ╪د┘╪ز┘ê╪▓┘è╪╣</div>
+         <div class="bi-tab" data-tab="guarantees">≡اخ ╪د┘╪╢┘à╪د┘╪د╪ز ╪د┘╪ذ┘┘â┘è╪ر</div>
++        <div class="bi-tab" data-tab="sales">≡اؤي╕ ╪د┘┘à╪ذ┘è╪╣╪د╪ز</div>
+       </div>
+ 
+       <!-- Dashboard Body -->
+@@ -535,6 +536,7 @@ function renderDashboard(container) {
+     case 'pivot-cc': renderPivotCC(body, d); break;
+     case 'redist': renderRedistribution(body, d); break;
+     case 'guarantees': renderGuarantees(body, d, yrs, yd); break;
++    case 'sales': renderSalesOverview(body, d, yrs); break;
+   }
+ }
+ 
+@@ -847,7 +849,7 @@ function drawMonthlyBars(canvas, data, color1, color2) {
+       ctx.fillStyle = 'rgba(255,255,255,0.9)';
+       ctx.font = 'bold 10px Inter';
+       ctx.textAlign = 'left';
+-      ctx.fillText(fmt(val), 0, 0);
++      ctx.fillText(new Intl.NumberFormat('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}).format(val), 0, 0);
+       ctx.restore();
+     }
+ 
+@@ -926,7 +928,7 @@ function drawBarGroup(canvas, data) {
+       ctx.lineTo(x, y + barH); ctx.closePath(); ctx.fill();
+ 
+       // Value at end of bar
+-      const label = Math.abs(val) >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : Math.abs(val) >= 1e3 ? Math.round(val / 1e3) + 'K' : formatNumber(val, 0);
++      const label = data.exactValues ? new Intl.NumberFormat('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}).format(val) : (Math.abs(val) >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : (Math.abs(val) >= 1e3 ? Math.round(val / 1e3) + 'K' : formatNumber(val, 0)));
+       ctx.fillStyle = 'rgba(255,255,255,0.95)';
+       ctx.font = 'bold 13px Inter';
+       ctx.textAlign = 'left';
+@@ -1930,3 +1932,427 @@ async function renderGuarantees(body, d, yrs, yd) {
+     body.innerHTML = `<div class="bi-empty" style="color:#ef4444">ظإî ╪«╪╖╪ث: ${err.message}</div>`;
+   }
+ }
++
++// ===== SALES REPORT TAB =====
++async function renderSalesOverview(body, d, yrs) {
++  const selectedYrs = d._selectedYrs || [];
++  const selectedCos = d._selectedCos || [];
++  
++  body.innerHTML = `
++    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
++      <h2 style="margin:0;color:rgba(255,255,255,0.85);font-size:1.3rem;">≡اؤي╕ ┘┘ê╪ص╪ر ╪د┘╪ز┘é╪▒┘è╪▒ ╪د┘╪╣╪د┘à ┘┘┘à╪ذ┘è╪╣╪د╪ز ظ¤ ${selectedYrs.join(', ') || '╪د┘┘â┘'}</h2>
++    </div>
++    <div id="sales-content"><div class="bi-empty">ظ│ ╪ش╪د╪▒┘è ╪ز╪ص┘à┘è┘ ╪ذ┘è╪د┘╪د╪ز ╪د┘┘à╪ذ┘è╪╣╪د╪ز ╪د┘┘à┘ê╪ص╪»╪ر...</div></div>
++  `;
++
++  try {
++    const fromInput = document.getElementById('date-from') ? document.getElementById('date-from').value : '';
++    const toInput = document.getElementById('date-to') ? document.getElementById('date-to').value : '';
++    
++    let dateFrom = fromInput;
++    let dateTo = toInput;
++    
++    if (!dateFrom && !dateTo && selectedYrs.length > 0) {
++      dateFrom = `${Math.min(...selectedYrs)}-01-01`;
++      dateTo = `${Math.max(...selectedYrs)}-12-31`;
++    }
++    
++    const params = { limit: 50000 };
++    if (dateFrom) params.dateFrom = dateFrom;
++    if (dateTo) params.dateTo = dateTo;
++    if (selectedCos.length > 0) params.masterCompanyIds = selectedCos.join(',');
++    
++    const data = await api.sales.getInvoices(params);
++    
++    // Aggregation logic
++    let totalSales = 0;
++    let totalUntaxed = 0;
++    let totalTax = 0;
++    let totalPaid = 0;
++    let totalRem = 0;
++    let invCount = 0;
++    let totalRefunds = 0;
++    const refundsList = [];
++
++    const byCompany = {};
++    const byMonth = new Array(12).fill(0);
++    const byPartner = {};
++    
++    (data.items || []).forEach(inv => {
++      // Exclude draft invoices per user request
++      if (inv.state === 'draft') return;
++
++      const amt = parseFloat(inv.amount_total) || 0;
++      let paid = 0;
++      let unt = 0;
++      let moveType = '';
++      try {
++        const p = inv.raw_data ? JSON.parse(inv.raw_data) : {};
++        paid = parseFloat(p.total_paid) || 0;
++        unt = parseFloat(p.amount_untaxed) || 0;
++        moveType = p.move_type || '';
++      } catch(e) {}
++
++      if (moveType === 'Customer Credit Note' || moveType === 'out_refund' || amt < 0) {
++        // Handled in totalRefunds
++      } else {
++        totalSales += amt;
++        totalUntaxed += unt;
++        totalTax += (amt - unt);
++      }
++      totalPaid += paid;
++      
++      if (moveType === 'Customer Credit Note' || moveType === 'out_refund') {
++        totalRefunds += Math.abs(amt);
++        let ref = '';
++        try { if (inv.raw_data) ref = JSON.parse(inv.raw_data).reference || ''; } catch(e){}
++        refundsList.push({
++          name: inv.name || inv.invoice_number || '╪ذ╪»┘ê┘ ╪▒┘é┘à',
++          partner: inv.partner_name || '╪║┘è╪▒ ┘à╪╣╪▒┘ê┘',
++          date: inv.date || '',
++          amount: Math.abs(amt),
++          ref: ref
++        });
++      }
++      
++      const coName = inv.company_name && inv.company_name.trim() !== '' ? inv.company_name : '╪ث╪«╪▒┘ë';
++      if (!byCompany[coName]) byCompany[coName] = 0;
++      byCompany[coName] += amt;
++      
++      if (inv.date) {
++        const parts = inv.date.split('-');
++        if (parts.length >= 2) {
++          const m = parseInt(parts[1], 10);
++          if (m >= 1 && m <= 12) byMonth[m - 1] += amt;
++        }
++      }
++      
++      const partner = inv.partner_name && inv.partner_name.trim() !== '' ? inv.partner_name : '╪╣┘à┘è┘ ╪║┘è╪▒ ┘à╪╣╪▒┘ê┘';
++      if (!byPartner[partner]) {
++        byPartner[partner] = { name: partner, total: 0, untaxed: 0, tax: 0, paid: 0, rem: 0, refunds: 0 };
++      }
++      if (moveType === 'Customer Credit Note' || moveType === 'out_refund' || amt < 0) {
++        byPartner[partner].refunds += Math.abs(amt);
++      } else {
++        byPartner[partner].total += amt;
++        byPartner[partner].untaxed += unt;
++        byPartner[partner].tax += (amt - unt);
++      }
++      
++      // We assume paid accumulates normally (it might be positive or negative from Odoo based on reconciliation).
++      // If paid is absolute for both invoices and refunds, we just sum it. Usually paid = Math.abs(paid) from API if it's already reconciled.
++      // Actually, from JSON-rpc, we did total_paid: r.amount_total_signed - r.amount_residual_signed.
++      // So paid is inherently negative for refunds if they are paid/reconciled. So summing it works nicely.
++      byPartner[partner].paid += paid;
++      
++      // Calculate remaining mathematically: Gross Sales - Refunds - Net Paid.
++      // Wait, if paid is already negative for refunds, then (total - refunds) is the net invoiced.
++      // If a refund is reconciled, its residual is 0. So paid = -100.
++      // Net paid = sum of positive payments and negative refunds.
++      // So effectively Remaining = byPartner[partner].total - byPartner[partner].refunds - byPartner[partner].paid;
++      byPartner[partner].rem = byPartner[partner].total - byPartner[partner].refunds - byPartner[partner].paid;
++    });
++    
++    totalRem = totalSales - totalRefunds - totalPaid;
++    // Sort all partners by total sales descending
++    const allPartnersArr = Object.values(byPartner).sort((a,b) => b.total - a.total);
++    const topPartnersArr = allPartnersArr.slice(0, 10);
++      
++    // HTML Generation
++    const colRate = totalSales > 0 ? (totalPaid / totalSales * 100) : 0;
++    const remRate = totalSales > 0 ? (totalRem / totalSales * 100) : 0;
++
++    let html = `
++      <div class="bi-kpi-row" style="margin-bottom:24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
++        <div class="bi-kpi">
++          <div class="bi-kpi-label">≡اؤي╕ ╪ح╪ش┘à╪د┘┘è ╪د┘┘à╪ذ┘è╪╣╪د╪ز ╪د┘┘à┘┘ê╪ز╪▒╪ر</div>
++          <div class="bi-kpi-value" style="color:#10b981;">${fmt(totalSales)}</div>
++        </div>
++        <div class="bi-kpi">
++          <div class="bi-kpi-label">≡اôإ ╪د┘┘à╪ذ┘╪║ ┘é╪ذ┘ ╪د┘╪╢╪▒┘è╪ذ╪ر</div>
++          <div class="bi-kpi-value" style="color:#8b5cf6;">${fmt(totalUntaxed)}</div>
++        </div>
++        <div class="bi-kpi">
++          <div class="bi-kpi-label">ظأûي╕ ┘é┘è┘à╪ر ╪د┘╪╢╪▒┘è╪ذ╪ر</div>
++          <div class="bi-kpi-value" style="color:#f43f5e;">${fmt(totalTax)}</div>
++        </div>
++        <div class="bi-kpi">
++          <div class="bi-kpi-label">≡اد╛ ╪╣╪»╪» ╪د┘┘┘ê╪د╪ز┘è╪▒ ╪د┘╪ح╪ش┘à╪د┘┘è</div>
++          <div class="bi-kpi-value" style="color:#a78bfa;">${fmt(invCount)}</div>
++        </div>
++        <div class="bi-kpi">
++          <div class="bi-kpi-label">≡اْ╕ ╪ح╪ش┘à╪د┘┘è ╪د┘┘à╪▒╪ز╪ش╪╣╪د╪ز / ╪د┘╪ح╪┤╪╣╪د╪▒╪د╪ز</div>
++          <div class="bi-kpi-value" style="color:#ef4444;">${fmt(totalRefunds)}</div>
++        </div>
++        <div class="bi-kpi" style="grid-column: span 2;">
++          <div class="bi-kpi-label">ظ£à ╪ح╪ش┘à╪د┘┘è ╪د┘┘à╪ص╪╡┘ّ┘</div>
++          <div class="bi-kpi-value" style="color:#06b6d4;">${fmt(totalPaid)}</div>
++          <div style="margin-top:10px;display:flex;align-items:center;gap:12px;">
++            <div style="flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
++              <div style="width:${colRate}%;height:100%;background:#06b6d4;border-radius:3px;box-shadow:0 0 10px #06b6d480;"></div>
++            </div>
++            <span style="color:#06b6d4;font-size:0.9rem;font-weight:700;">┘╪│╪ذ╪ر ╪د┘╪ز╪ص╪╡┘è┘: <span style="font-family:var(--font-en);">${fmtP(colRate)}</span></span>
++          </div>
++        </div>
++        <div class="bi-kpi" style="grid-column: span 2;">
++          <div class="bi-kpi-label">ظ│ ╪د┘┘à╪ذ╪د┘╪║ ╪د┘┘à╪ز╪ذ┘é┘è╪ر ┘┘╪ز╪ص╪╡┘è┘</div>
++          <div class="bi-kpi-value" style="color:#f59e0b;">${fmt(Math.max(0, totalRem))}</div>
++          <div style="margin-top:10px;display:flex;align-items:center;gap:12px;">
++            <div style="flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
++              <div style="width:${Math.max(0, remRate)}%;height:100%;background:#f59e0b;border-radius:3px;box-shadow:0 0 10px #f59e0b80;"></div>
++            </div>
++            <span style="color:#f59e0b;font-size:0.9rem;font-weight:700;">┘╪│╪ذ╪ر ╪د┘┘à╪ز╪ذ┘é┘è: <span style="font-family:var(--font-en);">${fmtP(Math.max(0, remRate))}</span></span>
++          </div>
++        </div>
++      </div>
++      
++      <div class="bi-charts">
++        <div class="bi-card">
++          <div class="bi-card-title">≡اôê ╪ص╪ش┘à ╪د┘┘à╪ذ┘è╪╣╪د╪ز ╪د┘╪┤┘ç╪▒┘è╪ر</div>
++          <canvas id="ch-sales-monthly" height="260"></canvas>
++        </div>
++        <div class="bi-card">
++          <div class="bi-card-title">≡ات ┘à╪│╪د┘ç┘à╪ر ╪د┘╪┤╪▒┘â╪د╪ز ┘┘è ╪د┘┘à╪ذ┘è╪╣╪د╪ز</div>
++          <canvas id="ch-sales-companies" height="260"></canvas>
++        </div>
++      </div>
++      
++      <div class="bi-card bi-full" style="margin-top:20px;">
++        <div class="bi-card-title">≡اôè ╪ث┘ç┘à 10 ╪╣┘à┘╪د╪ة (╪ص╪ش┘à ╪د┘┘à╪ذ┘è╪╣╪د╪ز)</div>
++        <canvas id="ch-sales-partners" height="120"></canvas>
++      </div>
++      
++      <div class="bi-card bi-full" style="margin-top:20px;">
++        <div class="bi-card-title" style="display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;">
++          <div style="margin:0;">≡ا ╪ز┘╪د╪╡┘è┘ ╪ش┘à┘è╪╣ ╪د┘╪╣┘à┘╪د╪ة</div>
++          <input type="text" id="sales-partner-search" placeholder="≡ا¤ ╪د╪ذ╪ص╪س ╪╣┘ ╪╣┘à┘è┘..." style="padding:8px 16px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.2);color:#fff;width:300px;font-family:var(--font-ar);outline:none;">
++        </div>
++        <div style="overflow-x:auto;max-height:500px;">
++          <table class="bi-table">
++            <thead style="position:sticky;top:0;background:var(--bg-card);z-index:10;">
++              <tr>
++                <th style="width:40px;">#</th>
++                <th style="text-align:right;cursor:pointer;user-select:none;" onclick="salesTableSort('name')">╪د╪│┘à ╪د┘╪╣┘à┘è┘ ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('untaxed')">┘é╪ذ┘ ╪د┘╪╢╪▒┘è╪ذ╪ر ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('tax')">╪د┘╪╢╪▒┘è╪ذ╪ر ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('total')">╪د┘╪ح╪ش┘à╪د┘┘è ظçà</th>
++                <th class="n" style="color:#ef4444;cursor:pointer;user-select:none;" onclick="salesTableSort('refunds')">╪د┘┘à╪▒╪ز╪ش╪╣╪د╪ز ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('paid')">╪د┘┘à╪ص╪╡┘ّ┘ ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('rem')">╪د┘┘à╪ز╪ذ┘é┘è ظçà</th>
++                <th class="n" style="cursor:pointer;user-select:none;" onclick="salesTableSort('share')">┘╪│╪ذ╪ر ╪د┘╪┤╪▒╪د╪ة ظçà</th>
++              </tr>
++            </thead>
++            <tbody id="sales-partner-tbody">
++              <!-- Rendered via JS -->
++            </tbody>
++          </table>
++        </div>
++      </div>
++      
++      <div class="bi-card bi-full" style="margin-top:20px; border:1px solid rgba(239, 68, 68, 0.2);">
++        <div class="bi-card-title" style="color:#ef4444;">≡اْ╕ ╪ز┘╪د╪╡┘è┘ ╪د┘╪ح╪┤╪╣╪د╪▒╪د╪ز ╪د┘┘à╪▒╪ز╪ش╪╣╪ر ╪د┘┘à╪«╪╡┘ê┘à╪ر</div>
++        <div style="overflow-x:auto;max-height:400px;">
++          <table class="bi-table">
++            <thead style="position:sticky;top:0;background:rgba(239, 68, 68, 0.1);z-index:10;">
++              <tr>
++                <th style="width:40px;color:#fca5a5;">#</th>
++                <th style="text-align:right;color:#fca5a5;">╪د┘╪ح╪┤╪╣╪د╪▒</th>
++                <th style="text-align:right;color:#fca5a5;">╪د┘╪ز╪د╪▒┘è╪«</th>
++                <th style="text-align:right;color:#fca5a5;">╪د┘╪╣┘à┘è┘</th>
++                <th style="text-align:right;color:#fca5a5;">╪د┘┘╪د╪ز┘ê╪▒╪ر ╪د┘┘à╪▒╪ز╪ذ╪╖╪ر</th>
++                <th class="n" style="color:#fca5a5;">╪د┘┘à╪ذ┘╪║</th>
++              </tr>
++            </thead>
++            <tbody id="sales-refunds-tbody">
++              <!-- Rendered via JS -->
++            </tbody>
++          </table>
++        </div>
++      </div>
++    `;
++    
++    const contentBox = body.querySelector('#sales-content');
++    contentBox.innerHTML = html;
++    
++    requestAnimationFrame(() => {
++      // Monthly Bars
++      drawMonthlyBars(document.getElementById('ch-sales-monthly'), byMonth, '#10b981', '#34d399');
++      
++      // Companies Donut chart
++      const coNames = Object.keys(byCompany);
++      const coVals = Object.values(byCompany);
++      if (coVals.length > 0) {
++        drawDonut(document.getElementById('ch-sales-companies'), {
++          labels: coNames,
++          values: coVals,
++          colors: COLORS
++        });
++      }
++      // Companies table below donut (keep as reference but hidden)
++      const _unused = null;
++      if (false) {
++        const coGrand = coVals.reduce((s,v)=>s+v,0);
++        const coSorted = coNames.map((n,i)=>({name:n,val:coVals[i]})).sort((a,b)=>b.val-a.val);
++        const fmtEx3 = v => new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
++        const coRows = coSorted.map((c,i) =>
++          '<tr style="border-bottom:1px solid rgba(255,255,255,0.06);">' +
++          '<td style="color:rgba(255,255,255,0.4);">' + (i+1) + '</td>' +
++          '<td style="font-weight:700;">' + c.name + '</td>' +
++          '<td class="n" style="color:#10b981;font-weight:700;">' + fmtEx3(c.val) + '</td>' +
++          '<td class="n"><div style="display:flex;align-items:center;gap:8px;">' +
++            '<div style="flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;min-width:60px;">' +
++              '<div style="width:' + (coGrand>0?(c.val/coGrand*100).toFixed(1):0) + '%;height:100%;background:' + COLORS[i%COLORS.length] + ';border-radius:3px;"></div>' +
++            '</div>' +
++            '<span style="color:rgba(255,255,255,0.6);font-size:0.85rem;">' + (coGrand>0?(c.val/coGrand*100).toFixed(1):0) + '%</span>' +
++          '</div></td>' +
++          '</tr>'
++        ).join('');
++        coTblContainer.innerHTML =
++          '<table class="bi-table" style="font-size:0.9rem;"><thead style="position:sticky;top:0;background:var(--bg-card);z-index:10;"><tr>' +
++          '<th style="width:30px;">#</th>' +
++          '<th style="text-align:right;">╪د┘╪┤╪▒┘â╪ر</th>' +
++          '<th class="n">╪ح╪ش┘à╪د┘┘è ╪د┘┘à╪ذ┘è╪╣╪د╪ز</th>' +
++          '<th class="n">╪د┘┘╪│╪ذ╪ر</th>' +
++          '</tr></thead><tbody>' +
++          coRows +
++          '<tr style="border-top:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);font-weight:700;">' +
++          '<td>╬ث</td><td style="color:#fff;">╪د┘┘à╪ش┘à┘ê╪╣</td>' +
++          '<td class="n" style="color:#10b981;">' + fmtEx3(coGrand) + '</td>' +
++          '<td class="n" style="color:rgba(255,255,255,0.6);">100%</td>' +
++          '</tr></tbody></table>';
++      }}
++      
++      // Top Partners Horizontal Bar chart
++      if (topPartnersArr.length > 0) {
++        const pNames = topPartnersArr.map(p => p.name.length>25 ? p.name.substring(0,25) + '..' : p.name);
++        const pVals = topPartnersArr.map(p => p.total);
++        const pMax = Math.max(...pVals, 1);
++        
++        drawBarGroup(document.getElementById('ch-sales-partners'), {
++          groups: pVals.map(v => [v]),
++          max: pMax,
++          colors: ['#3b82f6'],
++          labels: pNames,
++          exactValues: true
++        });
++      }
++      
++      // Refunds render handled by renderRefunds()
++
++      // Render interactive customers table
++      const tbody = document.getElementById('sales-partner-tbody');
++      const searchBox = document.getElementById('sales-partner-search');
++      
++      let _partnerSortCol = 'total', _partnerSortDir = -1;
++      let _refundSortCol = 'date', _refundSortDir = -1;
++      const fmtEx = v => new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
++
++      window.salesTableSort = (col) => {
++        if (_partnerSortCol === col) _partnerSortDir *= -1;
++        else { _partnerSortCol = col; _partnerSortDir = -1; }
++        renderTable(document.getElementById('sales-partner-search')?.value || '');
++      };
++
++      window.refundsTableSort = (col) => {
++        if (_refundSortCol === col) _refundSortDir *= -1;
++        else { _refundSortCol = col; _refundSortDir = -1; }
++        renderRefunds();
++      };
++
++      const renderRefunds = () => {
++        const refundsTbody = document.getElementById('sales-refunds-tbody');
++        if (!refundsTbody) return;
++        if (refundsList.length === 0) {
++          refundsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:rgba(255,255,255,0.3);">┘╪د ╪ز┘ê╪ش╪» ╪ح╪┤╪╣╪د╪▒╪د╪ز ╪ث┘ê ┘à╪▒╪ز╪ش╪╣╪د╪ز</td></tr>';
++          return;
++        }
++        let rSorted = [...refundsList];
++        rSorted.sort((a,b) => {
++          const av = a[_refundSortCol] ?? 0;
++          const bv = b[_refundSortCol] ?? 0;
++          if (['name','date','partner'].includes(_refundSortCol)) return _refundSortDir * String(av).localeCompare(String(bv), 'ar');
++          return _refundSortDir * (Number(av) - Number(bv));
++        });
++        const totAmt = rSorted.reduce((s,r)=>s+r.amount,0);
++        const totRow = '<tr style="border-top:2px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);font-weight:700;">' +
++          '<td style="color:rgba(255,255,255,0.4);">╬ث</td>' +
++          '<td style="color:#fca5a5;">╪د┘┘à╪ش┘à┘ê╪╣ (' + rSorted.length + ')</td>' +
++          '<td></td><td></td><td></td>' +
++          '<td class="n" style="color:#ef4444;font-weight:bold;">' + fmtEx(totAmt) + '</td>' +
++          '</tr>';
++        refundsTbody.innerHTML = rSorted.map((r, i) =>
++          '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
++          '<td style="font-family:var(--font-en);color:rgba(252,165,165,0.7);">' + (i+1) + '</td>' +
++          '<td style="font-family:var(--font-en);">' + r.name + '</td>' +
++          '<td style="font-family:var(--font-en);">' + r.date + '</td>' +
++          '<td style="font-weight:700;">' + r.partner + '</td>' +
++          '<td style="font-family:var(--font-en);color:#93c5fd;">' + (r.ref || 'ظ¤') + '</td>' +
++          '<td class="n" style="color:#ef4444;font-weight:bold;">' + fmtEx(r.amount) + '</td>' +
++          '</tr>'
++        ).join('') + totRow;
++      };
++
++      const renderTable = (query) => {
++        let pSorted = [...allPartnersArr];
++        pSorted.sort((a, b) => {
++          const av = _partnerSortCol === 'name' ? a.name : (a[_partnerSortCol] || 0);
++          const bv = _partnerSortCol === 'name' ? b.name : (b[_partnerSortCol] || 0);
++          if (_partnerSortCol === 'name') return _partnerSortDir * String(av).localeCompare(String(bv), 'ar');
++          return _partnerSortDir * (Number(av) - Number(bv));
++        });
++        let filtered = query ? pSorted.filter(p => p.name.toLowerCase().includes(query.toLowerCase())) : pSorted;
++        if (filtered.length === 0) {
++          tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:rgba(255,255,255,0.4);">┘╪د ╪ز┘ê╪ش╪» ┘╪ز╪د╪خ╪ش ┘à╪╖╪د╪ذ┘é╪ر</td></tr>';
++          return;
++        }
++        const totUntaxed = filtered.reduce((s,p)=>s+p.untaxed,0);
++        const totTax = filtered.reduce((s,p)=>s+p.tax,0);
++        const totTotal = filtered.reduce((s,p)=>s+p.total,0);
++        const totRefunds = filtered.reduce((s,p)=>s+p.refunds,0);
++        const totPaid = filtered.reduce((s,p)=>s+p.paid,0);
++        const totRem = filtered.reduce((s,p)=>s+Math.max(0,p.rem),0);
++        const totRow =
++          '<tr style="border-top:2px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);font-weight:700;">' +
++          '<td style="color:rgba(255,255,255,0.4);text-align:center;">╬ث</td>' +
++          '<td style="color:#fff;">╪د┘┘à╪ش┘à┘ê╪╣ (' + filtered.length + ')</td>' +
++          '<td class="n" style="color:#8b5cf6;">' + fmtEx(totUntaxed) + '</td>' +
++          '<td class="n" style="color:#f43f5e;">' + fmtEx(totTax) + '</td>' +
++          '<td class="n" style="color:#10b981;">' + fmtEx(totTotal) + '</td>' +
++          '<td class="n" style="color:#ef4444;">' + (totRefunds>0?fmtEx(totRefunds):'ظ¤') + '</td>' +
++          '<td class="n" style="color:#06b6d4;">' + fmtEx(totPaid) + '</td>' +
++          '<td class="n" style="color:#f59e0b;">' + fmtEx(totRem) + '</td>' +
++          '<td class="n" style="color:rgba(255,255,255,0.5);">100%</td>' +
++          '</tr>';
++        tbody.innerHTML = filtered.map((p, i) =>
++          '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
++          '<td style="font-family:var(--font-en);color:rgba(255,255,255,0.4);">' + (i+1) + '</td>' +
++          '<td style="font-weight:700;color:var(--text-white);">' + p.name + '</td>' +
++          '<td class="n" style="color:#8b5cf6;">' + fmtEx(p.untaxed) + '</td>' +
++          '<td class="n" style="color:#f43f5e;">' + fmtEx(p.tax) + '</td>' +
++          '<td class="n" style="color:#10b981;font-weight:700;">' + fmtEx(p.total) + '</td>' +
++          '<td class="n" style="color:#ef4444;font-weight:bold;">' + (p.refunds>0?fmtEx(p.refunds):'ظ¤') + '</td>' +
++          '<td class="n" style="color:#06b6d4;">' + fmtEx(p.paid) + '</td>' +
++          '<td class="n" style="color:#f59e0b;">' + fmtEx(Math.max(0,p.rem)) + '</td>' +
++          '<td class="n" style="color:rgba(255,255,255,0.5);">' + (totalSales>0?fmtP(p.total/totalSales*100):'0%') + '</td>' +
++          '</tr>'
++        ).join('') + totRow;
++      };
++
++      // Initial render
++      renderTable('');
++      renderRefunds();
++
++      // Search event
++      if (searchBox) {
++        searchBox.addEventListener('input', (e) => {
++          renderTable(e.target.value);
++        });
++      }
++    });
++    
++  } catch(err) {
++    console.error('Sales overview error:', err);
++    body.querySelector('#sales-content').innerHTML = `<div class="bi-empty" style="color:#ef4444;">ظإî ╪«╪╖╪ث ┘┘è ╪╣╪▒╪╢ ╪ذ┘è╪د┘╪د╪ز ╪د┘┘à╪ذ┘è╪╣╪د╪ز: ${err.message}</div>`;
++  }
++}
++
+diff --git a/package-lock.json b/package-lock.json
+index 5b33486..697ec4f 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -8,7 +8,7 @@
+       "name": "mizaniat-bi",
+       "version": "1.0.0",
+       "dependencies": {
+-        "better-sqlite3": "^11.0.0",
++        "better-sqlite3": "^11.10.0",
+         "concurrently": "^8.2.2",
+         "cors": "^2.8.5",
+         "express": "^4.18.2",
+diff --git a/package.json b/package.json
+index 09e23b1..1141118 100644
+--- a/package.json
++++ b/package.json
+@@ -12,7 +12,7 @@
+     "sync": "node server/scripts/sync-now.js"
+   },
+   "dependencies": {
+-    "better-sqlite3": "^11.0.0",
++    "better-sqlite3": "^11.10.0",
+     "concurrently": "^8.2.2",
+     "cors": "^2.8.5",
+     "express": "^4.18.2",
+diff --git a/server/db/schema.js b/server/db/schema.js
+index d3c070d..9fa8ebe 100644
+--- a/server/db/schema.js
++++ b/server/db/schema.js
+@@ -109,6 +109,17 @@ function initializeSchema() {
+       UNIQUE(company_id, analytic_account)
+     );
+ 
++    -- Manual consolidation mapping for journal names
++    CREATE TABLE IF NOT EXISTS journal_name_mappings (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      company_id INTEGER NOT NULL,
++      original_name TEXT NOT NULL,
++      mapped_name TEXT NOT NULL,
++      created_at TEXT DEFAULT (datetime('now')),
++      FOREIGN KEY (company_id) REFERENCES companies(id),
++      UNIQUE(company_id, original_name)
++    );
++
+     -- Admin users (email + password login)
+     CREATE TABLE IF NOT EXISTS admin_users (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -198,11 +209,23 @@ function initializeSchema() {
+       move_state TEXT DEFAULT 'posted',
+       fiscal_year TEXT,
+       period TEXT,
++      created_at TEXT DEFAULT (datetime('now')),
+       FOREIGN KEY (company_id) REFERENCES companies(id),
+       FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id),
+       FOREIGN KEY (unified_account_id) REFERENCES unified_accounts(id)
+     );
+ 
++    -- Tax Report configuration
++    CREATE TABLE IF NOT EXISTS tax_report_config (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      company_id INTEGER NOT NULL UNIQUE,
++      input_accounts TEXT DEFAULT '[]',
++      output_accounts TEXT DEFAULT '[]',
++      excluded_journals TEXT DEFAULT '[]',
++      excluded_move_names TEXT DEFAULT '[]',
++      FOREIGN KEY (company_id) REFERENCES companies(id)
++    );
++
+     -- Intercompany elimination rules
+     CREATE TABLE IF NOT EXISTS elimination_rules (
+       id INTEGER PRIMARY KEY AUTOINCREMENT,
+@@ -232,6 +255,101 @@ function initializeSchema() {
+       FOREIGN KEY (company_id) REFERENCES companies(id)
+     );
+ 
++    -- ==========================================
++    -- SALES SYSTEM (ISOLATED)
++    -- ==========================================
++    
++    -- Sales API instances
++    CREATE TABLE IF NOT EXISTS sales_instances (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      name TEXT NOT NULL,
++      url TEXT NOT NULL,
++      db_name TEXT,
++      username TEXT NOT NULL,
++      api_key TEXT NOT NULL,
++      is_active INTEGER DEFAULT 1,
++      created_at TEXT DEFAULT (datetime('now')),
++      updated_at TEXT DEFAULT (datetime('now'))
++    );
++
++    -- Sales Companies
++    CREATE TABLE IF NOT EXISTS sales_companies (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      sales_instance_id INTEGER NOT NULL,
++      sales_company_id INTEGER NOT NULL,
++      name TEXT NOT NULL,
++      currency TEXT DEFAULT 'SAR',
++      is_active INTEGER DEFAULT 1,
++      color TEXT DEFAULT '#10b981',
++      created_at TEXT DEFAULT (datetime('now')),
++      FOREIGN KEY (sales_instance_id) REFERENCES sales_instances(id),
++      UNIQUE(sales_instance_id, sales_company_id)
++    );
++
++    -- Sales Elimination Rules
++    CREATE TABLE IF NOT EXISTS sales_elimination_rules (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      name TEXT NOT NULL,
++      description TEXT,
++      rule_type TEXT NOT NULL DEFAULT 'account_match',
++      source_company_id INTEGER,
++      target_company_id INTEGER,
++      source_account_code TEXT,
++      target_account_code TEXT,
++      is_active INTEGER DEFAULT 1,
++      created_at TEXT DEFAULT (datetime('now')),
++      FOREIGN KEY (source_company_id) REFERENCES sales_companies(id),
++      FOREIGN KEY (target_company_id) REFERENCES sales_companies(id)
++    );
++
++    -- Sales Sync logs
++    CREATE TABLE IF NOT EXISTS sales_sync_logs (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      company_id INTEGER,
++      sync_type TEXT NOT NULL DEFAULT 'full',
++      status TEXT NOT NULL DEFAULT 'running',
++      records_synced INTEGER DEFAULT 0,
++      error_message TEXT,
++      started_at TEXT DEFAULT (datetime('now')),
++      completed_at TEXT,
++      FOREIGN KEY (company_id) REFERENCES sales_companies(id)
++    );
++
++    -- Sales Invoices
++    CREATE TABLE IF NOT EXISTS sales_invoices (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      company_id INTEGER NOT NULL,
++      invoice_id INTEGER,
++      name TEXT,
++      partner_name TEXT,
++      date TEXT,
++      amount_total REAL,
++      state TEXT,
++      raw_data TEXT,
++      created_at TEXT DEFAULT (datetime('now')),
++      FOREIGN KEY (company_id) REFERENCES sales_companies(id)
++    );
++
++    -- Sales App settings (key-value store for schedule)
++    CREATE TABLE IF NOT EXISTS sales_app_settings (
++      key TEXT PRIMARY KEY,
++      value TEXT NOT NULL,
++      updated_at TEXT DEFAULT (datetime('now'))
++    );
++
++    -- Sales Sync notifications
++    CREATE TABLE IF NOT EXISTS sales_sync_notifications (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      type TEXT NOT NULL DEFAULT 'success',
++      message TEXT NOT NULL,
++      details TEXT,
++      created_at TEXT DEFAULT (datetime('now'))
++    );
++
++    -- Default sales sync settings
++    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_enabled', 'false');
++    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_interval_hours', '2');
++
+     -- Performance indexes
+     CREATE INDEX IF NOT EXISTS idx_journal_items_company ON journal_items(company_id);
+     CREATE INDEX IF NOT EXISTS idx_journal_items_date ON journal_items(date);
+@@ -292,21 +410,39 @@ function initializeSchema() {
+     -- Default sync settings
+     INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sync_enabled', 'false');
+     INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sync_interval_hours', '2');
++    
++    -- Sales app settings
++    CREATE TABLE IF NOT EXISTS sales_app_settings (
++      key TEXT PRIMARY KEY,
++      value TEXT
++    );
++    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_enabled', 'false');
++    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_interval_hours', '2');
++    
++    -- Sales sync notifications
++    CREATE TABLE IF NOT EXISTS sales_sync_notifications (
++      id INTEGER PRIMARY KEY AUTOINCREMENT,
++      type TEXT NOT NULL,
++      message TEXT NOT NULL,
++      details TEXT,
++      created_at TEXT DEFAULT (datetime('now'))
++    );
+   `);
+ 
+-  // Add redistributable column to analytic_group_mapping if not exists
++  // Add redistributable and journal_name columns to analytic_group_mapping if not exists
+   try {
+     db.prepare(`ALTER TABLE analytic_group_mapping ADD COLUMN redistributable INTEGER DEFAULT 0`).run();
+     console.log('[DB] Added redistributable column to analytic_group_mapping');
+   } catch (e) { /* column already exists */ }
+ 
+-  // Clean up legacy CLOSING journal_items from old approach
+   try {
+-    const cleaned = db.prepare(`DELETE FROM journal_items WHERE move_name LIKE 'CLOSING/%'`).run();
+-    if (cleaned.changes > 0) {
+-      console.log(`[DB] Cleaned up ${cleaned.changes} legacy closing journal_items`);
+-    }
+-  } catch (e) { /* ignore if column doesn't exist */ }
++    db.prepare(`ALTER TABLE analytic_group_mapping ADD COLUMN journal_name TEXT`).run();
++    console.log('[DB] Added journal_name column to analytic_group_mapping');
++  } catch (e) { /* column already exists */ }
++
++  // The legacy CLOSING journal_items cleanup was removed because it caused
++  // a massive 4-minute full table scan on startup for large databases.
++  // Legacy closing entries have already been purged in the initial migration.
+ 
+   // Create closing_entries table (drop old version if schema changed)
+   try {
+diff --git a/server/index.js b/server/index.js
+index 0515945..dbefffb 100644
+--- a/server/index.js
++++ b/server/index.js
+@@ -7,8 +7,10 @@ const { seedDemoData } = require('./db/seed-demo');
+ const apiRoutes = require('./routes/api');
+ const externalRoutes = require('./routes/external-api');
+ const authRoutes = require('./routes/auth');
++const salesRoutes = require('./routes/sales');
+ const { requireAdmin, requireViewer } = require('./middleware/auth');
+ const { startScheduler } = require('./cron/scheduler');
++const { startScheduler: startSalesScheduler } = require('./cron/sales_scheduler');
+ 
+ const app = express();
+ const PORT = process.env.PORT || 3090;
+@@ -47,6 +49,7 @@ app.use('/api', (req, res, next) => {
+ 
+ // API routes
+ app.use('/api', apiRoutes);
++app.use('/api/sales', salesRoutes);
+ app.use('/api/external', externalRoutes);
+ 
+ // Serve static files from client build
+@@ -80,6 +83,7 @@ async function start() {
+     
+     // Start cron scheduler
+     startScheduler();
++    startSalesScheduler();
+ 
+     // Auto-sync on startup if database is empty (fresh deploy)
+     try {
+diff --git a/server/routes/api.js b/server/routes/api.js
+index 8f90fd3..ab6975f 100644
+--- a/server/routes/api.js
++++ b/server/routes/api.js
+@@ -332,7 +332,7 @@ router.get('/analytic-group-mappings', (req, res) => {
+     let mappings;
+     if (companyId) {
+       mappings = db.prepare(`
+-        SELECT m.*, m.redistributable, g.name as group_name, g.color as group_color
++        SELECT m.*, m.redistributable, m.journal_name, g.name as group_name, g.color as group_color
+         FROM analytic_group_mapping m
+         JOIN analytic_groups g ON g.id = m.group_id
+         WHERE m.company_id = ?
+@@ -340,7 +340,7 @@ router.get('/analytic-group-mappings', (req, res) => {
+       `).all(parseInt(companyId));
+     } else {
+       mappings = db.prepare(`
+-        SELECT m.*, m.redistributable, g.name as group_name, g.color as group_color
++        SELECT m.*, m.redistributable, m.journal_name, g.name as group_name, g.color as group_color
+         FROM analytic_group_mapping m
+         JOIN analytic_groups g ON g.id = m.group_id
+         ORDER BY m.company_id, g.sort_order
+@@ -359,13 +359,13 @@ router.post('/analytic-group-mappings', (req, res) => {
+     const db = getDb();
+     
+     const deleteStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ?');
+-    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable) VALUES (?, ?, ?, ?)');
++    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name) VALUES (?, ?, ?, ?, ?)');
+     
+     db.transaction(() => {
+       deleteStmt.run(parseInt(companyId));
+       for (const m of mappings) {
+         if (m.analytic_account && m.group_id) {
+-          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0);
++          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, m.journal_name || null);
+         }
+       }
+     })();
+@@ -374,6 +374,100 @@ router.post('/analytic-group-mappings', (req, res) => {
+   } catch (err) { res.status(500).json({ error: err.message }); }
+ });
+ 
++// Get distinct journal names from journal items
++router.get('/company-journal-names', (req, res) => {
++  try {
++    const { companyId } = req.query;
++    if (!companyId) return res.status(400).json({ error: 'companyId required' });
++    const { getDb } = require('../db/connection');
++    const db = getDb();
++    const rows = db.prepare('SELECT DISTINCT journal_name FROM journal_items WHERE company_id = ? AND journal_name IS NOT NULL AND journal_name != \'\' ORDER BY journal_name').all(parseInt(companyId));
++    res.json(rows.map(r => r.journal_name));
++  } catch (err) { res.status(500).json({ error: err.message }); }
++});
++
++// Get journal names with counts & mappings for consolidation
++router.get('/journal-mappings', (req, res) => {
++  try {
++    const { companyId } = req.query;
++    if (!companyId) return res.status(400).json({ error: 'companyId required' });
++    const { getDb } = require('../db/connection');
++    const db = getDb();
++    
++    // Get unique journal names directly from items to see what currently exists
++    const journals = db.prepare(`
++      SELECT journal_name, COUNT(*) as count 
++      FROM journal_items 
++      WHERE company_id = ? AND journal_name IS NOT NULL AND journal_name != ''
++      GROUP BY journal_name
++      ORDER BY journal_name
++    `).all(parseInt(companyId));
++    
++    // Get stored mappings
++    const mappings = db.prepare('SELECT * FROM journal_name_mappings WHERE company_id = ?').all(parseInt(companyId));
++    
++    res.json({ journals, mappings });
++  } catch (err) { 
++    console.error('journal-mappings error:', err);
++    res.status(500).json({ error: err.message }); 
++  }
++});
++
++// Perform manual journal name merge
++router.post('/journal-mappings/merge', (req, res) => {
++  try {
++    const { companyId, sourceNames, targetName } = req.body;
++    if (!companyId || !sourceNames || !sourceNames.length || !targetName) {
++      return res.status(400).json({ error: 'Missing required fields' });
++    }
++    const { getDb } = require('../db/connection');
++    const db = getDb();
++    
++    const insertMappingStmt = db.prepare(`
++      INSERT OR REPLACE INTO journal_name_mappings (company_id, original_name, mapped_name)
++      VALUES (?, ?, ?)
++    `);
++    
++    // Create params for the IN clause
++    const placeholders = sourceNames.map(() => '?').join(',');
++    const updateJournalItemsStmt = db.prepare(`
++      UPDATE journal_items
++      SET journal_name = ?
++      WHERE company_id = ? AND journal_name IN (${placeholders})
++    `);
++    
++    const updateAnalyticMappingStmt = db.prepare(`
++      UPDATE analytic_group_mapping
++      SET journal_name = ?
++      WHERE company_id = ? AND journal_name IN (${placeholders})
++    `);
++    
++    db.transaction(() => {
++      // 1. Add mappings so future syncs use the new targetName
++      for (const name of sourceNames) {
++        if (name !== targetName) {
++          insertMappingStmt.run(companyId, name, targetName);
++        }
++      }
++      
++      // 2. Update existing journal items
++      const updateParams = [targetName, companyId, ...sourceNames];
++      updateJournalItemsStmt.run(...updateParams);
++      
++      // 3. Update existing analytic mapping journals
++      updateAnalyticMappingStmt.run(...updateParams);
++    })();
++    
++    // Flush cache to ensure dashboard/reports pick up the changes
++    const CacheService = require('../services/cache');
++    CacheService.flush();
++    
++    res.json({ success: true, targetName });
++  } catch (err) { 
++    console.error('Merge journals error:', err);
++    res.status(500).json({ error: err.message }); 
++  }
++});
+ // Detailed trial balance by partner
+ router.get('/reports/detailed-trial-balance', (req, res) => {
+   try {
+@@ -886,6 +980,369 @@ router.get('/journal-items', (req, res) => {
+   res.json({ items, total: total.count, accountTypes: accountTypes.map(a => a.account_type), analyticAccounts: analyticAccounts.map(a => a.analytic_account) });
+ });
+ 
++// ===== VAT REPORT =====
++router.get('/vat-report', (req, res) => {
++  try {
++    const db = getDb();
++    const companyIds = parseCompanyIds(req.query);
++    const { year, period } = req.query; // period: monthly | quarterly | annual
++
++    if (!companyIds?.length || !year) {
++      return res.status(400).json({ error: 'companyIds and year are required' });
++    }
++
++    const coPlaceholders = companyIds.map((_, i) => `@c${i}`).join(',');
++    const params = {};
++    companyIds.forEach((id, i) => { params[`c${i}`] = id; });
++    params.yearStart = `${year}-01-01`;
++    params.yearEnd = `${year}-12-31`;
++
++    // Query all tax-related journal items for the selected companies and year
++    // We only want posted entries during the year, excluding closing/opening entries and draft records
++    const taxItems = db.prepare(`
++      SELECT ji.company_id, c.name as company_name,
++             ji.account_code, ji.account_name, ji.debit, ji.credit, ji.date, ji.period,
++             ji.partner_name, ji.move_name, ji.move_ref as ref, ji.label
++      FROM journal_items ji
++      JOIN companies c ON c.id = ji.company_id
++      WHERE ji.company_id IN (${coPlaceholders})
++        AND ji.date >= @yearStart AND ji.date <= @yearEnd
++        AND ji.move_state = 'posted'
++        AND (ji.move_name IS NULL OR (ji.move_name NOT LIKE 'CLOSING/%' AND ji.move_name NOT LIKE '%OPN%'))
++        AND (ji.account_name LIKE '%┘à╪»╪«┘╪د╪ز%' OR ji.account_name LIKE '%┘à╪«╪▒╪ش╪د╪ز%')
++        AND ji.account_name LIKE '%╪╢╪▒┘è╪ذ%'
++      ORDER BY ji.date
++    `).all(params);
++
++    // Classify: input VAT (┘à╪»╪«┘╪د╪ز) vs output VAT (┘à╪«╪▒╪ش╪د╪ز)
++    const periodMode = period || 'monthly';
++    const periodsMap = {};
++
++    for (const item of taxItems) {
++      let periodKey;
++      const month = item.date?.substring(0, 7) || ''; // YYYY-MM
++      const monthNum = parseInt(item.date?.substring(5, 7) || '1');
++
++      if (periodMode === 'monthly') {
++        periodKey = month;
++      } else if (periodMode === 'quarterly') {
++        const q = Math.ceil(monthNum / 3);
++        periodKey = `${year}-Q${q}`;
++      } else {
++        periodKey = year;
++      }
++
++      if (!periodsMap[periodKey]) {
++        periodsMap[periodKey] = { period: periodKey, inputVAT: 0, outputVAT: 0, items: [] };
++      }
++
++      const p = periodsMap[periodKey];
++      const accName = (item.account_name || '').trim();
++      const isInput = accName.includes('┘à╪»╪«┘╪د╪ز');
++      const isOutput = accName.includes('┘à╪«╪▒╪ش╪د╪ز');
++
++      // Only process valid Input/Output accounts
++      if (isInput || isOutput) {
++        const type = isInput ? 'input' : 'output';
++        const amount = isInput ? ((item.debit || 0) - (item.credit || 0)) : ((item.credit || 0) - (item.debit || 0));
++
++        if (isInput) p.inputVAT += amount;
++        else p.outputVAT += amount;
++
++        // Add to details
++        p.items.push({
++          date: item.date,
++          company: item.company_name,
++          account: item.account_name,
++          type: type,
++          amount: amount,
++          journalEntry: item.move_name,
++          partner: item.partner_name || '',
++          label: item.label || item.ref || ''
++        });
++      }
++    }
++
++    // Build sorted periods array
++    const periods = Object.values(periodsMap).sort((a, b) => a.period.localeCompare(b.period));
++
++    // Compute net for each period
++    periods.forEach(p => {
++      p.netVAT = p.outputVAT - p.inputVAT;
++      p.inputVAT = Math.round(p.inputVAT * 100) / 100;
++      p.outputVAT = Math.round(p.outputVAT * 100) / 100;
++      p.netVAT = Math.round(p.netVAT * 100) / 100;
++      p.items.sort((a, b) => (a.date > b.date ? 1 : -1));
++    });
++
++    // Summary
++    const totalInput = periods.reduce((s, p) => s + p.inputVAT, 0);
++    const totalOutput = periods.reduce((s, p) => s + p.outputVAT, 0);
++    const totalNet = periods.reduce((s, p) => s + p.netVAT, 0);
++
++    // Per-company breakdown
++    const byCompany = {};
++    for (const item of taxItems) {
++      const cid = item.company_id;
++      if (!byCompany[cid]) byCompany[cid] = { companyId: cid, companyName: item.company_name, inputVAT: 0, outputVAT: 0 };
++      const accName = (item.account_name || '').trim();
++      if (accName.includes('┘à╪»╪«┘╪د╪ز')) {
++        byCompany[cid].inputVAT += (item.debit || 0) - (item.credit || 0);
++      } else if (accName.includes('┘à╪«╪▒╪ش╪د╪ز')) {
++        byCompany[cid].outputVAT += (item.credit || 0) - (item.debit || 0);
++      }
++    }
++    const companies = Object.values(byCompany).map(c => ({
++      ...c,
++      inputVAT: Math.round(c.inputVAT * 100) / 100,
++      outputVAT: Math.round(c.outputVAT * 100) / 100,
++      netVAT: Math.round((c.outputVAT - c.inputVAT) * 100) / 100
++    }));
++
++    res.json({
++      year,
++      periodMode,
++      periods,
++      companies,
++      summary: {
++        totalInput: Math.round(totalInput * 100) / 100,
++        totalOutput: Math.round(totalOutput * 100) / 100,
++        totalNet: Math.round(totalNet * 100) / 100
++      }
++    });
++  } catch (err) {
++    console.error('VAT report error:', err);
++    res.status(500).json({ error: err.message });
++  }
++});
++
++// ===== TAX REPORT BUILDER (CUSTOM CONFIG) =====
++
++router.get('/tax-report-config/:companyId', (req, res) => {
++  try {
++    const companyId = parseInt(req.params.companyId);
++    if (isNaN(companyId)) return res.status(400).json({ error: 'Invalid company ID' });
++    const db = getDb();
++    
++    // Fetch configuration
++    const config = db.prepare('SELECT * FROM tax_report_config WHERE company_id = ?').get(companyId);
++    
++    let parsedConfig = { inputAccounts: [], outputAccounts: [], excludedJournals: [], excludedMoveNames: [] };
++    if (config) {
++      try {
++        parsedConfig.inputAccounts = JSON.parse(config.input_accounts || '[]');
++        parsedConfig.outputAccounts = JSON.parse(config.output_accounts || '[]');
++        parsedConfig.excludedJournals = JSON.parse(config.excluded_journals || '[]');
++        parsedConfig.excludedMoveNames = JSON.parse(config.excluded_move_names || '[]');
++      } catch (e) {
++        console.error('Error parsing tax report config JSON', e);
++      }
++    }
++
++    // Fetch options for the builder
++    const vatAccounts = db.prepare(`
++      SELECT DISTINCT account_code, account_name 
++      FROM journal_items 
++      WHERE company_id = ? AND account_name LIKE '%╪╢╪▒┘è╪ذ%'
++      ORDER BY account_code
++    `).all(companyId);
++    
++    const journals = db.prepare(`
++      SELECT DISTINCT journal_name 
++      FROM journal_items 
++      WHERE company_id = ? AND account_name LIKE '%╪╢╪▒┘è╪ذ%' AND journal_name IS NOT NULL AND journal_name != ''
++      ORDER BY journal_name
++    `).all(companyId);
++
++    const moveNames = db.prepare(`
++      SELECT move_name, 
++             MAX(date) as date,
++             MAX(journal_name) as journal,
++             SUM(ABS(debit) + ABS(credit)) as total_vat,
++             MAX(label) as label
++      FROM journal_items 
++      WHERE company_id = ? AND account_name LIKE '%╪╢╪▒┘è╪ذ%' AND move_name IS NOT NULL AND move_name != ''
++      GROUP BY move_name
++      ORDER BY total_vat DESC, date DESC
++    `).all(companyId);
++
++    res.json({
++      config: parsedConfig,
++      options: {
++        vatAccounts,
++        journals: journals.map(j => j.journal_name),
++        moveNames
++      }
++    });
++  } catch (err) {
++    console.error('Get tax config error:', err);
++    res.status(500).json({ error: err.message });
++  }
++});
++
++router.post('/tax-report-config', (req, res) => {
++  try {
++    const { companyId, inputAccounts, outputAccounts, excludedJournals, excludedMoveNames } = req.body;
++    if (!companyId) return res.status(400).json({ error: 'Company ID required' });
++    
++    const db = getDb();
++    const stmt = db.prepare(`
++      INSERT INTO tax_report_config (company_id, input_accounts, output_accounts, excluded_journals, excluded_move_names)
++      VALUES (?, ?, ?, ?, ?)
++      ON CONFLICT(company_id) DO UPDATE SET 
++        input_accounts = excluded.input_accounts,
++        output_accounts = excluded.output_accounts,
++        excluded_journals = excluded.excluded_journals,
++        excluded_move_names = excluded.excluded_move_names
++    `);
++    
++    stmt.run(
++      parseInt(companyId),
++      JSON.stringify(inputAccounts || []),
++      JSON.stringify(outputAccounts || []),
++      JSON.stringify(excludedJournals || []),
++      JSON.stringify(excludedMoveNames || [])
++    );
++    
++    res.json({ success: true, message: 'Tax report configuration saved successfully' });
++  } catch (err) {
++    console.error('Save tax config error:', err);
++    res.status(500).json({ error: err.message });
++  }
++});
++
++router.post('/tax-report-custom', (req, res) => {
++  try {
++    const { companyId, year, period, inputAccounts, outputAccounts, excludedJournals, excludedMoveNames } = req.body;
++    if (!companyId || !year) return res.status(400).json({ error: 'Missing parameters' });
++    
++    const db = getDb();
++    const yearStart = `${year}-01-01`;
++    const yearEnd = `${year}-12-31`;
++    
++    // Default to '╪╢╪▒┘è╪ذ' if no specific accounts selected
++    const allExpectedAccounts = [...(inputAccounts || []), ...(outputAccounts || [])];
++    const hasSpecificAccounts = allExpectedAccounts.length > 0;
++    
++    let query = `
++      SELECT ji.company_id, c.name as company_name,
++             ji.account_code, ji.account_name, ji.debit, ji.credit, ji.date, ji.period,
++             ji.partner_name, ji.move_name, ji.move_ref as ref, ji.label, ji.journal_name, ji.journal_type
++      FROM journal_items ji
++      JOIN companies c ON c.id = ji.company_id
++      WHERE ji.company_id = ?
++        AND ji.date >= ? AND ji.date <= ?
++        AND ji.move_state = 'posted'
++        AND ji.journal_type IN ('sale', 'purchase')
++    `;
++    
++    const params = [parseInt(companyId), yearStart, yearEnd];
++    
++    if (hasSpecificAccounts) {
++      const placeholders = allExpectedAccounts.map(() => '?').join(',');
++      query += ` AND ji.account_name IN (${placeholders})`;
++      allExpectedAccounts.forEach(acc => params.push(acc));
++    } else {
++      query += ` AND ji.account_name LIKE '%╪╢╪▒┘è╪ذ%'`;
++    }
++
++    query += ` ORDER BY ji.date`;
++    
++    const taxItems = db.prepare(query).all(params);
++    
++    // Grouping
++    const periodMode = period || 'monthly';
++    const periodsMap = {};
++    
++    for (const item of taxItems) {
++      const monthNum = parseInt(item.date?.substring(5, 7) || '1');
++      let periodKey = year;
++      if (periodMode === 'monthly') periodKey = item.date?.substring(0, 7) || '';
++      else if (periodMode === 'quarterly') periodKey = `${year}-Q${Math.ceil(monthNum / 3)}`;
++      
++      if (!periodsMap[periodKey]) {
++        periodsMap[periodKey] = { 
++          period: periodKey, 
++          inputBase: 0, inputRefund: 0, inputVAT: 0, 
++          outputBase: 0, outputRefund: 0, outputVAT: 0, 
++          items: [] 
++        };
++      }
++      
++      const p = periodsMap[periodKey];
++      const accName = (item.account_name || '').trim();
++      
++      const isInput = item.journal_type === 'purchase';
++      const isOutput = item.journal_type === 'sale';
++
++      if (hasSpecificAccounts) {
++        // Enforce exact matching per side
++        if (isInput && !(inputAccounts || []).includes(accName)) continue;
++        if (isOutput && !(outputAccounts || []).includes(accName)) continue;
++      }
++
++      const type = isInput ? 'input' : 'output';
++      
++      let baseAmount = 0;
++      let refundAmount = 0;
++      
++      if (isOutput) {
++        baseAmount = item.credit || 0;
++        refundAmount = item.debit || 0;
++      } else {
++        baseAmount = item.debit || 0;
++        refundAmount = item.credit || 0;
++      }
++      
++      const netAmount = baseAmount - refundAmount;
++      
++      if (isInput) {
++        p.inputBase += baseAmount;
++        p.inputRefund += refundAmount;
++        p.inputVAT += netAmount;
++      } else {
++        p.outputBase += baseAmount;
++        p.outputRefund += refundAmount;
++        p.outputVAT += netAmount;
++      }
++      
++      p.items.push({ 
++        date: item.date, company: item.company_name, account: item.account_name, 
++        type, baseAmount, refundAmount, netAmount,
++        journalEntry: item.move_name, partner: item.partner_name || '', label: item.label || '' 
++      });
++    }
++    
++    const periodsArr = Object.values(periodsMap).sort((a,b) => a.period.localeCompare(b.period));
++    periodsArr.forEach(p => {
++      p.netVAT = Math.round((p.outputVAT - p.inputVAT)*100)/100;
++      p.inputVAT = Math.round(p.inputVAT*100)/100;
++      p.outputVAT = Math.round(p.outputVAT*100)/100;
++      p.inputBase = Math.round(p.inputBase*100)/100;
++      p.inputRefund = Math.round(p.inputRefund*100)/100;
++      p.outputBase = Math.round(p.outputBase*100)/100;
++      p.outputRefund = Math.round(p.outputRefund*100)/100;
++    });
++    
++    res.json({
++      year, periodMode, periods: periodsArr,
++      summary: {
++        totalInputBase: Math.round(periodsArr.reduce((s,p)=>s+p.inputBase,0)*100)/100,
++        totalInputRefund: Math.round(periodsArr.reduce((s,p)=>s+p.inputRefund,0)*100)/100,
++        totalInput: Math.round(periodsArr.reduce((s,p)=>s+p.inputVAT,0)*100)/100,
++        totalOutputBase: Math.round(periodsArr.reduce((s,p)=>s+p.outputBase,0)*100)/100,
++        totalOutputRefund: Math.round(periodsArr.reduce((s,p)=>s+p.outputRefund,0)*100)/100,
++        totalOutput: Math.round(periodsArr.reduce((s,p)=>s+p.outputVAT,0)*100)/100,
++        totalNet: Math.round(periodsArr.reduce((s,p)=>s+p.netVAT,0)*100)/100
++      }
++    });
++  } catch(err) {
++    console.error('Custom VAT error:', err);
++    res.status(500).json({ error: err.message });
++  }
++});
++
++// ==============================================
+ // ===== PRESENTATION SHARES =====
+ 
+ const crypto = require('crypto');
+diff --git a/server/services/sync-engine.js b/server/services/sync-engine.js
+index c28cea2..213d26b 100644
+--- a/server/services/sync-engine.js
++++ b/server/services/sync-engine.js
+@@ -100,6 +100,12 @@ class SyncEngine {
+         }
+       }
+       
++      this._journalMappings = {};
++      const mappings = this.db.prepare('SELECT original_name, mapped_name FROM journal_name_mappings WHERE company_id = ?').all(companyId);
++      for (const m of mappings) {
++        this._journalMappings[m.original_name] = m.mapped_name;
++      }
++      
+       this._progress[companyId] = { status: 'processing', fetched: totalItems, inserted: 0, total: totalItems, phase: `╪ز┘à ╪ش┘╪ذ ${totalItems} ╪│╪ش┘. ╪ش╪د╪▒┘è ╪د┘┘à╪╣╪د┘╪ش╪ر...` };
+ 
+       // Process in chunks of 500
+@@ -284,7 +290,15 @@ class SyncEngine {
+     const partnerName = extractName(item.partner_id) || item.partner_name || '';
+ 
+     // --- Journal ---
+-    const journalName = extractName(item.journal_id) || item.journal_name || item.journal || '';
++    let journalName = String(extractName(item.journal_id) || item.journal_name || item.journal || '').trim();
++    // Remove unicode replacement characters if any garbled text happened
++    journalName = journalName.replace(/\uFFFD/g, '');
++    
++    // Apply manual mappings if any
++    if (this._journalMappings && this._journalMappings[journalName]) {
++      journalName = this._journalMappings[journalName];
++    }
++
+ 
+     // --- Move (entry number) ---
+     const moveName = item.move_name || extractName(item.move_id) || item.move || '';
+@@ -312,9 +326,13 @@ class SyncEngine {
+         });
+         analyticAccount = names.join(', ');
+       } else {
+-        analyticAccount = String(item.analytic_distribution);
++        analyticAccount = String(item.analytic_distribution).trim().replace(/\uFFFD/g, '');
+       }
+     }
++    
++    if (analyticAccount) {
++      analyticAccount = analyticAccount.trim().replace(/\uFFFD/g, '');
++    }
+ 
+     // --- Company name (for auto-detection) ---
+     // Store company name from data for auto-update

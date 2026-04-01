@@ -109,6 +109,17 @@ function initializeSchema() {
       UNIQUE(company_id, analytic_account)
     );
 
+    -- Manual consolidation mapping for journal names
+    CREATE TABLE IF NOT EXISTS journal_name_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      original_name TEXT NOT NULL,
+      mapped_name TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, original_name)
+    );
+
     -- Admin users (email + password login)
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,9 +209,21 @@ function initializeSchema() {
       move_state TEXT DEFAULT 'posted',
       fiscal_year TEXT,
       period TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id),
       FOREIGN KEY (unified_account_id) REFERENCES unified_accounts(id)
+    );
+
+    -- Tax Report configuration
+    CREATE TABLE IF NOT EXISTS tax_report_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL UNIQUE,
+      input_accounts TEXT DEFAULT '[]',
+      output_accounts TEXT DEFAULT '[]',
+      excluded_journals TEXT DEFAULT '[]',
+      excluded_move_names TEXT DEFAULT '[]',
+      FOREIGN KEY (company_id) REFERENCES companies(id)
     );
 
     -- Intercompany elimination rules
@@ -231,6 +254,101 @@ function initializeSchema() {
       completed_at TEXT,
       FOREIGN KEY (company_id) REFERENCES companies(id)
     );
+
+    -- ==========================================
+    -- SALES SYSTEM (ISOLATED)
+    -- ==========================================
+    
+    -- Sales API instances
+    CREATE TABLE IF NOT EXISTS sales_instances (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      db_name TEXT,
+      username TEXT NOT NULL,
+      api_key TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Sales Companies
+    CREATE TABLE IF NOT EXISTS sales_companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_instance_id INTEGER NOT NULL,
+      sales_company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      currency TEXT DEFAULT 'SAR',
+      is_active INTEGER DEFAULT 1,
+      color TEXT DEFAULT '#10b981',
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (sales_instance_id) REFERENCES sales_instances(id),
+      UNIQUE(sales_instance_id, sales_company_id)
+    );
+
+    -- Sales Elimination Rules
+    CREATE TABLE IF NOT EXISTS sales_elimination_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      rule_type TEXT NOT NULL DEFAULT 'account_match',
+      source_company_id INTEGER,
+      target_company_id INTEGER,
+      source_account_code TEXT,
+      target_account_code TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (source_company_id) REFERENCES sales_companies(id),
+      FOREIGN KEY (target_company_id) REFERENCES sales_companies(id)
+    );
+
+    -- Sales Sync logs
+    CREATE TABLE IF NOT EXISTS sales_sync_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER,
+      sync_type TEXT NOT NULL DEFAULT 'full',
+      status TEXT NOT NULL DEFAULT 'running',
+      records_synced INTEGER DEFAULT 0,
+      error_message TEXT,
+      started_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      FOREIGN KEY (company_id) REFERENCES sales_companies(id)
+    );
+
+    -- Sales Invoices
+    CREATE TABLE IF NOT EXISTS sales_invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      invoice_id INTEGER,
+      name TEXT,
+      partner_name TEXT,
+      date TEXT,
+      amount_total REAL,
+      state TEXT,
+      raw_data TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (company_id) REFERENCES sales_companies(id)
+    );
+
+    -- Sales App settings (key-value store for schedule)
+    CREATE TABLE IF NOT EXISTS sales_app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Sales Sync notifications
+    CREATE TABLE IF NOT EXISTS sales_sync_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL DEFAULT 'success',
+      message TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Default sales sync settings
+    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_enabled', 'false');
+    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_interval_hours', '2');
 
     -- Performance indexes
     CREATE INDEX IF NOT EXISTS idx_journal_items_company ON journal_items(company_id);
@@ -292,21 +410,39 @@ function initializeSchema() {
     -- Default sync settings
     INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sync_enabled', 'false');
     INSERT OR IGNORE INTO app_settings (key, value) VALUES ('sync_interval_hours', '2');
+    
+    -- Sales app settings
+    CREATE TABLE IF NOT EXISTS sales_app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_enabled', 'false');
+    INSERT OR IGNORE INTO sales_app_settings (key, value) VALUES ('sync_interval_hours', '2');
+    
+    -- Sales sync notifications
+    CREATE TABLE IF NOT EXISTS sales_sync_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      details TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 
-  // Add redistributable column to analytic_group_mapping if not exists
+  // Add redistributable and journal_name columns to analytic_group_mapping if not exists
   try {
     db.prepare(`ALTER TABLE analytic_group_mapping ADD COLUMN redistributable INTEGER DEFAULT 0`).run();
     console.log('[DB] Added redistributable column to analytic_group_mapping');
   } catch (e) { /* column already exists */ }
 
-  // Clean up legacy CLOSING journal_items from old approach
   try {
-    const cleaned = db.prepare(`DELETE FROM journal_items WHERE move_name LIKE 'CLOSING/%'`).run();
-    if (cleaned.changes > 0) {
-      console.log(`[DB] Cleaned up ${cleaned.changes} legacy closing journal_items`);
-    }
-  } catch (e) { /* ignore if column doesn't exist */ }
+    db.prepare(`ALTER TABLE analytic_group_mapping ADD COLUMN journal_name TEXT`).run();
+    console.log('[DB] Added journal_name column to analytic_group_mapping');
+  } catch (e) { /* column already exists */ }
+
+  // The legacy CLOSING journal_items cleanup was removed because it caused
+  // a massive 4-minute full table scan on startup for large databases.
+  // Legacy closing entries have already been purged in the initial migration.
 
   // Create closing_entries table (drop old version if schema changed)
   try {
