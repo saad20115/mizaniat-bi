@@ -27,8 +27,23 @@ const navItems = [
 
 export function renderSidebar() {
   const nav = document.getElementById('sidebar-nav');
+  const sidebar = document.getElementById('sidebar');
+  const main = document.getElementById('main-content');
+  const toggle = document.getElementById('sidebar-toggle');
+  
   const currentPage = store.get('currentPage');
   const isViewer = window.isViewerMode && window.isViewerMode();
+  
+  // Apply saved collapse state
+  if (store.get('sidebarCollapsed')) {
+    sidebar.classList.add('collapsed');
+    main.classList.add('sidebar-collapsed');
+    if (toggle) toggle.querySelector('span').textContent = '►';
+  } else {
+    sidebar.classList.remove('collapsed');
+    main.classList.remove('sidebar-collapsed');
+    if (toggle) toggle.querySelector('span').textContent = '◄';
+  }
   
   // In viewer mode, only show presentation
   const items = isViewer
@@ -88,13 +103,12 @@ export function renderSidebar() {
   }
 
   // Toggle sidebar
-  const toggle = document.getElementById('sidebar-toggle');
-  toggle.onclick = () => {
-    const sidebar = document.getElementById('sidebar');
-    const main = document.getElementById('main-content');
-    sidebar.classList.toggle('collapsed');
-    main.classList.toggle('sidebar-collapsed');
-    store.set('sidebarCollapsed', sidebar.classList.contains('collapsed'));
-    toggle.querySelector('span').textContent = sidebar.classList.contains('collapsed') ? '►' : '◄';
-  };
+  if (toggle) {
+    toggle.onclick = () => {
+      sidebar.classList.toggle('collapsed');
+      main.classList.toggle('sidebar-collapsed');
+      store.set('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+      toggle.querySelector('span').textContent = sidebar.classList.contains('collapsed') ? '►' : '◄';
+    };
+  }
 }

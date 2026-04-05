@@ -121,6 +121,12 @@ function reschedule(intervalHours, enabled) {
   if (!schedule) return;
   
   startScheduler(schedule);
+  
+  // Trigger an immediate sync run asynchronously so the user sees it working immediately
+  setTimeout(() => {
+    console.log('[Sales Cron] Triggering immediate sync upon user activation...');
+    runScheduledSync();
+  }, 2000);
 }
 
 function stopScheduler() {

@@ -162,6 +162,7 @@ export const api = {
 
     // Invoices preview
     getInvoices: (params) => request('/sales/invoices?' + buildQuery(params)),
+    getCustomerHierarchy: (params) => request('/sales/customer-hierarchy?' + buildQuery(params)),
   }
 };
 

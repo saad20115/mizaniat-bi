@@ -272,8 +272,9 @@ export async function renderSalesSettings(container) {
     }
   }
 
-  toggleTrack.addEventListener('click', () => { toggleCb.checked = !toggleCb.checked; updateToggleVisual(toggleCb.checked); });
-  toggleDot.addEventListener('click', () => { toggleCb.checked = !toggleCb.checked; updateToggleVisual(toggleCb.checked); });
+  toggleCb.addEventListener('change', () => { 
+    updateToggleVisual(toggleCb.checked); 
+  });
 
   container.querySelector('#btn-save-schedule').addEventListener('click', async () => {
     const btn = container.querySelector('#btn-save-schedule');

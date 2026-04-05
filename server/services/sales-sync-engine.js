@@ -137,11 +137,11 @@ class SalesSyncEngine {
                 dbName, uid, instance.api_key,
                 "account.move", "search_read",
                 [[
-                  ["move_type", "in", ["out_invoice", "out_refund", "out_receipt"]],
+                  ["move_type", "in", ["out_invoice", "out_refund", "out_receipt", "entry"]],
                   ["company_id", "=", parseInt(company.sales_company_id)]
                 ]],
                 { 
-                  fields: ["name", "partner_id", "invoice_date", "amount_total_signed", "state", "amount_untaxed_signed", "amount_residual_signed", "company_id", "payment_state", "ref", "move_type"],
+                  fields: ["name", "partner_id", "invoice_date", "amount_total_signed", "state", "amount_untaxed_signed", "amount_residual_signed", "company_id", "payment_state", "ref", "move_type", "journal_id"],
                   limit: 50000 
                 }
               ]
@@ -161,9 +161,10 @@ class SalesSyncEngine {
                   amount_untaxed: r.amount_untaxed_signed,
                   total_paid: r.amount_total_signed - r.amount_residual_signed,
                   status: r.state === 'posted' ? 'Posted' : 'Draft',
-                  move_type: (r.move_type === 'out_refund' || r.move_type === 'out_receipt') ? 'Customer Credit Note' : 'Customer Invoice',
+                  move_type: (r.move_type === 'out_refund' || r.move_type === 'out_receipt' || r.move_type === 'entry') ? 'Customer Credit Note' : 'Customer Invoice',
                   reference: r.ref || '',
-                  payment_status: r.payment_state || ''
+                  payment_status: r.payment_state || '',
+                  journal_name: r.journal_id ? r.journal_id[1] : ''
                 });
               }
               
@@ -181,6 +182,9 @@ class SalesSyncEngine {
                   invoices[i].move_type = odooRecord.move_type;
                   if (!invoices[i].reference && odooRecord.reference) {
                     invoices[i].reference = odooRecord.reference;
+                  }
+                  if (!invoices[i].journal_name && odooRecord.journal_name) {
+                    invoices[i].journal_name = odooRecord.journal_name;
                   }
                   coveredNames.add(invName);
                 }

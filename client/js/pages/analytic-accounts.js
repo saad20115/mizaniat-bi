@@ -35,13 +35,13 @@ export async function renderAnalyticAccounts(container) {
     <!-- Company + accounts section -->
     <div class="glass-card" style="padding:var(--space-lg);margin-bottom:var(--space-lg);">
       <div style="display:flex;flex-wrap:wrap;gap:var(--space-md);align-items:flex-end;margin-bottom:var(--space-md);">
-        <div class="filter-group">
+        <div class="filter-group" style="flex: 1; min-width: 200px; max-width: 100%;">
           <span class="filter-label">الشركة</span>
-          <select class="filter-select" id="aa-company" style="min-width:250px;">
+          <select class="filter-select" id="aa-company" style="width: 100%;">
             ${companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('')}
           </select>
         </div>
-        <button class="btn btn-primary" id="btn-load-accounts" style="font-size:0.8rem;">تحميل الحسابات</button>
+        <button class="btn btn-primary" id="btn-load-accounts" style="font-size:0.8rem; white-space: nowrap;">تحميل الحسابات</button>
         <button class="btn" id="btn-save-mappings" style="font-size:0.8rem;background:rgba(16,185,129,0.15);color:var(--accent-emerald);border-color:rgba(16,185,129,0.2);" disabled>
           💾 حفظ التصنيف
         </button>
@@ -279,7 +279,7 @@ function renderAccountsTable(container) {
         </span>
       </div>
     </div>
-    <div style="margin-bottom:var(--space-md);display:flex;gap:var(--space-sm);">
+    <div style="margin-bottom:var(--space-md);display:flex;flex-wrap:wrap;gap:var(--space-sm);">
       <button class="btn btn-assign-all" data-group="" style="font-size:0.72rem;padding:4px 10px;">إلغاء الكل</button>
       ${groups.map(g => `
         <button class="btn btn-assign-all" data-group="${g.id}" style="font-size:0.72rem;padding:4px 10px;background:${g.color}15;color:${g.color};border-color:${g.color}33;">
@@ -287,7 +287,7 @@ function renderAccountsTable(container) {
         </button>
       `).join('')}
     </div>
-    <div class="table-container">
+    <div class="data-table-wrapper">
       <table class="data-table" style="font-size:0.82rem;">
         <thead>
           <tr>

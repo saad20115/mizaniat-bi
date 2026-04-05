@@ -119,7 +119,7 @@ export async function renderPresentation(container) {
       .bi-adv-toggle .arrow{transition:transform 0.25s;display:inline-block;font-size:0.7rem;color:rgba(255,255,255,0.4)}
       .bi-adv-toggle.open .arrow{transform:rotate(90deg)}
       .bi-adv-panel{max-height:0;overflow:hidden;transition:max-height 0.35s ease}
-      .bi-adv-panel.open{max-height:500px}
+      .bi-adv-panel.open{max-height:2500px}
       .bi-single-chk{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:0.88rem;color:rgba(255,255,255,0.5);font-weight:600;white-space:nowrap}
       .bi-single-chk input{accent-color:#06b6d4;width:16px;height:16px;cursor:pointer}
 
@@ -185,6 +185,7 @@ export async function renderPresentation(container) {
         <div class="bi-tab" data-tab="redist">🔄 إعادة التوزيع</div>
         <div class="bi-tab" data-tab="guarantees">🏦 الضمانات البنكية</div>
         <div class="bi-tab" data-tab="sales">🛍️ المبيعات</div>
+        <div class="bi-tab" data-tab="sales-details">🛒 تفاصيل المبيعات</div>
       </div>
 
       <!-- Dashboard Body -->
@@ -380,7 +381,7 @@ function populateCCSlider(container, d) {
     chip.dataset.cc = cc;
     chip.dataset.color = color;
     chip.style.cssText = `border-color:${color};background:${color}20;color:${color};`;
-    chip.textContent = cc.length > 18 ? cc.substring(0, 18) + '…' : cc;
+    chip.textContent = cc;
     chip.addEventListener('click', () => {
       const singleMode = container.querySelector('#cc-single-mode')?.checked;
       if (singleMode) {
@@ -536,7 +537,8 @@ function renderDashboard(container) {
     case 'pivot-cc': renderPivotCC(body, d); break;
     case 'redist': renderRedistribution(body, d); break;
     case 'guarantees': renderGuarantees(body, d, yrs, yd); break;
-    case 'sales': renderSalesOverview(body, d, yrs); break;
+    case 'sales': renderSalesOverview(body, d, yrs, selectedCCs); break;
+    case 'sales-details': renderSalesDetailsHierarchy(body, d, yrs, selectedCCs); break;
   }
 }
 
@@ -1934,7 +1936,7 @@ async function renderGuarantees(body, d, yrs, yd) {
 }
 
 // ===== SALES REPORT TAB =====
-async function renderSalesOverview(body, d, yrs) {
+async function renderSalesOverview(body, d, yrs, selectedCCs) {
   const selectedYrs = d._selectedYrs || [];
   const selectedCos = d._selectedCos || [];
   
@@ -1961,6 +1963,7 @@ async function renderSalesOverview(body, d, yrs) {
     if (dateFrom) params.dateFrom = dateFrom;
     if (dateTo) params.dateTo = dateTo;
     if (selectedCos.length > 0) params.masterCompanyIds = selectedCos.join(',');
+    if (selectedCCs && selectedCCs.length > 0) params.costCenters = selectedCCs.join(',');
     
     const data = await api.sales.getInvoices(params);
     
@@ -2060,7 +2063,8 @@ async function renderSalesOverview(body, d, yrs) {
     const topPartnersArr = allPartnersArr.slice(0, 10);
       
     // HTML Generation
-    const colRate = totalSales > 0 ? (totalPaid / totalSales * 100) : 0;
+    const actualCollected = totalPaid + totalRefunds;
+    const colRate = totalSales > 0 ? (actualCollected / totalSales * 100) : 0;
     const remRate = totalSales > 0 ? (totalRem / totalSales * 100) : 0;
 
     let html = `
@@ -2112,8 +2116,8 @@ async function renderSalesOverview(body, d, yrs) {
         </div>
 
         <div class="skpi skpi-6 skpi-prog-paid">
-          <div class="skpi-lbl">✅ إجمالي المحصّل</div>
-          <div class="skpi-val" style="color:#06b6d4;font-size:1.8rem;">${fmt(totalPaid)}</div>
+          <div class="skpi-lbl">✅ إجمالي المحصّل (متضمناً المرتجعات)</div>
+          <div class="skpi-val" style="color:#06b6d4;font-size:1.8rem;">${fmt(actualCollected)}</div>
           <div style="margin-top:16px;display:flex;align-items:center;gap:16px;">
             <div style="flex:1;height:8px;background:rgba(0,0,0,0.4);border-radius:4px;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,0.5);">
               <div style="width:${colRate}%;height:100%;background:linear-gradient(90deg, #0891b2, #22d3ee);border-radius:4px;box-shadow:0 0 12px #06b6d4;"></div>
@@ -2394,3 +2398,266 @@ async function renderSalesOverview(body, d, yrs) {
   }
 }
 
+// ===== SALES DETAILS HIERARCHY TAB =====
+async function renderSalesDetailsHierarchy(body, d, yrs, selectedCCs) {
+  const selectedYrs = d._selectedYrs || [];
+  const selectedCos = d._selectedCos || [];
+  
+  body.innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;">
+      <h2 style="margin:0;color:rgba(255,255,255,0.85);font-size:1.3rem;">🛒 تفاصيل جميع العملاء والمبيعات (هرمي)</h2>
+    </div>
+    <div id="sales-hier-content"><div class="bi-empty">⏳ جاري تحميل تفاصيل العملاء...</div></div>
+  `;
+
+  try {
+    const fromInput = document.getElementById('date-from') ? document.getElementById('date-from').value : '';
+    const toInput = document.getElementById('date-to') ? document.getElementById('date-to').value : '';
+    let dateFrom = fromInput;
+    let dateTo = toInput;
+    if (!dateFrom && !dateTo && selectedYrs.length > 0) {
+      dateFrom = `${Math.min(...selectedYrs)}-01-01`;
+      dateTo = `${Math.max(...selectedYrs)}-12-31`;
+    }
+    
+    const params = {};
+    if (dateFrom) params.dateFrom = dateFrom;
+    if (dateTo) params.dateTo = dateTo;
+    if (selectedCos.length > 0) params.masterCompanyIds = selectedCos.join(',');
+    if (selectedCCs && selectedCCs.length > 0) params.costCenters = selectedCCs.join(',');
+    
+    const res = await api.sales.getCustomerHierarchy(params);
+    if (!res || !res.hierarchy) throw new Error('فشل جلب أرقام الهيكل');
+    
+    const h = res.hierarchy;
+    let gtGross = 0, gtUntaxed = 0, gtTax = 0, gtRefunds = 0, gtNet = 0, gtPaid = 0, gtRem = 0;
+    const companies = Object.keys(h);
+    let html = '';
+    
+    companies.forEach((coName, cIdx) => {
+      const coGroups = h[coName];
+      let cGross = 0, cUntaxed = 0, cTax = 0, cRefunds = 0, cNet = 0, cPaid = 0, cRem = 0;
+      let groupsHtml = '';
+      
+      Object.keys(coGroups).forEach((grpName, gIdx) => {
+        const grpCCs = coGroups[grpName];
+        let gGross = 0, gUntaxed = 0, gTax = 0, gRefunds = 0, gNet = 0, gPaid = 0, gRem = 0;
+        let ccsHtml = '';
+        
+        Object.keys(grpCCs).forEach((ccName, ccIdx) => {
+          const ccPartners = grpCCs[ccName];
+          let ccGross = 0, ccUntaxed = 0, ccTax = 0, ccRefunds = 0, ccNet = 0, ccPaid = 0, ccRem = 0;
+          let partnerRowsHtml = '';
+          
+          Object.keys(ccPartners).forEach((ptName) => {
+            const pt = ccPartners[ptName];
+            ccGross += pt.total; ccUntaxed += pt.untaxed; ccTax += pt.tax;
+            ccRefunds += pt.refunds; ccPaid += pt.paid; ccRem += pt.rem;
+            
+            pt.net = pt.total - pt.refunds;
+            const pNet = pt.net;
+            const ptPct = pt.net > 0 ? (pt.paid / pt.net * 100) : (pt.total > 0 ? (pt.paid / pt.total * 100) : 0);
+            
+            partnerRowsHtml += `
+              <tr class="row-pt sales-row-pt-${cIdx} sales-row-pt-${cIdx}-${gIdx} sales-row-pt-${cIdx}-${gIdx}-${ccIdx}" style="display:none; transition: all 0.2s ease;">
+                <td style="padding-right:70px; font-weight:400; font-size:0.95rem;">👤 ${ptName}</td>
+                <td class="n">${fmt(pt.untaxed)}</td>
+                <td class="n">${fmt(pt.tax)}</td>
+                <td class="n" style="color:#ef4444">${fmt(pt.refunds)}</td>
+                <td class="n" style="font-weight:700">${fmt(pt.total)}</td>
+                <td class="n" style="color:#3b82f6;font-weight:700">${fmt(pNet)}</td>
+                <td class="n" style="color:#10b981">${fmt(pt.paid)}</td>
+                <td class="n" style="color:#f59e0b">${fmt(pt.rem)}</td>
+                <td class="n">${fmtP(ptPct)}</td>
+              </tr>
+            `;
+          });
+          
+          ccNet = ccGross - ccRefunds;
+          gGross += ccGross; gUntaxed += ccUntaxed; gTax += ccTax;
+          gRefunds += ccRefunds; gNet += ccNet; gPaid += ccPaid; gRem += ccRem;
+          const ccPct = ccNet > 0 ? (ccPaid / ccNet * 100) : 0;
+          
+          ccsHtml += `
+            <tr class="row-cc sales-row-cc-${cIdx} sales-row-cc-${cIdx}-${gIdx}" style="display:none;" onclick="
+              this.classList.toggle('open'); 
+              document.querySelectorAll('.sales-row-pt-${cIdx}-${gIdx}-${ccIdx}').forEach(e => {
+                e.style.display = e.style.display === 'none' ? 'table-row' : 'none';
+              });
+            ">
+              <td style="padding-right:50px;font-weight:600;color:#67e8f9;">🏗️ ${ccName}</td>
+              <td class="n">${fmt(ccUntaxed)}</td>
+              <td class="n">${fmt(ccTax)}</td>
+              <td class="n" style="color:#ef4444">${fmt(ccRefunds)}</td>
+              <td class="n" style="font-weight:700">${fmt(ccGross)}</td>
+              <td class="n" style="color:#3b82f6">${fmt(ccNet)}</td>
+              <td class="n" style="color:#10b981">${fmt(ccPaid)}</td>
+              <td class="n" style="color:#f59e0b">${fmt(ccRem)}</td>
+              <td class="n">${fmtP(ccPct)}</td>
+            </tr>
+          `;
+          
+          ccsHtml += partnerRowsHtml;
+        });
+
+        gNet = gGross - gRefunds;
+        cGross += gGross; cUntaxed += gUntaxed; cTax += gTax;
+        cRefunds += gRefunds; cNet += gNet; cPaid += gPaid; cRem += gRem;
+        const gPct = gNet > 0 ? (gPaid / gNet * 100) : 0;
+
+        groupsHtml += `
+          <tr class="row-cc sales-row-grp-${cIdx}" style="display:none;" onclick="
+            this.classList.toggle('open'); 
+            document.querySelectorAll('.sales-row-cc-${cIdx}-${gIdx}').forEach(e => {
+              e.style.display = e.style.display === 'none' ? 'table-row' : 'none';
+              if(e.style.display === 'none') {
+                e.classList.remove('open');
+                const rowPts = document.querySelectorAll('.sales-row-pt-${cIdx}-${gIdx}');
+                rowPts.forEach(p => p.style.display = 'none');
+              }
+            });
+          ">
+            <td style="padding-right:30px;font-weight:700;color:#fcd34d;">📂 ${grpName} (المجموعة)</td>
+            <td class="n">${fmt(gUntaxed)}</td>
+            <td class="n">${fmt(gTax)}</td>
+            <td class="n" style="color:#ef4444">${fmt(gRefunds)}</td>
+            <td class="n" style="font-weight:700">${fmt(gGross)}</td>
+            <td class="n" style="color:#3b82f6">${fmt(gNet)}</td>
+            <td class="n" style="color:#10b981">${fmt(gPaid)}</td>
+            <td class="n" style="color:#f59e0b">${fmt(gRem)}</td>
+            <td class="n">${fmtP(gPct)}</td>
+          </tr>
+        `;
+        
+        groupsHtml += ccsHtml;
+      });
+      
+      cNet = cGross - cRefunds;
+      gtGross += cGross; gtUntaxed += cUntaxed; gtTax += cTax;
+      gtRefunds += cRefunds; gtNet += cNet; gtPaid += cPaid; gtRem += cRem;
+      const cPct = cNet > 0 ? (cPaid / cNet * 100) : 0;
+      
+      html += `
+        <tr class="row-co" onclick="
+          this.classList.toggle('open'); 
+          document.querySelectorAll('.sales-row-grp-${cIdx}').forEach(e => {
+            e.style.display = e.style.display === 'none' ? 'table-row' : 'none';
+            if(e.style.display === 'none') {
+              e.classList.remove('open');
+              document.querySelectorAll('.sales-row-cc-${cIdx}').forEach(c => {
+                c.style.display = 'none';
+                c.classList.remove('open');
+              });
+              document.querySelectorAll('.sales-row-pt-${cIdx}').forEach(p => p.style.display = 'none');
+            }
+          });
+        ">
+          <td style="font-weight:800;color:#c084fc;">🏢 ${coName}</td>
+          <td class="n" style="color:#c084fc">${fmt(cUntaxed)}</td>
+          <td class="n" style="color:#c084fc">${fmt(cTax)}</td>
+          <td class="n" style="color:#ef4444">${fmt(cRefunds)}</td>
+          <td class="n" style="font-weight:800;color:#c084fc">${fmt(cGross)}</td>
+          <td class="n" style="color:#3b82f6;font-weight:800">${fmt(cNet)}</td>
+          <td class="n" style="color:#10b981;font-weight:800">${fmt(cPaid)}</td>
+          <td class="n" style="color:#f59e0b;font-weight:800">${fmt(cRem)}</td>
+          <td class="n" style="color:#c084fc">${fmtP(cPct)}</td>
+        </tr>
+      `;
+      
+      html += groupsHtml;
+    });
+    
+    const oPct = gtNet > 0 ? (gtPaid / gtNet * 100) : 0;
+    
+    document.getElementById('sales-hier-content').innerHTML = `
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding: 0 8px;">
+        <div style="width: 6px; height: 28px; background: linear-gradient(180deg, #3b82f6, #06b6d4); border-radius: 6px;"></div>
+        <h2 style="margin: 0; font-size: 1.5rem; color: #f8fafc; font-weight: 800; letter-spacing: -0.5px;">🛒 تفاصيل جميع العملاء والمبيعات <span style="font-size: 1.1rem; color: #94a3b8; font-weight: 600; margin-right: 6px;">(هرمي)</span></h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 32px;">
+        <!-- Net Sales Card -->
+        <div style="position: relative; overflow: hidden; border-radius: 24px; padding: 28px; background: linear-gradient(145deg, rgba(16,185,129,0.08) 0%, rgba(15,23,42,0.8) 100%); border: 1px solid rgba(16,185,129,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.25); backdrop-filter: blur(12px); display: flex; flex-direction: column; justify-content: center; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+          <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: rgba(16,185,129,0.15); filter: blur(45px); border-radius: 50%; pointer-events: none;"></div>
+          <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+            <div style="width: 54px; height: 54px; border-radius: 16px; background: rgba(16,185,129,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; border: 1px solid rgba(16,185,129,0.25); box-shadow: 0 4px 12px rgba(16,185,129,0.1);">📈</div>
+            <div style="font-size: 1.15rem; color: #94a3b8; font-weight: 700;">صافي المبيعات الكلي</div>
+          </div>
+          <div style="font-size: 2.6rem; font-weight: 800; color: #34d399; font-family: var(--font-en); letter-spacing: -1px; display: flex; align-items: baseline; gap: 8px; text-shadow: 0 2px 10px rgba(52,211,153,0.2);">
+            ${fmt(gtNet)} <span style="font-size: 1rem; color: #64748b; font-weight: 600; text-shadow: none;">ر.س</span>
+          </div>
+        </div>
+
+        <!-- Remaining Balance Card -->
+        <div style="position: relative; overflow: hidden; border-radius: 24px; padding: 28px; background: linear-gradient(145deg, rgba(245,158,11,0.08) 0%, rgba(15,23,42,0.8) 100%); border: 1px solid rgba(245,158,11,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.25); backdrop-filter: blur(12px); display: flex; flex-direction: column; justify-content: center; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+          <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: rgba(245,158,11,0.15); filter: blur(45px); border-radius: 50%; pointer-events: none;"></div>
+          <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+            <div style="width: 54px; height: 54px; border-radius: 16px; background: rgba(245,158,11,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; border: 1px solid rgba(245,158,11,0.25); box-shadow: 0 4px 12px rgba(245,158,11,0.1);">⏳</div>
+            <div style="font-size: 1.15rem; color: #94a3b8; font-weight: 700;">الرصيد المتبقي</div>
+          </div>
+          <div style="font-size: 2.6rem; font-weight: 800; color: #fbbf24; font-family: var(--font-en); letter-spacing: -1px; display: flex; align-items: baseline; gap: 8px; text-shadow: 0 2px 10px rgba(251,191,36,0.2);">
+            ${fmt(gtRem)} <span style="font-size: 1rem; color: #64748b; font-weight: 600; text-shadow: none;">ر.س</span>
+          </div>
+        </div>
+
+        <!-- Collection Card -->
+        <div style="position: relative; overflow: hidden; border-radius: 24px; padding: 28px; background: linear-gradient(145deg, rgba(6,182,212,0.08) 0%, rgba(15,23,42,0.8) 100%); border: 1px solid rgba(6,182,212,0.15); box-shadow: 0 12px 40px rgba(0,0,0,0.25); backdrop-filter: blur(12px); display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: default;" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'">
+          <div style="position: absolute; top: -30px; right: -30px; width: 140px; height: 140px; background: rgba(6,182,212,0.15); filter: blur(45px); border-radius: 50%; pointer-events: none;"></div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+              <div style="width: 54px; height: 54px; border-radius: 16px; background: rgba(6,182,212,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; border: 1px solid rgba(6,182,212,0.25); box-shadow: 0 4px 12px rgba(6,182,212,0.1);">✅</div>
+              <div style="font-size: 1.15rem; color: #94a3b8; font-weight: 700;">إجمالي المحصّل الفعلي</div>
+            </div>
+            <div style="font-size: 2.6rem; font-weight: 800; color: #22d3ee; font-family: var(--font-en); letter-spacing: -1px; margin-bottom: 24px; display: flex; align-items: baseline; gap: 8px; text-shadow: 0 2px 10px rgba(34,211,238,0.2);">
+              ${fmt(gtPaid)} <span style="font-size: 1rem; color: #64748b; font-weight: 600; text-shadow: none;">ر.س</span>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.95rem; color: #67e8f9; font-weight: 700; align-items: center;">
+              <span>نسبة التحصيل من الصافي</span>
+              <span style="font-family: var(--font-en); font-size: 1.1rem; background: rgba(6,182,212,0.15); padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(6,182,212,0.3);">${fmtP(oPct)}</span>
+            </div>
+            <div style="height: 8px; background: rgba(0,0,0,0.4); border-radius: 6px; overflow: hidden; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);">
+              <div style="height: 100%; width: ${Math.min(oPct, 100)}%; background: linear-gradient(90deg, #0284c7, #22d3ee, #67e8f9); border-radius: 6px; transition: width 1s ease-out; box-shadow: 0 0 10px rgba(34,211,238,0.5);"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bi-card bi-full" style="padding:0;">
+        <div style="overflow-x:auto;">
+          <table class="bi-table">
+            <thead style="background:rgba(15,23,42,0.95);position:sticky;top:0;z-index:20;">
+              <tr>
+                <th style="min-width:350px;">وصف الشجرة المعتمدة (الشركة > المجموعة > المركز > العميل)</th>
+                <th class="n">قبل الضريبة</th>
+                <th class="n">الضريبة</th>
+                <th class="n" style="color:#fca5a5;">مرتجعات / خصم</th>
+                <th class="n" style="color:#d8b4fe;">المبيعات الإجمالية</th>
+                <th class="n" style="color:#93c5fd;">صافي المبيعات</th>
+                <th class="n" style="color:#6ee7b7;">التحصيل</th>
+                <th class="n" style="color:#fca5a5;">الرصيد المتبقي</th>
+                <th class="n">% التحصيل (من الصافي)</th>
+              </tr>
+            </thead>
+            <tbody>${html}</tbody>
+            <tfoot style="background:rgba(15,23,42,0.95);position:sticky;bottom:-1px;z-index:20;box-shadow:0 -4px 10px rgba(0,0,0,0.3);">
+              <tr>
+                <td style="color:#e2e8f0;font-size:1.15rem;">📊 إجمالي محفظة المبيعات</td>
+                <td class="n" style="color:#e2e8f0">${fmt(gtUntaxed)}</td>
+                <td class="n" style="color:#e2e8f0">${fmt(gtTax)}</td>
+                <td class="n" style="color:#ef4444">${fmt(gtRefunds)}</td>
+                <td class="n" style="color:#c4b5fd">${fmt(gtGross)}</td>
+                <td class="n" style="color:#3b82f6">${fmt(gtNet)}</td>
+                <td class="n" style="color:#10b981">${fmt(gtPaid)}</td>
+                <td class="n" style="color:#f59e0b">${fmt(gtRem)}</td>
+                <td class="n" style="color:#e2e8f0">${fmtP(oPct)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    `;
+  } catch(err) {
+    console.error('Hier error:', err);
+    document.getElementById('sales-hier-content').innerHTML = `<div class="bi-empty" style="color:#ef4444">❌ خطأ: ${err.message}</div>`;
+  }
+}
