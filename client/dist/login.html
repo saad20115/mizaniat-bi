@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="تسجيل الدخول — تقارير مالية">
+  <title>تسجيل الدخول | تقارير مالية</title>
+  <link rel="icon" type="image/png" href="/assets/logo-SiUukkZm.png">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --font-ar: 'Noto Sans Arabic', sans-serif;
+      --bg-dark: #050816;
+      --card-bg: rgba(15, 23, 60, 0.75);
+      --border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.25);
+      --danger: #ef4444;
+      --text-white: #e8eaf6;
+      --text-muted: rgba(255, 255, 255, 0.5);
+    }
+    html { font-size: 15px; }
+    body {
+      font-family: var(--font-ar);
+      background: var(--bg-dark);
+      color: var(--text-white);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      direction: rtl;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(59,130,246,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(16,185,129,0.05) 0%, transparent 50%),
+        radial-gradient(ellipse 40% 60% at 50% 50%, rgba(139,92,246,0.04) 0%, transparent 50%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .login-container {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px; padding: 20px;
+    }
+    .login-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 48px 36px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+    }
+    .login-logo {
+      text-align: center; margin-bottom: 36px;
+    }
+    .login-logo .icon {
+      width: 90px; height: 90px;
+      border-radius: 20px;
+      display: inline-flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .login-logo .icon img {
+      width: 100%; height: 100%; object-fit: contain;
+    }
+    .login-logo h1 {
+      font-size: 1.6rem; font-weight: 800; color: var(--text-white);
+      margin-bottom: 4px;
+    }
+    .login-logo p {
+      font-size: 0.88rem; color: var(--text-muted); font-weight: 500;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block; font-size: 0.88rem; font-weight: 700;
+      color: rgba(255,255,255,0.65); margin-bottom: 8px;
+    }
+    .form-group input {
+      width: 100%; padding: 14px 16px;
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      color: var(--text-white);
+      font-size: 1rem; font-family: var(--font-ar);
+      outline: none;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .form-group input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+    .form-group input::placeholder {
+      color: rgba(255,255,255,0.25);
+    }
+
+    .login-btn {
+      width: 100%; padding: 15px;
+      background: linear-gradient(135deg, var(--primary), #2563eb);
+      border: none; border-radius: 14px;
+      color: #fff; font-size: 1.05rem; font-weight: 700;
+      font-family: var(--font-ar);
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.25s;
+      box-shadow: 0 4px 20px var(--primary-glow);
+      margin-top: 8px;
+    }
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--primary-glow);
+    }
+    .login-btn:active { transform: scale(0.98); }
+    .login-btn:disabled {
+      opacity: 0.6; cursor: not-allowed; transform: none;
+    }
+
+    .error-msg {
+      display: none;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: #fca5a5;
+      font-size: 0.9rem; font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+    .error-msg.show { display: block; }
+
+    .spinner-small {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-left: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 480px) {
+      .login-card { padding: 36px 24px; border-radius: 20px; }
+      .login-logo .icon { width: 70px; height: 70px; }
+      .login-logo h1 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="icon"><img src="/assets/logo-SiUukkZm.png" alt="SJC"></div>
+        <h1>تقارير مالية</h1>
+        <p>نظام التقارير المالية المجمعة</p>
+      </div>
+
+      <div class="error-msg" id="error-msg"></div>
+
+      <form id="login-form" autocomplete="on">
+        <div class="form-group">
+          <label for="email">البريد الإلكتروني</label>
+          <input type="email" id="email" name="email" placeholder="admin@mizaniat.com" required autocomplete="email" autofocus>
+        </div>
+        <div class="form-group">
+          <label for="password">كلمة المرور</label>
+          <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="login-btn" id="login-btn">تسجيل الدخول</button>
+      </form>
+
+      <!-- Divider -->
+      <div style="display:flex;align-items:center;gap:14px;margin:28px 0 20px;">
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+        <span style="font-size:0.85rem;color:rgba(255,255,255,0.3);font-weight:600;">أو الدخول كمشاهد</span>
+        <div style="flex:1;height:1px;background:rgba(255,255,255,0.08);"></div>
+      </div>
+
+      <!-- Viewer Phone Login -->
+      <div class="error-msg" id="viewer-error"></div>
+      <div class="form-group">
+        <label for="phone">رقم الجوال</label>
+        <input type="tel" id="phone" placeholder="05xxxxxxxx" dir="ltr" style="text-align:center;letter-spacing:1.5px;font-family:'Inter',var(--font-ar);">
+      </div>
+      <button type="button" class="login-btn" id="viewer-btn" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9);box-shadow:0 4px 20px rgba(139,92,246,0.25);">
+        👁️ دخول كمشاهد
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // If already logged in, redirect
+    const existingToken = localStorage.getItem('mizaniat_admin_token');
+    if (existingToken) {
+      fetch('/api/auth/admin/me', {
+        headers: { 'Authorization': 'Bearer ' + existingToken }
+      }).then(r => {
+        if (r.ok) window.location.href = '/';
+      }).catch(() => {});
+    }
+
+    // ===== ADMIN LOGIN =====
+    const form = document.getElementById('login-form');
+    const errorMsg = document.getElementById('error-msg');
+    const loginBtn = document.getElementById('login-btn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.remove('show');
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!email || !password) {
+        showError('يرجى إدخال البريد الإلكتروني وكلمة المرور');
+        return;
+      }
+
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = 'جاري الدخول... <span class="spinner-small"></span>';
+
+      try {
+        const res = await fetch('/api/auth/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'خطأ في تسجيل الدخول');
+          return;
+        }
+
+        // Clear any viewer mode
+        localStorage.removeItem('mizaniat_viewer_mode');
+        sessionStorage.removeItem('mizaniat_viewer_token');
+
+        // Save token and redirect
+        localStorage.setItem('mizaniat_admin_token', data.token);
+        localStorage.setItem('mizaniat_admin_info', JSON.stringify(data.admin));
+        window.location.href = '/';
+
+      } catch (err) {
+        showError('تعذر الاتصال بالخادم');
+      } finally {
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = 'تسجيل الدخول';
+      }
+    });
+
+    function showError(msg) {
+      errorMsg.textContent = msg;
+      errorMsg.classList.add('show');
+    }
+
+    // ===== VIEWER LOGIN =====
+    const viewerBtn = document.getElementById('viewer-btn');
+    const viewerError = document.getElementById('viewer-error');
+    const phoneInput = document.getElementById('phone');
+
+    phoneInput.addEventListener('keydown', e => { if (e.key === 'Enter') viewerLogin(); });
+    viewerBtn.addEventListener('click', viewerLogin);
+
+    async function viewerLogin() {
+      const phone = phoneInput.value.trim();
+      viewerError.classList.remove('show');
+
+      if (!phone) {
+        viewerError.textContent = 'يرجى إدخال رقم الجوال';
+        viewerError.classList.add('show');
+        return;
+      }
+
+      viewerBtn.disabled = true;
+      viewerBtn.innerHTML = 'جاري التحقق... <span class="spinner-small"></span>';
+
+      try {
+        const res = await fetch('/api/auth/viewer/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          viewerError.textContent = data.error || 'رقم الجوال غير مسجل — تواصل مع المسؤول';
+          viewerError.classList.add('show');
+          return;
+        }
+
+        // Store viewer token and set viewer mode flag
+        sessionStorage.removeItem('mizaniat_viewer_token');
+        localStorage.setItem('mizaniat_viewer_mode', 'true');
+        localStorage.setItem('mizaniat_admin_token', data.token);
+        localStorage.setItem('mizaniat_admin_info', JSON.stringify(data.admin));
+        window.location.href = '/';
+
+      } catch (err) {
+        viewerError.textContent = 'تعذر الاتصال بالخادم';
+        viewerError.classList.add('show');
+      } finally {
+        viewerBtn.disabled = false;
+        viewerBtn.innerHTML = '👁️ دخول كمشاهد';
+      }
+    }
+  </script>
+</body>
+</html>
+

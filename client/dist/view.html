@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="تقارير مالية — العرض التقديمي التفاعلي">
+  <title>تقارير مالية | العرض التقديمي</title>
+  <link rel="icon" type="image/png" href="/assets/logo-SiUukkZm.png">
+  <style>
+    /* Phone login overlay */
+    .viewer-login-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-body, #050816);
+      z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .viewer-login-overlay.hidden { display: none; }
+    .viewer-login-box { text-align: center; max-width: 400px; width: 90%; }
+    .viewer-login-icon {
+      width: 80px; height: 80px;
+      border-radius: 22px;
+      display: inline-flex; align-items: center; justify-content: center;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .viewer-login-icon img {
+      width: 100%; height: 100%; object-fit: contain;
+    }
+    .viewer-login-title { font-size: 1.6rem; font-weight: 800; color: #e8eaf6; margin-bottom: 6px; }
+    .viewer-login-subtitle { font-size: 0.92rem; color: rgba(255,255,255,0.45); margin-bottom: 36px; font-weight: 500; }
+    .viewer-login-error {
+      display: none;
+      background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 14px; padding: 14px;
+      color: #fca5a5; font-size: 0.92rem;
+      margin-bottom: 18px; font-weight: 600;
+    }
+    .viewer-login-error.show { display: block; }
+    .viewer-login-label {
+      display: block; text-align: right;
+      font-size: 0.85rem; color: rgba(255,255,255,0.55);
+      margin-bottom: 8px; font-weight: 700;
+    }
+    .viewer-login-input {
+      width: 100%; padding: 16px 18px;
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 16px; color: #fff;
+      font-size: 1.15rem; font-family: var(--font-en, 'Inter', sans-serif);
+      text-align: center; outline: none;
+      letter-spacing: 2px;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+    .viewer-login-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.25);
+    }
+    .viewer-login-btn {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none; border-radius: 16px;
+      color: #fff; font-size: 1.08rem; font-weight: 700;
+      font-family: var(--font-ar, 'Noto Sans Arabic', sans-serif);
+      cursor: pointer;
+      box-shadow: 0 4px 24px rgba(59,130,246,0.3);
+      transition: transform 0.15s, box-shadow 0.25s;
+      margin-top: 16px;
+    }
+    .viewer-login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px rgba(59,130,246,0.4);
+    }
+    .viewer-login-btn:disabled { opacity: 0.6; cursor: wait; }
+    .viewer-login-footer { font-size: 0.78rem; color: rgba(255,255,255,0.25); margin-top: 20px; }
+
+    /* Loading state */
+    .viewer-loading {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; flex-direction: column; gap: 16px;
+      color: rgba(255,255,255,0.5);
+    }
+    .viewer-loading .spinner { 
+      width: 40px; height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <script type="module" crossorigin src="/assets/view-BuZhR9tv.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/presentation-Dc4PgcXr.js">
+  <link rel="stylesheet" crossorigin href="/assets/presentation-DOY8f1kd.css">
+</head>
+<body>
+  <!-- Phone Login Overlay -->
+  <div class="viewer-login-overlay" id="viewer-login-overlay">
+    <div class="viewer-login-box">
+      <div class="viewer-login-icon"><img src="/assets/logo-SiUukkZm.png" alt="SJC"></div>
+      <h1 class="viewer-login-title">تقارير مالية</h1>
+      <p class="viewer-login-subtitle">العرض التقديمي التفاعلي</p>
+      <div class="viewer-login-error" id="viewer-error"></div>
+      <div style="margin-bottom: 12px;">
+        <label class="viewer-login-label">أدخل رقم الجوال للمتابعة</label>
+        <input type="tel" id="viewer-phone" class="viewer-login-input" 
+               placeholder="05xxxxxxxx" dir="ltr" autocomplete="tel">
+      </div>
+      <button id="viewer-login-btn" class="viewer-login-btn">دخول</button>
+      <p class="viewer-login-footer">تواصل مع المسؤول إذا لم يكن رقمك مسجلاً</p>
+    </div>
+  </div>
+
+  <!-- Main Content (presentation renders here) -->
+  <div id="viewer-loading" class="viewer-loading" style="display:none;">
+    <div class="spinner"></div>
+    جاري تحميل العرض التقديمي...
+  </div>
+  <main id="main-content" style="display:none;"></main>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Export libraries (used by presentation) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+</body>
+</html>
