@@ -1,8 +1,4 @@
-import { api } from '../api.js';
-import { formatNumber } from '../utils/format.js';
-
-export async function renderSpecialExpenses(container) {
-  container.innerHTML = `
+import{b as p,f as o}from"./presentation-p9mWjcX8.js";async function y(s){s.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">💸 تقرير المصروفات المخصصة</h1>
@@ -73,76 +69,23 @@ export async function renderSpecialExpenses(container) {
         </div>
       </div>
     </div>
-  `;
-
-  let pageData = null;
-
-  async function loadData() {
-    const loading = document.getElementById('sp-loading');
-    const content = document.getElementById('sp-content');
-    loading.style.display = 'block';
-    content.style.display = 'none';
-
-    try {
-      pageData = await api.getSpecialExpenses();
-      
-      document.getElementById('val-council').textContent = formatNumber(pageData.summary.totalCouncil);
-      document.getElementById('val-hajj').textContent = formatNumber(pageData.summary.totalHajj);
-      document.getElementById('val-total').textContent = formatNumber(pageData.summary.totalExpenses);
-      document.getElementById('val-rows').textContent = `إجمالي ${pageData.summary.totalRows} قيد مالي`;
-      
-      renderTable();
-      content.style.display = 'block';
-
-    } catch (e) {
-      container.innerHTML = `<div class="card" style="color:var(--accent-red); padding:30px; text-align:center;">
+  `;let e=null;async function n(){const l=document.getElementById("sp-loading"),i=document.getElementById("sp-content");l.style.display="block",i.style.display="none";try{e=await p.getSpecialExpenses(),document.getElementById("val-council").textContent=o(e.summary.totalCouncil),document.getElementById("val-hajj").textContent=o(e.summary.totalHajj),document.getElementById("val-total").textContent=o(e.summary.totalExpenses),document.getElementById("val-rows").textContent=`إجمالي ${e.summary.totalRows} قيد مالي`,d(),i.style.display="block"}catch(a){s.innerHTML=`<div class="card" style="color:var(--accent-red); padding:30px; text-align:center;">
         <h3>⚠️ حدث خطأ أثناء الاتصال بالـ API</h3>
-        <p>${e.message}</p>
+        <p>${a.message}</p>
         <button class="btn btn-secondary" onclick="location.reload()" style="margin-top:15px;">إعادة المحاولة</button>
-      </div>`;
-    } finally {
-      loading.style.display = 'none';
-    }
-  }
-
-  function renderTable() {
-    const tbody = document.getElementById('sp-table-body');
-    const filterCat = document.getElementById('sp-filter-category').value;
-    
-    let rows = pageData.data;
-    if (filterCat !== 'all') {
-      rows = rows.filter(r => r.projectCategory === filterCat);
-    }
-    
-    if (rows.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">لا توجد حركات مطابقة</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = rows.map(r => {
-      const color = r.projectCategory === 'المجلس التنسيقي' ? 'var(--accent-purple)' : 'var(--accent-blue)';
-      const bg = r.projectCategory === 'المجلس التنسيقي' ? 'rgba(139,92,246,0.15)' : 'rgba(59,130,246,0.15)';
-      
-      return `
+      </div>`}finally{l.style.display="none"}}function d(){const l=document.getElementById("sp-table-body"),i=document.getElementById("sp-filter-category").value;let a=e.data;if(i!=="all"&&(a=a.filter(t=>t.projectCategory===i)),a.length===0){l.innerHTML='<tr><td colspan="6" style="text-align:center; padding:30px; color:var(--text-muted);">لا توجد حركات مطابقة</td></tr>';return}l.innerHTML=a.map(t=>{const r=t.projectCategory==="المجلس التنسيقي"?"var(--accent-purple)":"var(--accent-blue)",c=t.projectCategory==="المجلس التنسيقي"?"rgba(139,92,246,0.15)":"rgba(59,130,246,0.15)";return`
       <tr>
-        <td>${r.date || '-'}</td>
-        <td style="color:var(--text-gray);">${r.companyName || '-'}</td>
+        <td>${t.date||"-"}</td>
+        <td style="color:var(--text-gray);">${t.companyName||"-"}</td>
         <td>
-          <span style="background:${bg}; color:${color}; padding:2px 8px; border-radius:4px; font-size:0.85rem;">
-            ${r.projectCategory}
+          <span style="background:${c}; color:${r}; padding:2px 8px; border-radius:4px; font-size:0.85rem;">
+            ${t.projectCategory}
           </span>
         </td>
-        <td>${r.costCenter}</td>
-        <td><div style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${r.accountName}">${r.accountCode} - ${r.accountName}</div></td>
-        <td style="text-align:left; font-weight:w600; color:${r.expenses < 0 ? 'var(--accent-red)' : 'var(--accent-emerald)'}; font-family:var(--font-mono);">
-          ${formatNumber(r.expenses)}
+        <td>${t.costCenter}</td>
+        <td><div style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${t.accountName}">${t.accountCode} - ${t.accountName}</div></td>
+        <td style="text-align:left; font-weight:w600; color:${t.expenses<0?"var(--accent-red)":"var(--accent-emerald)"}; font-family:var(--font-mono);">
+          ${o(t.expenses)}
         </td>
       </tr>
-    `}).join('');
-  }
-
-  container.querySelector('#btn-refresh').addEventListener('click', loadData);
-  container.querySelector('#sp-filter-category').addEventListener('change', renderTable);
-
-  loadData();
-}
+    `}).join("")}s.querySelector("#btn-refresh").addEventListener("click",n),s.querySelector("#sp-filter-category").addEventListener("change",d),n()}export{y as renderSpecialExpenses};

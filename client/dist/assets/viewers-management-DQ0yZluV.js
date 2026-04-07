@@ -1,4 +1,4 @@
-import{a as r}from"./presentation-BF0VFtRu.js";const m="/api";async function l(c,i={}){const n={headers:{"Content-Type":"application/json",Authorization:`Bearer ${localStorage.getItem("mizaniat_admin_token")}`},...i};n.body&&typeof n.body=="object"&&(n.body=JSON.stringify(n.body));const a=await fetch(`${m}${c}`,n);if(!a.ok){const t=await a.json().catch(()=>({error:a.statusText}));throw new Error(t.error||`HTTP ${a.status}`)}return a.json()}async function u(c){c.innerHTML=`
+import{a as r}from"./presentation-p9mWjcX8.js";const m="/api";async function l(c,i={}){const n={headers:{"Content-Type":"application/json",Authorization:`Bearer ${localStorage.getItem("mizaniat_admin_token")}`},...i};n.body&&typeof n.body=="object"&&(n.body=JSON.stringify(n.body));const a=await fetch(`${m}${c}`,n);if(!a.ok){const t=await a.json().catch(()=>({error:a.statusText}));throw new Error(t.error||`HTTP ${a.status}`)}return a.json()}async function u(c){c.innerHTML=`
     <div class="page-header">
       <h1>👥 إدارة المشاهدين</h1>
       <p class="page-subtitle">إدارة أرقام الجوالات المسموح لها بمشاهدة العرض التقديمي</p>
