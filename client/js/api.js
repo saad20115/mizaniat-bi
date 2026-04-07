@@ -58,6 +58,7 @@ export const api = {
   getDetailedTrialBalance: (params) => request(`/reports/detailed-trial-balance?${buildQuery(params)}`),
   getPartnerAccountConfig: (params) => request(`/partner-account-config?${buildQuery(params)}`),
   savePartnerAccountConfig: (data) => request('/partner-account-config', { method: 'POST', body: data }),
+  getSpecialExpenses: () => request('/external/special-expenses'),
 
   // Analytic groups
   getAnalyticGroups: () => request('/analytic-groups'),

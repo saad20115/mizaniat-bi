@@ -54,13 +54,19 @@ async function navigateTo(pageName) {
   const container = document.getElementById('main-content');
   let renderPage = pages[pageName];
 
+  // Lazy load special expenses
+  if (pageName === 'special-expenses' && !renderPage) {
+    const mod = await import('./pages/special-expenses.js');
+    pages['special-expenses'] = mod.renderSpecialExpenses;
+    renderPage = mod.renderSpecialExpenses;
+  }
+  
   // Lazy load viewers-management
   if (pageName === 'viewers-management' && !renderPage) {
     const mod = await import('./pages/viewers-management.js');
     pages['viewers-management'] = mod.renderViewersManagement;
     renderPage = mod.renderViewersManagement;
   }
-  
 
   if (renderPage) {
     container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;"><div class="spinner"></div></div>';

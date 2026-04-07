@@ -458,4 +458,65 @@ router.get('/companies', (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /special-expenses (Hajj & Coordination Council)
+// Custom pre-configured ranges:
+// - Council: >= 2025-08-01
+// - Hajj: >= 2025-10-01
+// ─────────────────────────────────────────────
+router.get('/special-expenses', (req, res) => {
+  try {
+    const db = getDb();
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = db.prepare(`
+      SELECT 
+        company_id as companyId,
+        (SELECT name FROM companies WHERE id = company_id) as companyName,
+        COALESCE(NULLIF(analytic_account,''),'بدون مركز') as costCenter,
+        account_code as accountCode, 
+        account_name as accountName, 
+        date,
+        (debit - credit) as expenses,
+        CASE 
+          WHEN analytic_account LIKE '%تنسيقي%' THEN 'المجلس التنسيقي'
+          ELSE 'مشاريع الحج'
+        END as projectCategory
+      FROM journal_items
+      WHERE move_state = 'posted'
+        AND account_type IN ('expense','expense_direct','expense_depreciation')
+        AND (
+          ( (analytic_account LIKE '%تنسيقي%') AND date >= '2025-08-01' )
+          OR
+          ( (analytic_account LIKE '%حج%' OR analytic_account LIKE '%Hajj%') AND date >= '2025-10-01' )
+        )
+      ORDER BY date DESC
+    `).all();
+
+    let totalCouncil = 0;
+    let totalHajj = 0;
+    rows.forEach(r => {
+      if (r.projectCategory === 'المجلس التنسيقي') totalCouncil += r.expenses;
+      else totalHajj += r.expenses;
+    });
+
+    res.json({
+      filters: { 
+        councilFrom: '2025-08-01', 
+        hajjFrom: '2025-10-01', 
+        dateTo: today 
+      },
+      summary: { 
+        totalExpenses: totalCouncil + totalHajj,
+        totalCouncil,
+        totalHajj,
+        totalRows: rows.length
+      },
+      data: rows
+    });
+  } catch (err) {
+    console.error('[External API] Special expenses error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -5,6 +5,7 @@ const navItems = [
   { id: 'income-statement', icon: '📈', label: 'قائمة الدخل', section: 'التقارير المالية' },
   { id: 'balance-sheet', icon: '⚖️', label: 'الميزانية العمومية', section: 'التقارير المالية' },
   { id: 'cash-flow', icon: '💰', label: 'التدفقات النقدية', section: 'التقارير المالية' },
+  { id: 'special-expenses', icon: '💸', label: 'مصروفات مخصصة', section: 'التقارير المالية' },
   { id: 'trial-balance', icon: '📝', label: 'ميزان المراجعة', section: 'التقارير المالية' },
   { id: 'detailed-trial-balance', icon: '🔍', label: 'ميزان تفصيلي', section: 'التقارير المالية' },
   { id: 'account-statement', icon: '📄', label: 'كشف حساب', section: 'التقارير المالية' },
