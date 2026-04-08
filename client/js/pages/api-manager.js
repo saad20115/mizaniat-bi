@@ -210,7 +210,7 @@ export async function renderApiManager(container) {
       <span class="period-num">${periods.length + 1}</span>
       <button class="period-del" data-idx="${idx}">✕</button>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding-right:36px;">
-        <div><label class="api-label">تاريخ البداية *</label><input type="date" class="api-input period-from" value="${config?.dateFrom||''}" /></div>
+        <div><label class="api-label">تاريخ البداية (تلقائي: كل الفترات)</label><input type="date" class="api-input period-from" value="${config?.dateFrom||''}" /></div>
         <div><label class="api-label">تاريخ النهاية (تلقائي: اليوم)</label><input type="date" class="api-input period-to" value="${config?.dateTo||''}" /></div>
         <div><label class="api-label">المجموعات</label><div class="period-groups"></div></div>
       </div>
@@ -247,7 +247,7 @@ export async function renderApiManager(container) {
       const ccs = p.msCC.getValues();
       if (ccs.length) obj.costCenters = ccs;
       return obj;
-    }).filter(p => p.dateFrom);
+    }).filter(p => p.dateFrom || p.dateTo || p.groupIds || p.costCenters || periods.length === 1);
     return { companyIds: compIds, monthly, periods: periodsArr };
   }
 
@@ -325,7 +325,7 @@ export async function renderApiManager(container) {
 
     const body = buildBody();
     if (!body.companyIds.length) { statusEl.textContent = '❌ اختر شركة واحدة على الأقل'; statusEl.style.color = '#ef4444'; return; }
-    if (!body.periods.length) { statusEl.textContent = '❌ أضف فترة واحدة على الأقل مع تاريخ بداية'; statusEl.style.color = '#ef4444'; return; }
+    if (!body.periods.length) { statusEl.textContent = '❌ أضف فترة واحدة على الأقل بالضغط على إضافة فترة'; statusEl.style.color = '#ef4444'; return; }
 
     try {
       const start = performance.now();

@@ -11,6 +11,7 @@ const navItems = [
   { id: 'account-statement', icon: '📄', label: 'كشف حساب', section: 'التقارير المالية' },
   { id: 'guarantees', icon: '🏦', label: 'الضمانات البنكية', section: 'التقارير المالية' },
   { id: 'closing-entries', icon: '🔒', label: 'قيود الإقفال', section: 'التقارير المالية' },
+  { id: 'hajj-budget', icon: '🕋', label: 'موازنات المشاريع', section: 'التقارير المالية', url: 'https://budget.jalbait.com' },
   { id: 'pivot', icon: '🔄', label: 'الجداول المحورية', section: 'التحليل' },
   { id: 'presentation', icon: '🎬', label: 'عرض تقديمي', section: 'التحليل' },
   { id: 'tax-builder', icon: '🧾', label: 'مصمم التقرير الضريبي', section: 'التحليل' },
@@ -46,9 +47,9 @@ export function renderSidebar() {
     if (toggle) toggle.querySelector('span').textContent = '◄';
   }
   
-  // In viewer mode, only show presentation
+  // In viewer mode, only show presentation and hajj budget
   const items = isViewer
-    ? navItems.filter(i => i.id === 'presentation')
+    ? navItems.filter(i => i.id === 'presentation' || i.id === 'hajj-budget')
     : navItems;
   
   let html = '';
@@ -89,7 +90,12 @@ export function renderSidebar() {
   nav.querySelectorAll('.nav-item[data-page]').forEach(el => {
     el.addEventListener('click', () => {
       const page = el.dataset.page;
-      store.set('currentPage', page);
+      const targetItem = items.find(i => i.id === page);
+      if (targetItem && targetItem.url) {
+        window.open(targetItem.url, '_blank');
+      } else {
+        store.set('currentPage', page);
+      }
     });
   });
 

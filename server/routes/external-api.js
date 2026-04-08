@@ -185,12 +185,14 @@ router.get('/expenses', (req, res) => {
     const { companyIds, dateFrom, costCenters, groupIds, monthly } = req.query;
     const dateTo = req.query.dateTo || new Date().toISOString().slice(0, 10);
 
-    if (!companyIds || !dateFrom) {
+    if (!companyIds) {
       return res.status(400).json({
-        error: 'companyIds and dateFrom are required',
-        usage: '/api/external/expenses?companyIds=1,2&dateFrom=2025-01-01'
+        error: 'companyIds is required',
+        usage: '/api/external/expenses?companyIds=1,2'
       });
     }
+
+    const effectiveDateFrom = dateFrom || '2000-01-01';
 
     const ids = companyIds.split(',').map(Number).filter(n => !isNaN(n));
     if (ids.length === 0) return res.status(400).json({ error: 'Invalid companyIds' });
@@ -211,7 +213,7 @@ router.get('/expenses', (req, res) => {
     const includeMonthly = monthly === 'true' || monthly === '1';
     const results = [];
     for (const cid of ids) {
-      results.push(...queryExpenses(db, cid, dateFrom, dateTo, includeMonthly, ccFilter));
+      results.push(...queryExpenses(db, cid, effectiveDateFrom, dateTo, includeMonthly, ccFilter));
     }
 
     let totalExpenses = 0;
@@ -278,7 +280,7 @@ router.post('/expenses', (req, res) => {
 
     for (const period of periods) {
       if (!period.dateFrom) {
-        return res.status(400).json({ error: 'Each period must have dateFrom' });
+        period.dateFrom = '2000-01-01';
       }
       const dateTo = period.dateTo || today;
 
@@ -356,7 +358,9 @@ router.get('/expenses/query', (req, res) => {
     const today = new Date().toISOString().slice(0, 10);
 
     for (const period of periods) {
-      if (!period.dateFrom) continue;
+      if (!period.dateFrom) {
+        period.dateFrom = '2000-01-01';
+      }
       const dateTo = period.dateTo || today;
       let ccFilter = null;
       if (period.costCenters && Array.isArray(period.costCenters)) {
