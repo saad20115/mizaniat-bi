@@ -496,8 +496,8 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
     const openingRows = db.prepare(`
       SELECT 
         ji.account_code, MIN(ji.account_name) as account_name,
-        COALESCE(ji.partner_name, 'بدون شريك') as partner_name,
-        ji.partner_id,
+        CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END as partner_name,
+        MAX(ji.partner_id) as partner_id,
         SUM(ji.debit) as total_debit,
         SUM(ji.credit) as total_credit
       FROM journal_items ji
@@ -506,16 +506,15 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
         AND (ji.move_name IS NULL OR ji.move_name NOT LIKE 'CLOSING/%')
         ${accountFilter}
         AND ji.date < @dateFrom
-      GROUP BY ji.account_code, ji.partner_name
-      ORDER BY ji.account_code, ji.partner_name
+      GROUP BY ji.account_code, CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END
     `).all(params);
     
     // Period movement (between dateFrom and dateTo)
     const periodRows = db.prepare(`
       SELECT 
         ji.account_code, MIN(ji.account_name) as account_name,
-        COALESCE(ji.partner_name, 'بدون شريك') as partner_name,
-        ji.partner_id,
+        CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END as partner_name,
+        MAX(ji.partner_id) as partner_id,
         SUM(ji.debit) as total_debit,
         SUM(ji.credit) as total_credit
       FROM journal_items ji
@@ -524,8 +523,7 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
         AND (ji.move_name IS NULL OR ji.move_name NOT LIKE 'CLOSING/%')
         ${accountFilter}
         AND ji.date >= @dateFrom AND ji.date <= @dateTo
-      GROUP BY ji.account_code, ji.partner_name
-      ORDER BY ji.account_code, ji.partner_name
+      GROUP BY ji.account_code, CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END
     `).all(params);
     
     // Merge data
@@ -558,7 +556,7 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
     }
     
     // Calculate net balances per accounting standards
-    const accounts = Object.values(accountMap).map(a => {
+    let accounts = Object.values(accountMap).map(a => {
       // Opening: net balance (debit or credit)
       const openNet = a.raw_open_debit - a.raw_open_credit;
       if (openNet >= 0) {
@@ -588,6 +586,13 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
       return a;
     });
     
+    // Filter out completely zero accounts to ensure no empty/no-movement entries appear
+    accounts = accounts.filter(a => 
+      a.open_debit !== 0 || a.open_credit !== 0 || 
+      a.period_debit !== 0 || a.period_credit !== 0 || 
+      a.close_debit !== 0 || a.close_credit !== 0
+    );
+
     // Sort: by account_code then partner_name
     accounts.sort((a, b) => {
       if (a.account_code !== b.account_code) return a.account_code.localeCompare(b.account_code);
