@@ -190,6 +190,34 @@ class SyncEngine {
       });
       insertAccTx();
 
+      // --- Preserve guarantee data: clean up orphaned records ---
+      this._progress[companyId].phase = 'جاري تنظيف بيانات الضمانات...';
+      const orphanedReleases = this.db.prepare(`
+        DELETE FROM guarantee_releases
+        WHERE company_id = ? AND NOT EXISTS (
+          SELECT 1 FROM journal_items ji
+          WHERE ji.company_id = guarantee_releases.company_id
+            AND ji.account_code = guarantee_releases.account_code
+            AND ji.move_name = guarantee_releases.move_name
+        )
+      `).run(companyId);
+      if (orphanedReleases.changes > 0) {
+        console.log(`[Sync] Cleaned ${orphanedReleases.changes} orphaned guarantee releases for company ${companyId}`);
+      }
+
+      const orphanedSubs = this.db.prepare(`
+        DELETE FROM guarantee_sub_items
+        WHERE parent_company_id = ? AND NOT EXISTS (
+          SELECT 1 FROM journal_items ji
+          WHERE ji.company_id = guarantee_sub_items.parent_company_id
+            AND ji.account_code = guarantee_sub_items.parent_account_code
+            AND ji.move_name = guarantee_sub_items.parent_move_name
+        )
+      `).run(companyId);
+      if (orphanedSubs.changes > 0) {
+        console.log(`[Sync] Cleaned ${orphanedSubs.changes} orphaned guarantee sub-items for company ${companyId}`);
+      }
+
       // Update sync log
       this.db.prepare(`
         UPDATE sync_logs SET status = 'completed', records_synced = ?, completed_at = datetime('now')
