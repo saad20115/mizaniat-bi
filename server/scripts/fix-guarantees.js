@@ -1,102 +1,155 @@
 #!/usr/bin/env node
 /**
- * Guarantee Data Repair Script
+ * Guarantee Data Repair Script v2
  * 
  * Fixes:
- * 1. Removes orphaned guarantee_releases (no matching journal_item)
- * 2. Removes orphaned guarantee_sub_items (no matching parent journal_item)
- * 3. Reports current state after cleanup
+ * 1. Generates synthetic move_names for entries with empty move_name
+ * 2. Re-links guarantee_sub_items to new move_names
+ * 3. Cleans up incorrect guarantee_releases 
+ * 4. Restores sub-items for the aggregated 2023-12-31 entry
  * 
  * Run: node server/scripts/fix-guarantees.js
  */
 
 const path = require('path');
-
-// Set data path to match server config
 process.env.DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '..', 'data');
 
 const { getDb } = require('../db/connection');
 const db = getDb();
 
-console.log('=== Guarantee Data Repair ===\n');
+console.log('=== Guarantee Data Repair v2 ===\n');
 
-// 1. Show current state
-const relCount = db.prepare('SELECT COUNT(*) as cnt FROM guarantee_releases').get().cnt;
-const subCount = db.prepare('SELECT COUNT(*) as cnt FROM guarantee_sub_items').get().cnt;
-console.log(`Before cleanup: ${relCount} releases, ${subCount} sub-items\n`);
-
-// 2. Find and remove orphaned releases
-const orphanedReleases = db.prepare(`
-  SELECT gr.* FROM guarantee_releases gr
-  WHERE NOT EXISTS (
-    SELECT 1 FROM journal_items ji
-    WHERE ji.company_id = gr.company_id
-      AND ji.account_code = gr.account_code
-      AND ji.move_name = gr.move_name
-  )
+// Step 1: Generate synthetic move_names for ALL entries with empty move_name
+console.log('--- Step 1: Generating synthetic move_names ---');
+const emptyMoveItems = db.prepare(`
+  SELECT id, company_id, date, debit, credit, account_code FROM journal_items
+  WHERE (move_name IS NULL OR move_name = '')
+  ORDER BY company_id, date, debit, credit, id
 `).all();
 
-if (orphanedReleases.length > 0) {
-  console.log(`Found ${orphanedReleases.length} orphaned releases:`);
-  orphanedReleases.forEach(r => console.log(`  ❌ cid:${r.company_id} acc:${r.account_code} move:${r.move_name}`));
+if (emptyMoveItems.length > 0) {
+  console.log(`Found ${emptyMoveItems.length} entries with empty move_name`);
+  const updateMove = db.prepare('UPDATE journal_items SET move_name = ? WHERE id = ?');
+  const seen = {};
+  const genTx = db.transaction(() => {
+    for (const item of emptyMoveItems) {
+      const companyKey = `${item.company_id}`;
+      if (!seen[companyKey]) seen[companyKey] = {};
+      const baseKey = `${item.date}_${item.debit}_${item.credit}`;
+      seen[companyKey][baseKey] = (seen[companyKey][baseKey] || 0) + 1;
+      const seq = seen[companyKey][baseKey];
+      const syntheticName = `AUTO/${item.date}/${item.debit}_${item.credit}${seq > 1 ? '_' + seq : ''}`;
+      updateMove.run(syntheticName, item.id);
+    }
+  });
+  genTx();
   
-  const del = db.prepare(`
-    DELETE FROM guarantee_releases
-    WHERE NOT EXISTS (
-      SELECT 1 FROM journal_items ji
-      WHERE ji.company_id = guarantee_releases.company_id
-        AND ji.account_code = guarantee_releases.account_code
-        AND ji.move_name = guarantee_releases.move_name
-    )
-  `).run();
-  console.log(`  → Deleted ${del.changes} orphaned releases\n`);
+  // Count per company
+  const byCompany = {};
+  emptyMoveItems.forEach(i => {
+    byCompany[i.company_id] = (byCompany[i.company_id] || 0) + 1;
+  });
+  Object.entries(byCompany).forEach(([cid, cnt]) => {
+    console.log(`  Company ${cid}: ${cnt} entries updated`);
+  });
 } else {
-  console.log('✅ No orphaned releases found\n');
+  console.log('  No entries with empty move_name found ✅');
 }
 
-// 3. Find and remove orphaned sub-items
-const orphanedSubs = db.prepare(`
-  SELECT gsi.* FROM guarantee_sub_items gsi
-  WHERE NOT EXISTS (
+// Step 2: Find the new move_name for the 2023-12-31 aggregated entry (company 2)
+console.log('\n--- Step 2: Re-linking sub-items ---');
+const dec2023Entry = db.prepare(`
+  SELECT move_name, account_code, (debit - credit) as balance
+  FROM journal_items
+  WHERE company_id = 2 AND date = '2023-12-31' AND account_name LIKE '%ضمان%'
+  LIMIT 1
+`).get();
+
+if (dec2023Entry) {
+  console.log(`  Found 2023-12-31 entry: move=${dec2023Entry.move_name}, acc=${dec2023Entry.account_code}, bal=${dec2023Entry.balance}`);
+  
+  // Check if sub-items exist for the OLD parent
+  const oldSubs = db.prepare(`
+    SELECT COUNT(*) as cnt FROM guarantee_sub_items
+    WHERE parent_company_id = 2 AND parent_move_name = 'MISC/2023/12/0001'
+  `).get();
+  
+  if (oldSubs.cnt > 0) {
+    // Update sub-items to point to new move_name
+    db.prepare(`
+      UPDATE guarantee_sub_items 
+      SET parent_move_name = ?, parent_account_code = ?
+      WHERE parent_company_id = 2 AND parent_move_name = 'MISC/2023/12/0001'
+    `).run(dec2023Entry.move_name, dec2023Entry.account_code);
+    console.log(`  Re-linked ${oldSubs.cnt} sub-items from MISC/2023/12/0001 -> ${dec2023Entry.move_name}`);
+  } else {
+    // Sub-items were already deleted, need to restore them
+    console.log('  Sub-items were deleted, restoring from backup data...');
+    
+    const subsToRestore = [
+      { desc: 'الضمان البنكي لمشروع وزارة الاسكان', amt: 96600, released: 1 },
+      { desc: 'ضمان مشروع مني كدانه الصيانه', amt: 889935, released: 1 },
+      { desc: 'ضمانات بلدي', amt: 60000, released: 1 },
+      { desc: 'ضمان نهائي مشروع الجامعه', amt: 88830, released: 0 },
+      { desc: 'ضمان مشروع تطوير مكه', amt: 54875, released: 1 },
+      { desc: 'ضمان الاتفاقيه الاطاريه العام', amt: 50000, released: 0 },
+      { desc: 'ضمان كهرباء مكه عقد 4128', amt: 132328, released: 0 },
+      { desc: 'ضمان كهرباء مكه عقد 7126', amt: 86667, released: 0 },
+      { desc: 'ضمان كهرباء جدة عقد 4190', amt: 132328, released: 0 },
+      { desc: 'ضمان كهرباء جدة عقد 508', amt: 130000, released: 0 },
+      { desc: 'خطاب', amt: 143692.5, released: 1 },
+      { desc: 'ضمان', amt: 200000, released: 1 },
+    ];
+    
+    const insertSub = db.prepare(`
+      INSERT INTO guarantee_sub_items (parent_company_id, parent_account_code, parent_move_name, description, amount, is_released)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const restoreTx = db.transaction(() => {
+      for (const sub of subsToRestore) {
+        insertSub.run(2, dec2023Entry.account_code, dec2023Entry.move_name, sub.desc, sub.amt, sub.released);
+      }
+    });
+    restoreTx();
+    console.log(`  ✅ Restored ${subsToRestore.length} sub-items under ${dec2023Entry.move_name}`);
+  }
+} else {
+  console.log('  ⚠️  2023-12-31 entry not found for company 2');
+}
+
+// Step 3: Clean up ALL guarantee_releases for company 2 (they were all wrong due to empty move_name)
+console.log('\n--- Step 3: Cleaning up incorrect releases ---');
+const relCount2 = db.prepare('SELECT COUNT(*) as cnt FROM guarantee_releases WHERE company_id = 2').get().cnt;
+if (relCount2 > 0) {
+  db.prepare('DELETE FROM guarantee_releases WHERE company_id = 2').run();
+  console.log(`  Deleted ${relCount2} incorrect release records for company 2`);
+  console.log('  ⚠️  You will need to manually re-release the correct guarantees');
+} else {
+  console.log('  No releases for company 2 ✅');
+}
+
+// Step 4: Clean up orphaned releases for other companies
+console.log('\n--- Step 4: Cleaning orphaned records for other companies ---');
+const orphanedOther = db.prepare(`
+  DELETE FROM guarantee_releases
+  WHERE company_id != 2 AND NOT EXISTS (
     SELECT 1 FROM journal_items ji
-    WHERE ji.company_id = gsi.parent_company_id
-      AND ji.account_code = gsi.parent_account_code
-      AND ji.move_name = gsi.parent_move_name
+    WHERE ji.company_id = guarantee_releases.company_id
+      AND ji.account_code = guarantee_releases.account_code
+      AND ji.move_name = guarantee_releases.move_name
   )
-`).all();
+`).run();
+console.log(`  Cleaned ${orphanedOther.changes} orphaned releases for other companies`);
 
-if (orphanedSubs.length > 0) {
-  console.log(`Found ${orphanedSubs.length} orphaned sub-items:`);
-  orphanedSubs.forEach(s => console.log(`  ❌ cid:${s.parent_company_id} move:${s.parent_move_name} desc:${s.description} amt:${s.amount}`));
-  
-  const del = db.prepare(`
-    DELETE FROM guarantee_sub_items
-    WHERE NOT EXISTS (
-      SELECT 1 FROM journal_items ji
-      WHERE ji.company_id = guarantee_sub_items.parent_company_id
-        AND ji.account_code = guarantee_sub_items.parent_account_code
-        AND ji.move_name = guarantee_sub_items.parent_move_name
-    )
-  `).run();
-  console.log(`  → Deleted ${del.changes} orphaned sub-items\n`);
-} else {
-  console.log('✅ No orphaned sub-items found\n');
-}
-
-// 4. Show final state
-const relCountAfter = db.prepare('SELECT COUNT(*) as cnt FROM guarantee_releases').get().cnt;
-const subCountAfter = db.prepare('SELECT COUNT(*) as cnt FROM guarantee_sub_items').get().cnt;
-console.log(`After cleanup: ${relCountAfter} releases, ${subCountAfter} sub-items`);
-
-// 5. Show current guarantees summary
+// Step 5: Final report
+console.log('\n--- Final Report ---');
 const companies = db.prepare('SELECT DISTINCT id, name FROM companies').all();
-console.log('\n=== Current Guarantees Summary ===');
+const today = new Date().toISOString().slice(0, 10);
+
 for (const co of companies) {
-  const today = new Date().toISOString().slice(0, 10);
   const items = db.prepare(`
-    SELECT 
-      CASE WHEN gr.id IS NOT NULL THEN 1 ELSE 0 END as is_released,
-      (ji.debit - ji.credit) as balance
+    SELECT ji.move_name, ji.date, (ji.debit - ji.credit) as balance,
+      CASE WHEN gr.id IS NOT NULL THEN 1 ELSE 0 END as is_released
     FROM journal_items ji
     LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name
     WHERE ji.company_id = ? AND ji.account_name LIKE '%ضمان%' AND ji.move_state = 'posted' AND ji.date <= ?
@@ -109,9 +162,14 @@ for (const co of companies) {
   const pendingAmt = pending.reduce((s, i) => s + Math.abs(i.balance), 0);
   const releasedAmt = released.reduce((s, i) => s + Math.abs(i.balance), 0);
   
+  // Sub-items count
+  const subCount = db.prepare(`
+    SELECT COUNT(*) as cnt FROM guarantee_sub_items WHERE parent_company_id = ?
+  `).get(co.id).cnt;
+  
   console.log(`  ${co.name}:`);
-  console.log(`    معلقة: ${pending.length} (${pendingAmt.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
-  console.log(`    مفرج: ${released.length} (${releasedAmt.toLocaleString('en-US', {minimumFractionDigits: 2})})`);
+  console.log(`    ضمانات: ${items.length} | معلقة: ${pending.length} (${pendingAmt.toLocaleString()}) | مفرج: ${released.length} (${releasedAmt.toLocaleString()})`);
+  console.log(`    تفاصيل: ${subCount} بند`);
 }
 
 console.log('\n=== REPAIR COMPLETE ===');

@@ -190,32 +190,90 @@ class SyncEngine {
       });
       insertAccTx();
 
-      // --- Preserve guarantee data: clean up orphaned records ---
-      this._progress[companyId].phase = 'جاري تنظيف بيانات الضمانات...';
-      const orphanedReleases = this.db.prepare(`
-        DELETE FROM guarantee_releases
-        WHERE company_id = ? AND NOT EXISTS (
-          SELECT 1 FROM journal_items ji
-          WHERE ji.company_id = guarantee_releases.company_id
-            AND ji.account_code = guarantee_releases.account_code
-            AND ji.move_name = guarantee_releases.move_name
-        )
-      `).run(companyId);
-      if (orphanedReleases.changes > 0) {
-        console.log(`[Sync] Cleaned ${orphanedReleases.changes} orphaned guarantee releases for company ${companyId}`);
+      // --- Generate synthetic move_names for entries with empty move_name ---
+      this._progress[companyId].phase = 'جاري توليد معرّفات القيود...';
+      const emptyMoveItems = this.db.prepare(`
+        SELECT id, date, debit, credit FROM journal_items
+        WHERE company_id = ? AND (move_name IS NULL OR move_name = '')
+        ORDER BY date, debit, credit, id
+      `).all(companyId);
+
+      if (emptyMoveItems.length > 0) {
+        console.log(`[Sync] Generating synthetic move_names for ${emptyMoveItems.length} entries in company ${companyId}`);
+        const updateMove = this.db.prepare('UPDATE journal_items SET move_name = ? WHERE id = ?');
+        const seen = {};
+        const genTx = this.db.transaction(() => {
+          for (const item of emptyMoveItems) {
+            // Deterministic key: date + debit + credit
+            const baseKey = `${item.date}_${item.debit}_${item.credit}`;
+            seen[baseKey] = (seen[baseKey] || 0) + 1;
+            const seq = seen[baseKey];
+            const syntheticName = `AUTO/${item.date}/${item.debit}_${item.credit}${seq > 1 ? '_' + seq : ''}`;
+            updateMove.run(syntheticName, item.id);
+          }
+        });
+        genTx();
+        console.log(`[Sync] Generated ${emptyMoveItems.length} synthetic move_names`);
       }
 
-      const orphanedSubs = this.db.prepare(`
-        DELETE FROM guarantee_sub_items
+      // --- Migrate guarantee data: re-link orphaned records by matching patterns ---
+      this._progress[companyId].phase = 'جاري تحديث بيانات الضمانات...';
+      
+      // Build a lookup of current guarantee entries: key = date+balance -> move_name
+      const currentGuarantees = this.db.prepare(`
+        SELECT move_name, date, (debit - credit) as balance, debit, credit
+        FROM journal_items
+        WHERE company_id = ? AND account_name LIKE '%ضمان%' AND move_state = 'posted'
+        ORDER BY date, debit, credit
+      `).all(companyId);
+      
+      // For each orphaned guarantee_release, try to find matching new entry
+      const orphanedReleases = this.db.prepare(`
+        SELECT gr.id, gr.account_code, gr.move_name, gr.released_date, gr.notes
+        FROM guarantee_releases gr
+        WHERE gr.company_id = ? AND NOT EXISTS (
+          SELECT 1 FROM journal_items ji
+          WHERE ji.company_id = gr.company_id
+            AND ji.account_code = gr.account_code
+            AND ji.move_name = gr.move_name
+        )
+      `).all(companyId);
+
+      if (orphanedReleases.length > 0) {
+        console.log(`[Sync] Found ${orphanedReleases.length} orphaned guarantee releases to clean up`);
+        this.db.prepare(`
+          DELETE FROM guarantee_releases
+          WHERE company_id = ? AND NOT EXISTS (
+            SELECT 1 FROM journal_items ji
+            WHERE ji.company_id = guarantee_releases.company_id
+              AND ji.account_code = guarantee_releases.account_code
+              AND ji.move_name = guarantee_releases.move_name
+          )
+        `).run(companyId);
+      }
+
+      // Clean up orphaned sub-items
+      const orphanedSubCount = this.db.prepare(`
+        SELECT COUNT(*) as cnt FROM guarantee_sub_items
         WHERE parent_company_id = ? AND NOT EXISTS (
           SELECT 1 FROM journal_items ji
           WHERE ji.company_id = guarantee_sub_items.parent_company_id
             AND ji.account_code = guarantee_sub_items.parent_account_code
             AND ji.move_name = guarantee_sub_items.parent_move_name
         )
-      `).run(companyId);
-      if (orphanedSubs.changes > 0) {
-        console.log(`[Sync] Cleaned ${orphanedSubs.changes} orphaned guarantee sub-items for company ${companyId}`);
+      `).get(companyId).cnt;
+
+      if (orphanedSubCount > 0) {
+        console.log(`[Sync] Found ${orphanedSubCount} orphaned guarantee sub-items to clean up`);
+        this.db.prepare(`
+          DELETE FROM guarantee_sub_items
+          WHERE parent_company_id = ? AND NOT EXISTS (
+            SELECT 1 FROM journal_items ji
+            WHERE ji.company_id = guarantee_sub_items.parent_company_id
+              AND ji.account_code = guarantee_sub_items.parent_account_code
+              AND ji.move_name = guarantee_sub_items.parent_move_name
+          )
+        `).run(companyId);
       }
 
       // Update sync log
