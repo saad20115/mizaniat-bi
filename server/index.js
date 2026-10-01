@@ -52,13 +52,17 @@ app.use('/api', apiRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/external', externalRoutes);
 
+// 404 handler for API routes
+app.all(['/api', '/api/*'], (req, res) => {
+  res.status(404).json({ error: 'Endpoint not found', path: req.originalUrl });
+});
+
 // Serve static files from client build
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(clientDist));
 
 // SPA fallback — serve correct HTML for each route
 app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) return;
   const p = req.path;
   if (p.startsWith('/login')) return res.sendFile(path.join(clientDist, 'login.html'));
   if (p.startsWith('/viewer')) return res.sendFile(path.join(clientDist, 'viewer.html'));

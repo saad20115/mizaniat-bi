@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/connection');
 
 // Secret key for JWT — in production, use env variable
+if (!process.env.JWT_SECRET) {
+  console.warn('[SECURITY WARNING] JWT_SECRET is not set in environment variables! Using default fallback secret.');
+}
 const JWT_SECRET = process.env.JWT_SECRET || 'mizaniat-bi-secret-key-2026';
 const JWT_EXPIRES = '7d';
 

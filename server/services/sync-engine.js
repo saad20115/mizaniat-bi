@@ -26,12 +26,17 @@ class SyncEngine {
     this._progress[companyId] = { status: 'fetching', fetched: 0, inserted: 0, total: 0, phase: 'جاري جلب البيانات من أودو...' };
 
     try {
-      const connector = new OdooConnector(instance.url, instance.username, instance.api_key);
+      const connector = new OdooConnector(instance.url, instance.username, instance.api_key, instance.db_name);
       console.log(`[Sync] Fetching journal items for company: ${company.name} (Odoo ID: ${company.odoo_company_id})`);
 
       this._progress[companyId].phase = 'جاري جلب البيانات من أودو... قد يستغرق عدة دقائق';
       const response = await connector.fetchJournalItems(company.odoo_company_id);
-      
+
+      // Remember an auto-detected database name so later syncs don't need to guess
+      if (connector.dbName && !instance.db_name) {
+        this.db.prepare('UPDATE odoo_instances SET db_name = ? WHERE id = ?').run(connector.dbName, instance.id);
+      }
+
       // Handle different response formats
       let items = [];
       let dataSource = 'unknown';
@@ -58,6 +63,12 @@ class SyncEngine {
 
       const totalItems = items.length;
       console.log(`[Sync] Received ${totalItems} journal items for ${company.name} (source: ${dataSource})`);
+
+      // Never wipe a company's data because Odoo returned nothing
+      const existing = this.db.prepare('SELECT COUNT(*) AS n FROM journal_items WHERE company_id = ?').get(companyId).n;
+      if (totalItems === 0 && existing > 0) {
+        throw new Error(`أودو أرجع 0 قيود بينما يوجد ${existing} محلياً — أُلغيت المزامنة للحفاظ على البيانات`);
+      }
       
       // Log field names from first item and save raw sample for debugging
       if (items.length > 0) {
@@ -108,14 +119,6 @@ class SyncEngine {
       
       this._progress[companyId] = { status: 'processing', fetched: totalItems, inserted: 0, total: totalItems, phase: `تم جلب ${totalItems} سجل. جاري المعالجة...` };
 
-      // Process in chunks of 500
-      const CHUNK_SIZE = 500;
-      const totalChunks = Math.ceil(totalItems / CHUNK_SIZE);
-
-      // Clear existing data for this company first
-      this.db.prepare('DELETE FROM journal_items WHERE company_id = ?').run(companyId);
-      this.db.prepare('DELETE FROM company_accounts WHERE company_id = ?').run(companyId);
-
       const insertItem = this.db.prepare(`
         INSERT INTO journal_items (
           company_id, odoo_line_id, account_code, account_name, account_type,
@@ -132,149 +135,62 @@ class SyncEngine {
         )
       `);
 
-      const accountsSet = new Map();
-      let totalInserted = 0;
-
-      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
-        const start = chunkIdx * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, totalItems);
-        const chunk = items.slice(start, end);
-
-        // Insert chunk in a transaction
-        const insertChunk = this.db.transaction(() => {
-          for (const item of chunk) {
-            const normalized = this._normalizeItem(item, companyId);
-            try {
-              insertItem.run(normalized);
-            } catch (e) {
-              // Skip malformed rows silently
-              console.warn(`[Sync] Skip row: ${e.message}`);
-            }
-
-            // Track unique accounts
-            const accKey = normalized.account_code;
-            if (accKey && !accountsSet.has(accKey)) {
-              accountsSet.set(accKey, {
-                code: normalized.account_code,
-                name: normalized.account_name || '',
-                type: normalized.account_type || ''
-              });
-            }
-          }
-        });
-
-        insertChunk();
-        totalInserted += chunk.length;
-
-        const pct = Math.round((totalInserted / totalItems) * 100);
-        this._progress[companyId] = {
-          status: 'processing',
-          fetched: totalItems,
-          inserted: totalInserted,
-          total: totalItems,
-          phase: `جاري الإدخال... ${totalInserted}/${totalItems} (${pct}%) — الدفعة ${chunkIdx + 1}/${totalChunks}`
-        };
-
-        console.log(`[Sync] ${company.name}: chunk ${chunkIdx + 1}/${totalChunks} (${totalInserted}/${totalItems})`);
-      }
-
-      // Insert discovered accounts
       const insertAccount = this.db.prepare(`
         INSERT OR IGNORE INTO company_accounts (company_id, code, name, account_type)
         VALUES (?, ?, ?, ?)
       `);
-      const insertAccTx = this.db.transaction(() => {
+
+      const accountsSet = new Map();
+      let totalInserted = 0;
+
+      // Guarantee releases / sub-items are user data linked to (account_code, move_name).
+      // Entry numbers can change between syncs (e.g. synthetic AUTO/ names replaced by
+      // real Odoo numbers), so remember each linked entry's fingerprint to re-link it.
+      const linkedEntries = this.db.prepare(`
+        SELECT ji.account_code, ji.move_name, MIN(ji.date) AS date,
+               ROUND(SUM(ji.debit), 2) AS debit, ROUND(SUM(ji.credit), 2) AS credit
+        FROM journal_items ji
+        WHERE ji.company_id = @cid AND (
+          EXISTS (SELECT 1 FROM guarantee_releases gr WHERE gr.company_id = ji.company_id
+                  AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name)
+          OR EXISTS (SELECT 1 FROM guarantee_sub_items gs WHERE gs.parent_company_id = ji.company_id
+                  AND gs.parent_account_code = ji.account_code AND gs.parent_move_name = ji.move_name))
+        GROUP BY ji.account_code, ji.move_name
+      `).all({ cid: companyId });
+
+      // Replace the company's data in ONE transaction: readers keep seeing the
+      // previous complete snapshot until commit, and a failure leaves it intact.
+      const replaceAll = this.db.transaction(() => {
+        this.db.prepare('DELETE FROM journal_items WHERE company_id = ?').run(companyId);
+        this.db.prepare('DELETE FROM company_accounts WHERE company_id = ?').run(companyId);
+
+        for (const item of items) {
+          const normalized = this._normalizeItem(item, companyId);
+          insertItem.run(normalized);
+          totalInserted++;
+
+          // Track unique accounts
+          const accKey = normalized.account_code;
+          if (accKey && !accountsSet.has(accKey)) {
+            accountsSet.set(accKey, {
+              code: normalized.account_code,
+              name: normalized.account_name || '',
+              type: normalized.account_type || ''
+            });
+          }
+        }
+
         for (const [, acc] of accountsSet) {
           insertAccount.run(companyId, acc.code, acc.name, acc.type);
         }
+
+        this._generateSyntheticMoveNames(companyId);
+        this._relinkGuarantees(companyId, linkedEntries);
       });
-      insertAccTx();
 
-      // --- Generate synthetic move_names for entries with empty move_name ---
-      this._progress[companyId].phase = 'جاري توليد معرّفات القيود...';
-      const emptyMoveItems = this.db.prepare(`
-        SELECT id, date, debit, credit FROM journal_items
-        WHERE company_id = ? AND (move_name IS NULL OR move_name = '')
-        ORDER BY date, debit, credit, id
-      `).all(companyId);
-
-      if (emptyMoveItems.length > 0) {
-        console.log(`[Sync] Generating synthetic move_names for ${emptyMoveItems.length} entries in company ${companyId}`);
-        const updateMove = this.db.prepare('UPDATE journal_items SET move_name = ? WHERE id = ?');
-        const seen = {};
-        const genTx = this.db.transaction(() => {
-          for (const item of emptyMoveItems) {
-            // Deterministic key: date + debit + credit
-            const baseKey = `${item.date}_${item.debit}_${item.credit}`;
-            seen[baseKey] = (seen[baseKey] || 0) + 1;
-            const seq = seen[baseKey];
-            const syntheticName = `AUTO/${item.date}/${item.debit}_${item.credit}${seq > 1 ? '_' + seq : ''}`;
-            updateMove.run(syntheticName, item.id);
-          }
-        });
-        genTx();
-        console.log(`[Sync] Generated ${emptyMoveItems.length} synthetic move_names`);
-      }
-
-      // --- Migrate guarantee data: re-link orphaned records by matching patterns ---
-      this._progress[companyId].phase = 'جاري تحديث بيانات الضمانات...';
-      
-      // Build a lookup of current guarantee entries: key = date+balance -> move_name
-      const currentGuarantees = this.db.prepare(`
-        SELECT move_name, date, (debit - credit) as balance, debit, credit
-        FROM journal_items
-        WHERE company_id = ? AND account_name LIKE '%ضمان%' AND move_state = 'posted'
-        ORDER BY date, debit, credit
-      `).all(companyId);
-      
-      // For each orphaned guarantee_release, try to find matching new entry
-      const orphanedReleases = this.db.prepare(`
-        SELECT gr.id, gr.account_code, gr.move_name, gr.released_date, gr.notes
-        FROM guarantee_releases gr
-        WHERE gr.company_id = ? AND NOT EXISTS (
-          SELECT 1 FROM journal_items ji
-          WHERE ji.company_id = gr.company_id
-            AND ji.account_code = gr.account_code
-            AND ji.move_name = gr.move_name
-        )
-      `).all(companyId);
-
-      if (orphanedReleases.length > 0) {
-        console.log(`[Sync] Found ${orphanedReleases.length} orphaned guarantee releases to clean up`);
-        this.db.prepare(`
-          DELETE FROM guarantee_releases
-          WHERE company_id = ? AND NOT EXISTS (
-            SELECT 1 FROM journal_items ji
-            WHERE ji.company_id = guarantee_releases.company_id
-              AND ji.account_code = guarantee_releases.account_code
-              AND ji.move_name = guarantee_releases.move_name
-          )
-        `).run(companyId);
-      }
-
-      // Clean up orphaned sub-items
-      const orphanedSubCount = this.db.prepare(`
-        SELECT COUNT(*) as cnt FROM guarantee_sub_items
-        WHERE parent_company_id = ? AND NOT EXISTS (
-          SELECT 1 FROM journal_items ji
-          WHERE ji.company_id = guarantee_sub_items.parent_company_id
-            AND ji.account_code = guarantee_sub_items.parent_account_code
-            AND ji.move_name = guarantee_sub_items.parent_move_name
-        )
-      `).get(companyId).cnt;
-
-      if (orphanedSubCount > 0) {
-        console.log(`[Sync] Found ${orphanedSubCount} orphaned guarantee sub-items to clean up`);
-        this.db.prepare(`
-          DELETE FROM guarantee_sub_items
-          WHERE parent_company_id = ? AND NOT EXISTS (
-            SELECT 1 FROM journal_items ji
-            WHERE ji.company_id = guarantee_sub_items.parent_company_id
-              AND ji.account_code = guarantee_sub_items.parent_account_code
-              AND ji.move_name = guarantee_sub_items.parent_move_name
-          )
-        `).run(companyId);
-      }
+      this._progress[companyId].phase = `جاري حفظ ${totalItems} سجل...`;
+      replaceAll();
+      console.log(`[Sync] ${company.name}: replaced with ${totalInserted} items`);
 
       // Update sync log
       this.db.prepare(`
@@ -306,6 +222,61 @@ class SyncEngine {
 
       console.error(`[Sync] Failed for ${company.name}: ${err.message}`);
       throw err;
+    }
+  }
+
+  /**
+   * Custom-API data has no entry numbers: give each line a deterministic placeholder.
+   */
+  _generateSyntheticMoveNames(companyId) {
+    const emptyMoveItems = this.db.prepare(`
+      SELECT id, date, debit, credit FROM journal_items
+      WHERE company_id = ? AND (move_name IS NULL OR move_name = '')
+      ORDER BY date, debit, credit, id
+    `).all(companyId);
+    if (emptyMoveItems.length === 0) return;
+
+    const updateMove = this.db.prepare('UPDATE journal_items SET move_name = ? WHERE id = ?');
+    const seen = {};
+    for (const item of emptyMoveItems) {
+      const baseKey = `${item.date}_${item.debit}_${item.credit}`;
+      seen[baseKey] = (seen[baseKey] || 0) + 1;
+      const seq = seen[baseKey];
+      updateMove.run(`AUTO/${item.date}/${item.debit}_${item.credit}${seq > 1 ? '_' + seq : ''}`, item.id);
+    }
+    console.log(`[Sync] Generated ${emptyMoveItems.length} synthetic move_names for company ${companyId}`);
+  }
+
+  /**
+   * Re-link guarantee records whose entry number changed, by matching the same
+   * account, date and amounts. Records that can't be matched unambiguously are
+   * kept (never deleted) and reported.
+   */
+  _relinkGuarantees(companyId, linkedEntries) {
+    const stillExists = this.db.prepare(
+      'SELECT 1 FROM journal_items WHERE company_id = ? AND account_code = ? AND move_name = ? LIMIT 1');
+    const findCandidates = this.db.prepare(`
+      SELECT move_name FROM journal_items
+      WHERE company_id = @cid AND account_code = @account_code AND date = @date
+      GROUP BY move_name
+      HAVING ROUND(SUM(debit), 2) = @debit AND ROUND(SUM(credit), 2) = @credit
+    `);
+    const updReleases = this.db.prepare(
+      'UPDATE guarantee_releases SET move_name = ? WHERE company_id = ? AND account_code = ? AND move_name = ?');
+    const updSubItems = this.db.prepare(
+      'UPDATE guarantee_sub_items SET parent_move_name = ? WHERE parent_company_id = ? AND parent_account_code = ? AND parent_move_name = ?');
+
+    for (const e of linkedEntries) {
+      if (stillExists.get(companyId, e.account_code, e.move_name)) continue;
+      const candidates = findCandidates.all({ cid: companyId, ...e });
+      if (candidates.length === 1) {
+        const newName = candidates[0].move_name;
+        updReleases.run(newName, companyId, e.account_code, e.move_name);
+        updSubItems.run(newName, companyId, e.account_code, e.move_name);
+        console.log(`[Sync] Re-linked guarantee ${e.account_code} ${e.move_name} → ${newName}`);
+      } else {
+        console.warn(`[Sync] Guarantee ${e.account_code} ${e.move_name} could not be re-linked (${candidates.length} matches) — kept as is`);
+      }
     }
   }
 

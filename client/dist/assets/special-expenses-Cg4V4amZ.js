@@ -1,4 +1,4 @@
-import{b as p,f as o}from"./presentation-p9mWjcX8.js";async function y(s){s.innerHTML=`
+import{b as p,f as o}from"./presentation-DG37YCw1.js";async function y(s){s.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">💸 تقرير المصروفات المخصصة</h1>

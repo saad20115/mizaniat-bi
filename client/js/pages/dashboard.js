@@ -205,7 +205,7 @@ export async function renderDashboard(container) {
     <div class="filters-bar" id="dashboard-filters"></div>
     
     <div class="kpi-grid" id="kpi-grid">
-      ${Array(6).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join('')}
+      ${Array(7).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join('')}
     </div>
     
     <div id="dash-charts">
@@ -295,10 +295,17 @@ function renderKPIs(grid, data) {
     </div>
     
     <div class="kpi-card cyan fade-in" style="animation-delay:0.25s">
-      <div class="kpi-icon cyan">🏦</div>
-      <div class="kpi-label">الرصيد النقدي</div>
+      <div class="kpi-icon cyan">💵</div>
+      <div class="kpi-label">النقدية المتاحة</div>
       <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.cashPosition, 2)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
+    </div>
+    
+    <div class="kpi-card teal fade-in" style="animation-delay:0.3s">
+      <div class="kpi-icon teal">🏦</div>
+      <div class="kpi-label">الضمانات البنكية</div>
+      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.guarantees || 0, 2)}</div>
+      <div class="kpi-change" style="color:var(--text-muted);">أصول محتجزة</div>
     </div>
   `;
 }

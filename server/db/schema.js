@@ -358,6 +358,8 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_journal_items_unified ON journal_items(unified_account_id);
     CREATE INDEX IF NOT EXISTS idx_journal_items_fiscal ON journal_items(fiscal_year, period);
     CREATE INDEX IF NOT EXISTS idx_journal_items_company_date ON journal_items(company_id, date);
+    CREATE INDEX IF NOT EXISTS idx_journal_items_company_move ON journal_items(company_id, move_name);
+    CREATE INDEX IF NOT EXISTS idx_journal_items_comp_actype ON journal_items(company_id, account_type);
     CREATE INDEX IF NOT EXISTS idx_company_accounts_company ON company_accounts(company_id);
     CREATE INDEX IF NOT EXISTS idx_company_accounts_unified ON company_accounts(unified_account_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_company ON journal_entries(company_id);
@@ -466,7 +468,39 @@ function initializeSchema() {
       total_credit REAL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(company_id, fiscal_year)
-    )
+    );
+
+    -- Account section overrides (e.g. classifying owner/retained earnings accounts as equity)
+    CREATE TABLE IF NOT EXISTS account_section_overrides (
+      company_id INTEGER,
+      account_code TEXT,
+      section TEXT,
+      PRIMARY KEY(company_id, account_code)
+    );
+
+    INSERT OR IGNORE INTO account_section_overrides (company_id, account_code, section) VALUES
+      (1, '200002', 'equity'),
+      (2, '200002', 'equity'),
+      (2, '200003', 'equity'),
+      (3, '290001', 'equity'),
+      (3, '290011', 'equity'),
+      (4, '201033', 'equity');
+
+    -- Account tags (e.g. tagging specific accounts with role/behavior tags like 'guarantee')
+    CREATE TABLE IF NOT EXISTS account_tags (
+      company_id INTEGER,
+      account_code TEXT,
+      tag TEXT,
+      PRIMARY KEY(company_id, account_code, tag)
+    );
+
+    INSERT OR IGNORE INTO account_tags (company_id, account_code, tag) VALUES
+      (2, '14110002', 'guarantee'),
+      (3, '0110012', 'guarantee');
+
+    -- Performance indexes for sales_invoices
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_name ON sales_invoices(company_id, name);
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_date ON sales_invoices(company_id, date);
   `);
 
   console.log('[DB] Schema initialized successfully');

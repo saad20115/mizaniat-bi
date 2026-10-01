@@ -248,10 +248,14 @@ function renderTable(container) {
           </tr>
         </thead>
         <tbody>
-          ${items.map(a => `
-            <tr>
+          ${items.map(a => {
+            const isVirtual = a.account_code === 'RE-CALC';
+            const rowStyle = isVirtual ? 'font-style: italic; background: rgba(59, 130, 246, 0.05);' : '';
+            const badge = isVirtual ? ' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>' : '';
+            return `
+            <tr style="${rowStyle}">
               <td style="font-family:var(--font-en);font-size:0.75em;color:var(--accent-blue);">${a.account_code}</td>
-              <td>${a.account_name}</td>
+              <td>${a.account_name}${badge}</td>
               <td class="number">${a.open_debit ? formatNumber(a.open_debit, 2) : '-'}</td>
               <td class="number">${a.open_credit ? formatNumber(a.open_credit, 2) : '-'}</td>
               <td class="number">${a.period_debit ? formatNumber(a.period_debit, 2) : '-'}</td>
@@ -259,7 +263,8 @@ function renderTable(container) {
               <td class="number" style="font-weight:600;">${a.close_debit ? formatNumber(a.close_debit, 2) : '-'}</td>
               <td class="number" style="font-weight:600;">${a.close_credit ? formatNumber(a.close_credit, 2) : '-'}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
           <tr class="total-row" style="font-size:0.95em;">
             <td colspan="2" style="font-weight:700;">الإجمالي</td>
             <td class="number" style="font-weight:700;">${formatNumber(totals.open_debit, 2)}</td>
@@ -272,175 +277,7 @@ function renderTable(container) {
         </tbody>
       </table>
     </div>
-
-    ${renderClosingSection(items)}
   `;
-
-  // Attach closing entry button handler
-  const closingBtn = el.querySelector('#btn-closing-entry');
-  if (closingBtn) {
-    closingBtn.addEventListener('click', () => generateClosingEntry(container));
-  }
-}
-
-function renderClosingSection(items) {
-  // Identify income and expense accounts (accounts to be closed)
-  const closableTypes = ['income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost'];
-  const closableAccounts = items.filter(a => closableTypes.includes(a.account_type));
-  
-  if (closableAccounts.length === 0) {
-    return '';
-  }
-
-  const totalIncome = closableAccounts
-    .filter(a => a.account_type?.startsWith('income'))
-    .reduce((s, a) => s + (a.open_credit - a.open_debit), 0);
-  
-  const totalExpense = closableAccounts
-    .filter(a => a.account_type?.startsWith('expense'))
-    .reduce((s, a) => s + (a.open_debit - a.open_credit), 0);
-
-  const netResult = totalIncome - totalExpense;
-
-  // Show ALL non-income/expense accounts in the dropdown
-  // This ensures accounts like retained earnings (201033) always appear
-  const closableSet = new Set(closableTypes);
-  const dropdownAccounts = items.filter(a => !closableSet.has(a.account_type));
-
-  return `
-    <div class="glass-card fade-in" style="padding:var(--space-lg);margin-top:var(--space-lg);border:1px solid rgba(245,158,11,0.2);">
-      <h3 style="margin:0 0 var(--space-md);color:var(--accent-amber);font-size:1rem;">
-        🔄 إقفال الأرصدة الافتتاحية — ترحيل أرصدة الإيرادات والمصروفات
-      </h3>
-      
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-md);margin-bottom:var(--space-md);">
-        <div style="background:rgba(16,185,129,0.08);padding:var(--space-md);border-radius:var(--radius-md);border:1px solid rgba(16,185,129,0.15);">
-          <div style="font-size:0.75rem;color:var(--text-muted);">إيرادات افتتاحية</div>
-          <div style="font-size:1.1rem;font-weight:700;color:var(--accent-emerald);font-family:var(--font-en);">${formatNumber(totalIncome, 2)}</div>
-        </div>
-        <div style="background:rgba(239,68,68,0.08);padding:var(--space-md);border-radius:var(--radius-md);border:1px solid rgba(239,68,68,0.15);">
-          <div style="font-size:0.75rem;color:var(--text-muted);">مصروفات افتتاحية</div>
-          <div style="font-size:1.1rem;font-weight:700;color:var(--accent-red);font-family:var(--font-en);">${formatNumber(totalExpense, 2)}</div>
-        </div>
-        <div style="background:rgba(59,130,246,0.08);padding:var(--space-md);border-radius:var(--radius-md);border:1px solid rgba(59,130,246,0.15);">
-          <div style="font-size:0.75rem;color:var(--text-muted);">${netResult >= 0 ? 'صافي الربح' : 'صافي الخسارة'}</div>
-          <div style="font-size:1.1rem;font-weight:700;color:${netResult >= 0 ? 'var(--accent-emerald)' : 'var(--accent-red)'};font-family:var(--font-en);">${formatNumber(Math.abs(netResult), 2)}</div>
-        </div>
-      </div>
-
-      <div style="display:flex;flex-wrap:wrap;gap:var(--space-md);align-items:flex-end;margin-bottom:var(--space-md);">
-        <div class="filter-group" style="flex:1;min-width:250px;">
-          <span class="filter-label">حساب الإقفال (أرباح / خسائر مُحتجزة)</span>
-          <select class="filter-select" id="closing-target-account" style="width:100%;">
-            <option value="">-- اختر من القائمة أو أدخل يدوياً --</option>
-            ${dropdownAccounts
-              .map(a => `<option value="${a.account_code}" data-name="${a.account_name}" data-type="${a.account_type}">${a.account_code} - ${a.account_name}</option>`)
-              .join('')}
-          </select>
-          <div style="display:flex;gap:var(--space-sm);margin-top:var(--space-sm);">
-            <input type="text" id="closing-manual-code" class="filter-select" 
-              placeholder="كود الحساب (مثلاً 201033)" 
-              style="flex:1;min-width:120px;font-family:var(--font-en);font-size:0.8rem;">
-            <input type="text" id="closing-manual-name" class="filter-select" 
-              placeholder="اسم الحساب" 
-              style="flex:2;min-width:150px;font-size:0.8rem;">
-          </div>
-          <div style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;">
-            💡 إذا لم يكن الحساب في القائمة، أدخل الكود والاسم يدوياً في الحقول أعلاه
-          </div>
-        </div>
-        <div class="filter-group" style="align-self:flex-end;">
-          <button class="btn btn-primary" id="btn-closing-entry" style="background:var(--accent-amber);border-color:var(--accent-amber);">
-            📋 إنشاء قيد الإقفال
-          </button>
-        </div>
-      </div>
-
-      <div style="font-size:0.72rem;color:var(--text-muted);line-height:1.6;">
-        💡 سيتم إنشاء قيد إقفال يُصفّر <strong>الأرصدة الافتتاحية</strong> لـ <strong>${closableAccounts.length}</strong> حساب (إيرادات ومصروفات) 
-        ويرحّل صافي الفرق إلى الحساب المختار. القيد يُسجل بتاريخ اليوم الأخير من الفترة السابقة.
-      </div>
-    </div>
-  `;
-}
-
-async function generateClosingEntry(container) {
-  const targetSelect = container.querySelector('#closing-target-account');
-  const manualCode = container.querySelector('#closing-manual-code')?.value?.trim();
-  const manualName = container.querySelector('#closing-manual-name')?.value?.trim();
-  
-  // Priority: dropdown selection first, manual input as fallback
-  let targetCode, targetName, targetType;
-  if (targetSelect?.value) {
-    targetCode = targetSelect.value;
-    targetName = targetSelect.options[targetSelect.selectedIndex]?.dataset?.name || '';
-    targetType = targetSelect.options[targetSelect.selectedIndex]?.dataset?.type || 'equity';
-  } else if (manualCode) {
-    targetCode = manualCode;
-    targetName = manualName || manualCode;
-    targetType = 'equity';
-  }
-
-  if (!targetCode) {
-    showToast('يجب اختيار حساب الإقفال من القائمة أو إدخال الكود يدوياً', 'error');
-    return;
-  }
-
-  const companyId = container.querySelector('#tb-company').value;
-  const dateFrom = container.querySelector('#tb-date-from').value;
-  const dateTo = container.querySelector('#tb-date-to').value;
-
-  const closableTypes = ['income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost'];
-  const items = trialBalanceData.accounts.filter(a => closableTypes.includes(a.account_type));
-
-  // Build closing entry lines — close OPENING balances only
-  const lines = [];
-  for (const acc of items) {
-    const openNet = acc.open_debit - acc.open_credit;
-    if (Math.abs(openNet) < 0.01) continue;
-    
-    // Reverse the opening balance: if account has debit opening, credit it; vice versa
-    lines.push({
-      account_code: acc.account_code,
-      account_name: acc.account_name,
-      account_type: acc.account_type,
-      debit: openNet < 0 ? Math.abs(openNet) : 0,
-      credit: openNet > 0 ? openNet : 0,
-    });
-  }
-
-  // Add the target (retained earnings) line
-  const totalDebit = lines.reduce((s, l) => s + l.debit, 0);
-  const totalCredit = lines.reduce((s, l) => s + l.credit, 0);
-  const diff = totalDebit - totalCredit;
-
-  lines.push({
-    account_code: targetCode,
-    account_name: targetName,
-    account_type: targetType,
-    debit: diff < 0 ? Math.abs(diff) : 0,
-    credit: diff > 0 ? diff : 0,
-  });
-
-  try {
-    const result = await api.createClosingEntry({
-      companyId,
-      dateFrom,
-      dateTo,
-      targetAccount: targetCode,
-      targetAccountName: targetName,
-      lines,
-    });
-    
-    showToast(`✅ تم إنشاء قيد الإقفال بنجاح — ${result.linesInserted || lines.length} سطر تم إدراجه في قاعدة البيانات`, 'success');
-    
-    // Reload the trial balance to reflect the closing entry
-    await loadData(container);
-
-  } catch (err) {
-    console.error('Closing entry error:', err);
-    showToast('خطأ في إنشاء قيد الإقفال', 'error');
-  }
 }
 
 // ========== EXPORT FUNCTIONS ==========

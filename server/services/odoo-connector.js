@@ -2,13 +2,14 @@ const https = require('https');
 const http = require('http');
 
 class OdooConnector {
-  constructor(url, username, apiKey) {
+  constructor(url, username, apiKey, dbName) {
     this.baseUrl = this._extractBaseUrl(url);
     this.username = username;
     this.apiKey = apiKey;
+    this.dbName = dbName || null;
+    this.uid = null;
     this.authHeader = 'Basic ' + Buffer.from(`${username}:${apiKey}`).toString('base64');
-    this.sessionCookie = null;
-    console.log(`[OdooConnector] Base URL: ${this.baseUrl}, User: ${username}`);
+    console.log(`[OdooConnector] Base URL: ${this.baseUrl}, User: ${username}, DB: ${this.dbName || '(auto)'}`);
   }
 
   _extractBaseUrl(input) {
@@ -25,76 +26,62 @@ class OdooConnector {
   }
 
   /**
-   * Authenticate via Odoo web session to get RPC access
+   * Call Odoo's standard external JSON-RPC endpoint (/jsonrpc).
+   * Stateless (no session cookie) and accepts either a password or an API key.
    */
-  async _webLogin() {
-    if (this.sessionCookie) return this.sessionCookie;
-    
-    console.log(`[OdooConnector] Authenticating via web session...`);
-    const body = {
-      jsonrpc: '2.0',
-      method: 'call',
-      id: 1,
-      params: {
-        db: '', // will be auto-detected
-        login: this.username,
-        password: this.apiKey
-      }
-    };
-
-    const result = await this._httpPost(`${this.baseUrl}/web/session/authenticate`, body);
-    
-    if (result.cookies && result.cookies.length > 0) {
-      const sessionCookie = result.cookies
-        .map(c => c.split(';')[0])
-        .filter(c => c.includes('session_id'))
-        .join('; ');
-      
-      if (sessionCookie) {
-        this.sessionCookie = sessionCookie;
-        console.log(`[OdooConnector] Web session authenticated successfully`);
-        return this.sessionCookie;
-      }
-    }
-
-    // Check if there's a db selector needed
-    const data = JSON.parse(result.body);
-    if (data.error) {
-      console.log(`[OdooConnector] Web auth error:`, data.error.message || data.error.data?.message);
-    }
-    throw new Error('فشل تسجيل الدخول عبر الجلسة — تأكد من البيانات');
-  }
-
-  /**
-   * Call Odoo RPC endpoint
-   */
-  async _rpcCall(model, method, args, kwargs = {}) {
-    const cookie = await this._webLogin();
-    
-    const body = {
+  async _jsonRpc(service, method, args, timeoutMs = 120000) {
+    const result = await this._httpPost(`${this.baseUrl}/jsonrpc`, {
       jsonrpc: '2.0',
       method: 'call',
       id: Date.now(),
-      params: {
-        model: model,
-        method: method,
-        args: args,
-        kwargs: kwargs
-      }
-    };
+      params: { service, method, args }
+    }, {}, timeoutMs);
 
-    const result = await this._httpPost(
-      `${this.baseUrl}/web/dataset/call_kw/${model}/${method}`,
-      body,
-      { 'Cookie': cookie },
-      300000  // 5 min timeout for RPC calls
-    );
-    
     const data = JSON.parse(result.body);
     if (data.error) {
-      throw new Error(data.error.message || data.error.data?.message || 'RPC Error');
+      throw new Error(data.error.data?.message || data.error.message || 'RPC Error');
     }
     return data.result;
+  }
+
+  /**
+   * Resolve the database name: use the configured one, otherwise ask the
+   * server (works only when the server allows listing databases).
+   */
+  async _resolveDb() {
+    if (this.dbName) return this.dbName;
+    let dbs;
+    try {
+      dbs = await this._jsonRpc('db', 'list', []);
+    } catch (e) {
+      throw new Error('اسم قاعدة بيانات أودو مطلوب — الخادم لا يسمح بعرض قواعد البيانات');
+    }
+    if (!Array.isArray(dbs) || dbs.length !== 1) {
+      throw new Error(`اسم قاعدة بيانات أودو مطلوب — الخادم يحتوي على ${Array.isArray(dbs) ? dbs.length : 0} قاعدة`);
+    }
+    this.dbName = dbs[0];
+    return this.dbName;
+  }
+
+  async _authenticate() {
+    if (this.uid) return this.uid;
+    const db = await this._resolveDb();
+    const uid = await this._jsonRpc('common', 'authenticate', [db, this.username, this.apiKey, {}]);
+    if (!uid) throw new Error('فشل تسجيل الدخول إلى أودو — تأكد من اسم المستخدم وكلمة المرور');
+    this.uid = uid;
+    console.log(`[OdooConnector] Authenticated on ${this.baseUrl} (db=${db}, uid=${uid})`);
+    return uid;
+  }
+
+  /**
+   * Call a model method via execute_kw
+   */
+  async _rpcCall(model, method, args, kwargs = {}) {
+    const uid = await this._authenticate();
+    return this._jsonRpc('object', 'execute_kw',
+      [this.dbName, uid, this.apiKey, model, method, args, kwargs],
+      300000  // 5 min timeout for RPC calls
+    );
   }
 
   /**
@@ -130,12 +117,16 @@ class OdooConnector {
       const records = await this._rpcCall(
         'account.move.line',
         'search_read',
-        [[['company_id', '=', companyId], ['display_type', 'not in', ['line_section', 'line_note']]]],
+        [[
+          ['company_id', '=', companyId],
+          ['parent_state', '=', 'posted'],
+          ['display_type', 'not in', ['line_section', 'line_note']]
+        ]],
         {
           fields: FIELDS,
           limit: PAGE_SIZE,
           offset: offset,
-          order: 'date desc, id desc'
+          order: 'id'  // stable ordering so pages don't shift while paginating
         }
       );
 
@@ -184,20 +175,11 @@ class OdooConnector {
    * Fetch journal items — tries RPC first, falls back to custom API
    */
   async fetchJournalItems(companyId) {
-    // Try RPC first for full data
-    try {
-      const rpcData = await this.fetchJournalItemsRPC(companyId);
-      if (rpcData && rpcData.length > 0) {
-        return { source: 'rpc', data: rpcData };
-      }
-    } catch (err) {
-      console.log(`[OdooConnector] RPC failed, falling back to custom API: ${err.message}`);
-    }
-
-    // Fallback: custom API endpoint
-    const endpoint = `/api/custom_journal_items_all?company_id=${companyId}`;
-    const result = await this._request(endpoint);
-    return { source: 'custom_api', data: Array.isArray(result) ? result : (result.data || result.result || result) };
+    // No fallback to the custom API endpoint: it carries no entry state, so drafts
+    // and cancelled entries would slip into reports. If RPC fails, the sync fails
+    // and the previously synced data stays in place.
+    const rpcData = await this.fetchJournalItemsRPC(companyId);
+    return { source: 'rpc', data: rpcData || [] };
   }
 
   async _request(endpoint, retries = 3) {
@@ -230,9 +212,11 @@ class OdooConnector {
         if (res.statusCode === 401) return reject(new Error('فشل المصادقة'));
         if (res.statusCode === 403) return reject(new Error('ممنوع الوصول (403)'));
         if (res.statusCode !== 200) return reject(new Error(`HTTP ${res.statusCode}`));
-        let data = '';
-        res.on('data', chunk => { data += chunk; });
-        res.on('end', () => resolve(data));
+        // Collect raw bytes: decoding each chunk separately corrupts Arabic
+        // characters that straddle chunk boundaries (U+FFFD in names).
+        const chunks = [];
+        res.on('data', chunk => { chunks.push(chunk); });
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
         res.on('error', reject);
       });
       req.on('timeout', () => { req.destroy(); reject(new Error('انتهت المهلة')); });
@@ -271,10 +255,13 @@ class OdooConnector {
         },
         timeout: timeoutMs
       }, (res) => {
-        let data = '';
+        const chunks = [];
         const cookies = res.headers['set-cookie'] || [];
-        res.on('data', chunk => { data += chunk; });
-        res.on('end', () => { clearTimeout(hardTimer); done(resolve, { body: data, cookies, status: res.statusCode }); });
+        res.on('data', chunk => { chunks.push(chunk); });
+        res.on('end', () => {
+          clearTimeout(hardTimer);
+          done(resolve, { body: Buffer.concat(chunks).toString('utf8'), cookies, status: res.statusCode });
+        });
         res.on('error', (err) => { clearTimeout(hardTimer); req.destroy(); done(reject, err); });
       });
       
@@ -287,6 +274,40 @@ class OdooConnector {
 
   _delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Fetch customer invoices and credit notes for a company via standard JSON-RPC
+   * move_type in ['out_invoice', 'out_refund'] and state = 'posted'
+   */
+  async fetchSalesMoves(companyId) {
+    return this._rpcCall(
+      'account.move',
+      'search_read',
+      [[
+        ['move_type', 'in', ['out_invoice', 'out_refund']],
+        ['state', '=', 'posted'],
+        ['company_id', '=', parseInt(companyId)]
+      ]],
+      {
+        fields: [
+          'name',
+          'partner_id',
+          'invoice_date',
+          'amount_total_signed',
+          'amount_untaxed_signed',
+          'amount_residual_signed',
+          'state',
+          'payment_state',
+          'ref',
+          'move_type',
+          'journal_id',
+          'company_id'
+        ],
+        limit: 100000,
+        order: 'id'
+      }
+    );
   }
 
   async testConnection(companyId = 1) {

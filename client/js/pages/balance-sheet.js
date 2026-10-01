@@ -51,6 +51,9 @@ function renderSheet(el, data) {
   const showCols = showCompanies.length > 1;
   const colspan = showCols ? showCompanies.length + 3 : 3;
 
+  const regularAssets = data.assets.filter(a => !a.is_guarantee);
+  const guaranteeAssets = data.assets.filter(a => a.is_guarantee);
+
   el.innerHTML = `
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
@@ -65,7 +68,13 @@ function renderSheet(el, data) {
         <tbody>
           <!-- Assets -->
           <tr class="group-header"><td colspan="${colspan}">الأصول</td></tr>
-          ${data.assets.map(item => renderRow(item, showCompanies, showCols)).join('')}
+          ${regularAssets.map(item => renderRow(item, showCompanies, showCols)).join('')}
+          ${guaranteeAssets.length > 0 ? `
+            <tr class="group-header" style="background: rgba(6, 182, 212, 0.08); color: #0891b2; font-size: 0.92em; padding-right: 20px;">
+              <td colspan="${colspan}">🏦 الضمانات البنكية (أصول محتجزة)</td>
+            </tr>
+            ${guaranteeAssets.map(item => renderRow(item, showCompanies, showCols)).join('')}
+          ` : ''}
           <tr class="total-row">
             <td>إجمالي الأصول</td><td></td>
             ${showCols ? showCompanies.map(c => {
@@ -114,9 +123,21 @@ function renderSheet(el, data) {
 }
 
 function renderRow(item, showCompanies, showCols) {
+  const isVirtual = item.account_code === 'RE-CALC' || item.account_code === 'CYE';
+  const isGuarantee = !!item.is_guarantee;
+  const rowStyle = isVirtual 
+    ? 'font-style: italic; background: rgba(59, 130, 246, 0.05);' 
+    : (isGuarantee ? 'background: rgba(6, 182, 212, 0.03);' : '');
+  let badge = '';
+  if (isVirtual) {
+    badge = ' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>';
+  } else if (isGuarantee) {
+    badge = ' <span style="font-size:0.75em; background:rgba(6,182,212,0.1); color:#0891b2; border:1px solid rgba(6,182,212,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">ضمان</span>';
+  }
+
   return `
-    <tr class="indent-1">
-      <td>${item.account_name}</td>
+    <tr class="indent-1" style="${rowStyle}">
+      <td>${item.account_name}${badge}</td>
       <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.8em;">${item.account_code}</td>
       ${showCols ? showCompanies.map(c => {
         const amt = item.companies[c.id]?.amount || 0;

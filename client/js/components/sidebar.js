@@ -10,7 +10,7 @@ const navItems = [
   { id: 'detailed-trial-balance', icon: '🔍', label: 'ميزان تفصيلي', section: 'التقارير المالية' },
   { id: 'account-statement', icon: '📄', label: 'كشف حساب', section: 'التقارير المالية' },
   { id: 'guarantees', icon: '🏦', label: 'الضمانات البنكية', section: 'التقارير المالية' },
-  { id: 'closing-entries', icon: '🔒', label: 'قيود الإقفال', section: 'التقارير المالية' },
+  // closing-entries hidden per T2 spec (virtual closing replaces manual closing entries)
   { id: 'hajj-budget', icon: '🕋', label: 'موازنات المشاريع', section: 'التقارير المالية', url: 'https://budget.jalbait.com' },
   { id: 'pivot', icon: '🔄', label: 'الجداول المحورية', section: 'التحليل' },
   { id: 'presentation', icon: '🎬', label: 'عرض تقديمي', section: 'التحليل' },

@@ -91,7 +91,7 @@ function determineClassification(inv, globalMappingMap, invoiceCostCenters, refT
     journalName = (p.journal_name || '').trim();
     num = (p.name || p.invoice_number || '').trim();
     
-    if (['Customer Credit Note', 'out_refund'].includes(moveType) || amt < 0) {
+    if (['Customer Credit Note', 'out_refund'].includes(moveType)) {
       const pRef = (p.reference || '').trim();
       if (!journalName && pRef && refToJournalMap[pRef]) {
         journalName = refToJournalMap[pRef];
@@ -686,7 +686,7 @@ router.get('/customer-hierarchy', (req, res) => {
       }
       
       const stats = hierarchy[company][groupName][ccName][partner];
-      if (moveType === 'Customer Credit Note' || moveType === 'out_refund' || amt < 0) {
+      if (moveType === 'Customer Credit Note' || moveType === 'out_refund') {
         stats.refunds += Math.abs(amt);
       } else {
         stats.total += amt;

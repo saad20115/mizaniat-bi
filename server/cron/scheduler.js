@@ -54,9 +54,9 @@ async function runScheduledSync() {
     CacheService.flush();
     
     const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
-    const totalRecords = results.reduce((s, r) => s + (r.records_synced || 0), 0);
-    const failedCompanies = results.filter(r => r.status === 'failed');
-    
+    const totalRecords = results.reduce((s, r) => s + (r.count || 0), 0);
+    const failedCompanies = results.filter(r => !r.success);
+
     if (failedCompanies.length === 0) {
       writeNotification('success',
         `مزامنة ناجحة — ${totalRecords} سجل في ${duration} ثانية`,
@@ -66,7 +66,7 @@ async function runScheduledSync() {
     } else {
       writeNotification('warning',
         `مزامنة جزئية — ${failedCompanies.length} شركة فشلت من أصل ${results.length}`,
-        { results, duration, failedCompanies: failedCompanies.map(f => f.company_name || f.company_id) }
+        { results, duration, failedCompanies: failedCompanies.map(f => f.company) }
       );
       console.log(`[Cron] Sync partial: ${failedCompanies.length} failed`);
     }

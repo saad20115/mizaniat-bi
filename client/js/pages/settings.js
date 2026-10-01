@@ -35,6 +35,11 @@ export async function renderSettings(container) {
           <label class="form-label">كلمة المرور / مفتاح API</label>
           <input type="password" class="form-input" id="conn-pass" placeholder="كلمة المرور أو API Key" dir="ltr" style="font-family:var(--font-en);text-align:left;" />
         </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">اسم قاعدة البيانات (Database)</label>
+          <input type="text" class="form-input" id="conn-db" placeholder="يُكتشف تلقائياً إن أمكن" dir="ltr" style="font-family:var(--font-en);text-align:left;" />
+          <small style="color:var(--text-muted);font-size:0.72rem;">مطلوب إذا كان الخادم يخفي قائمة قواعد البيانات — يظهر في أودو من الإعدادات بعد تفعيل وضع المطوّر</small>
+        </div>
       </div>
       
       <div style="display:flex;gap:var(--space-md);margin-top:var(--space-lg);">
@@ -167,7 +172,7 @@ export async function renderSettings(container) {
     resultEl.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.85rem;">⏳ جاري اختبار الاتصال...</div>';
 
     try {
-      const result = await api.testConnectionDirect({ url, username, password, company_id: 1 });
+      const result = await api.testConnectionDirect({ url, username, password, db_name: container.querySelector('#conn-db').value.trim(), company_id: 1 });
       
       if (result.success) {
         resultEl.innerHTML = `
@@ -213,6 +218,7 @@ export async function renderSettings(container) {
         url: url,
         username: username,
         api_key: password,
+        db_name: container.querySelector('#conn-db').value.trim(),
       });
       
       showToast('تم حفظ الاتصال بنجاح ✅ — اربط الشركات به من قسم الشركات', 'success');
@@ -221,6 +227,7 @@ export async function renderSettings(container) {
       container.querySelector('#conn-url').value = '';
       container.querySelector('#conn-user').value = '';
       container.querySelector('#conn-pass').value = '';
+      container.querySelector('#conn-db').value = '';
       container.querySelector('#conn-result').innerHTML = '';
       btnSave.disabled = true;
       

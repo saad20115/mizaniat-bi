@@ -91,7 +91,7 @@ router.post('/instances/:id/test', async (req, res) => {
   if (!instance) return res.status(404).json({ error: 'Instance not found' });
   
   const companyId = req.body.company_id || 1;
-  const connector = new OdooConnector(instance.url, instance.username, instance.api_key);
+  const connector = new OdooConnector(instance.url, instance.username, instance.api_key, instance.db_name);
   const result = await connector.testConnection(companyId);
   res.json(result);
 });
@@ -476,140 +476,15 @@ router.get('/reports/detailed-trial-balance', (req, res) => {
       return res.status(400).json({ error: 'Missing required params' });
     }
     
-    const { getDb } = require('../db/connection');
-    const db = getDb();
-    const cid = parseInt(companyId);
-    
-    // Parse account codes filter
-    const codes = accountCodes ? accountCodes.split(',').map(c => c.trim()) : [];
-    let accountFilter = '';
-    const params = { companyId: cid, dateFrom, dateTo };
-    
-    if (codes.length > 0) {
-      accountFilter = `AND ji.account_code IN (${codes.map((c, i) => { params[`code${i}`] = c; return `@code${i}`; }).join(',')})`;
-    } else {
-      // Default: receivable, payable account types
-      accountFilter = `AND ji.account_type IN ('asset_receivable', 'liability_payable')`;
-    }
-    
-    // Opening balances (before dateFrom)
-    const openingRows = db.prepare(`
-      SELECT 
-        ji.account_code, MIN(ji.account_name) as account_name,
-        CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END as partner_name,
-        MAX(ji.partner_id) as partner_id,
-        SUM(ji.debit) as total_debit,
-        SUM(ji.credit) as total_credit
-      FROM journal_items ji
-      WHERE ji.move_state = 'posted'
-        AND ji.company_id = @companyId
-        AND (ji.move_name IS NULL OR ji.move_name NOT LIKE 'CLOSING/%')
-        ${accountFilter}
-        AND ji.date < @dateFrom
-      GROUP BY ji.account_code, CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END
-    `).all(params);
-    
-    // Period movement (between dateFrom and dateTo)
-    const periodRows = db.prepare(`
-      SELECT 
-        ji.account_code, MIN(ji.account_name) as account_name,
-        CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END as partner_name,
-        MAX(ji.partner_id) as partner_id,
-        SUM(ji.debit) as total_debit,
-        SUM(ji.credit) as total_credit
-      FROM journal_items ji
-      WHERE ji.move_state = 'posted'
-        AND ji.company_id = @companyId
-        AND (ji.move_name IS NULL OR ji.move_name NOT LIKE 'CLOSING/%')
-        ${accountFilter}
-        AND ji.date >= @dateFrom AND ji.date <= @dateTo
-      GROUP BY ji.account_code, CASE WHEN ji.partner_name IS NULL OR TRIM(ji.partner_name) = '' THEN 'بدون شريك' ELSE TRIM(ji.partner_name) END
-    `).all(params);
-    
-    // Merge data
-    const accountMap = {};
-    
-    // Helper to create empty entry
-    const makeEntry = (row) => ({
-      account_code: row.account_code,
-      account_name: row.account_name,
-      partner_name: row.partner_name,
-      partner_id: row.partner_id,
-      raw_open_debit: 0, raw_open_credit: 0,
-      period_debit: 0, period_credit: 0,
-      open_debit: 0, open_credit: 0,
-      close_debit: 0, close_credit: 0,
+    const engine = new ConsolidationEngine();
+    const result = engine.getDetailedTrialBalance({
+      companyId,
+      dateFrom,
+      dateTo,
+      accountCodes
     });
     
-    for (const row of openingRows) {
-      const key = `${row.account_code}::${row.partner_name}`;
-      if (!accountMap[key]) accountMap[key] = makeEntry(row);
-      accountMap[key].raw_open_debit += row.total_debit || 0;
-      accountMap[key].raw_open_credit += row.total_credit || 0;
-    }
-    
-    for (const row of periodRows) {
-      const key = `${row.account_code}::${row.partner_name}`;
-      if (!accountMap[key]) accountMap[key] = makeEntry(row);
-      accountMap[key].period_debit += row.total_debit || 0;
-      accountMap[key].period_credit += row.total_credit || 0;
-    }
-    
-    // Calculate net balances per accounting standards
-    let accounts = Object.values(accountMap).map(a => {
-      // Opening: net balance (debit or credit)
-      const openNet = a.raw_open_debit - a.raw_open_credit;
-      if (openNet >= 0) {
-        a.open_debit = openNet;
-        a.open_credit = 0;
-      } else {
-        a.open_debit = 0;
-        a.open_credit = Math.abs(openNet);
-      }
-      
-      // Period: gross debit / credit (already set)
-      
-      // Closing: opening net + period movement
-      const closeNet = openNet + a.period_debit - a.period_credit;
-      if (closeNet >= 0) {
-        a.close_debit = closeNet;
-        a.close_credit = 0;
-      } else {
-        a.close_debit = 0;
-        a.close_credit = Math.abs(closeNet);
-      }
-      
-      // Remove raw fields
-      delete a.raw_open_debit;
-      delete a.raw_open_credit;
-      
-      return a;
-    });
-    
-    // Filter out completely zero accounts to ensure no empty/no-movement entries appear
-    accounts = accounts.filter(a => 
-      a.open_debit !== 0 || a.open_credit !== 0 || 
-      a.period_debit !== 0 || a.period_credit !== 0 || 
-      a.close_debit !== 0 || a.close_credit !== 0
-    );
-
-    // Sort: by account_code then partner_name
-    accounts.sort((a, b) => {
-      if (a.account_code !== b.account_code) return a.account_code.localeCompare(b.account_code);
-      return (a.partner_name || '').localeCompare(b.partner_name || '');
-    });
-    
-    // Get distinct accounts for filter dropdown
-    const distinctAccounts = db.prepare(`
-      SELECT DISTINCT ji.account_code, MIN(ji.account_name) as account_name, ji.account_type
-      FROM journal_items ji
-      WHERE ji.company_id = @companyId AND ji.move_state = 'posted'
-        AND ji.account_type IN ('asset_receivable', 'liability_payable', 'asset_current', 'liability_current')
-      GROUP BY ji.account_code
-      ORDER BY ji.account_code
-    `).all({ companyId: cid });
-    
-    res.json({ accounts, distinctAccounts });
+    res.json(result);
   } catch (err) {
     console.error('Detailed trial balance error:', err);
     res.status(500).json({ error: err.message });
@@ -831,11 +706,11 @@ function getSyncEngine() {
 // Quick test connection with provided credentials (no save required)
 router.post('/test-connection', async (req, res) => {
   try {
-    const { url, username, password, company_id } = req.body;
+    const { url, username, password, db_name, company_id } = req.body;
     if (!url || !username || !password) {
       return res.status(400).json({ success: false, message: 'يجب تقديم الرابط واسم المستخدم وكلمة المرور' });
     }
-    const connector = new OdooConnector(url, username, password);
+    const connector = new OdooConnector(url, username, password, db_name);
     const result = await connector.testConnection(company_id || 1);
     res.json(result);
   } catch (err) {
@@ -1415,81 +1290,85 @@ router.get('/presentation/data', (req, res) => {
     const customTo = req.query.dateTo || null;
     console.log('[Presentation] Query:', { companyIds, years, customFrom, customTo });
     const db = getDb();
+    const engine = new ConsolidationEngine();
     const ids = companyIds ? companyIds.split(',').map(Number) : [];
     const yearList = years ? years.split(',') : [];
     
     function getKpis(cid, dateFrom, dateTo) {
-      const p = { companyId: cid, dateFrom, dateTo };
-      const qr = (sql) => db.prepare(sql).get(p)?.total || 0;
-      const rev = qr(`SELECT COALESCE(SUM(credit)-SUM(debit),0) as total FROM journal_items WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND account_type IN ('income','income_other') AND move_state='posted'`);
-      const exp = qr(`SELECT COALESCE(SUM(debit)-SUM(credit),0) as total FROM journal_items WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND account_type IN ('expense','expense_direct','expense_depreciation') AND move_state='posted'`);
-      const ast = qr(`SELECT COALESCE(SUM(debit)-SUM(credit),0) as total FROM journal_items WHERE company_id=@companyId AND date<=@dateTo AND account_type LIKE 'asset%' AND move_state='posted'`);
-      const liab = qr(`SELECT COALESCE(SUM(credit)-SUM(debit),0) as total FROM journal_items WHERE company_id=@companyId AND date<=@dateTo AND account_type LIKE 'liability%' AND move_state='posted'`);
-      const today = new Date().toISOString().slice(0, 10);
-      const cash = db.prepare(`SELECT COALESCE(SUM(debit)-SUM(credit),0) as total FROM journal_items WHERE company_id=@companyId AND date<=@today AND account_name LIKE '%ضمان%' AND move_state='posted'`).get({...p, today})?.total || 0;
-      // Closing receivables = balance at end of period
-      const closingRecv = qr(`SELECT COALESCE(SUM(debit)-SUM(credit),0) as total FROM journal_items WHERE company_id=@companyId AND date<=@dateTo AND account_type='asset_receivable' AND move_state='posted'`);
-      // Opening receivables = balance before the period starts
-      const openingRecv = qr(`SELECT COALESCE(SUM(debit)-SUM(credit),0) as total FROM journal_items WHERE company_id=@companyId AND date<@dateFrom AND account_type='asset_receivable' AND move_state='posted'`);
-      const pay = qr(`SELECT COALESCE(SUM(credit)-SUM(debit),0) as total FROM journal_items WHERE company_id=@companyId AND date<=@dateTo AND account_type='liability_payable' AND move_state='posted'`);
-      const topAcc = db.prepare(`SELECT account_code,account_name,SUM(debit) as total_debit,SUM(credit) as total_credit FROM journal_items WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND move_state='posted' GROUP BY account_code ORDER BY (SUM(debit)+SUM(credit)) DESC LIMIT 5`).all(p);
-      // Collected = opening receivables + period revenue - closing receivables
-      const collected = openingRecv + rev - closingRecv;
-      const remaining = rev - collected;
-      return {
-        revenue: rev, expenses: exp, netIncome: rev - exp,
-        assets: ast, liabilities: liab, equity: ast - liab,
-        cash, receivables: closingRecv, openingReceivables: openingRecv,
-        collected, remaining, payables: pay,
-        profitMargin: rev > 0 ? ((rev - exp) / rev * 100) : 0,
-        expenseRatio: rev > 0 ? (exp / rev * 100) : 0,
-        collectionRate: rev > 0 ? (collected / rev * 100) : 0,
-        remainingRate: rev > 0 ? (remaining / rev * 100) : 0,
-        topAccounts: topAcc,
-      };
+      return engine.getPresentationKPIs({ companyId: cid, dateFrom, dateTo });
     }
     
     function sumKpis(arr) {
-      const t = { revenue:0,expenses:0,netIncome:0,assets:0,liabilities:0,equity:0,cash:0,receivables:0,openingReceivables:0,collected:0,remaining:0,payables:0 };
-      for (const k of arr) for (const key of Object.keys(t)) t[key] += k[key] || 0;
+      const t = { revenue:0,expenses:0,netIncome:0,assets:0,liabilities:0,equity:0,cash:0,liquidCash:0,guarantees:0,receivables:0,openingReceivables:0,billed:0,collected:0,remaining:0,payables:0,workingCapital:0 };
+      for (const k of arr) {
+        for (const key of Object.keys(t)) t[key] += k[key] || 0;
+      }
       t.profitMargin = t.revenue > 0 ? (t.netIncome / t.revenue * 100) : 0;
       t.expenseRatio = t.revenue > 0 ? (t.expenses / t.revenue * 100) : 0;
-      t.collectionRate = t.revenue > 0 ? (t.collected / t.revenue * 100) : 0;
-      t.remainingRate = t.revenue > 0 ? (t.remaining / t.revenue * 100) : 0;
+      t.collectionRate = t.billed > 0 ? (t.collected / t.billed * 100) : 0;
+      t.remainingRate = t.billed > 0 ? (t.remaining / t.billed * 100) : 0;
+      t.currentRatio = t.payables > 0 ? Number(((t.cash + t.receivables) / t.payables).toFixed(2)) : null;
+      t.dsoDays = t.billed > 0 ? Math.round((t.remaining / t.billed) * 273) : 0;
+      const mBurn = t.expenses / 9;
+      t.cashRunwayMonths = mBurn > 0 ? Number((t.liquidCash / mBurn).toFixed(1)) : 999;
       return t;
     }
     
     function getHierarchyData(cid, dateFrom, dateTo) {
       const p = { companyId: cid, dateFrom, dateTo };
       
+      // Ensure temp cash moves exist for actual partner collections
+      db.exec(`
+        CREATE TEMP TABLE IF NOT EXISTS _temp_cash_moves (
+          company_id INTEGER,
+          move_name TEXT,
+          PRIMARY KEY(company_id, move_name)
+        );
+        DELETE FROM _temp_cash_moves;
+      `);
+      db.prepare(`
+        INSERT OR IGNORE INTO _temp_cash_moves (company_id, move_name)
+        SELECT DISTINCT ji.company_id, ji.move_name
+        FROM journal_items ji
+        WHERE ji.company_id = @companyId
+          AND ji.move_state = 'posted'
+          AND ${engine._cashFilter('ji')}
+          AND ji.date >= @dateFrom AND ji.date <= @dateTo
+      `).run(p);
+
       // Revenue/Expenses by CostCenter + Partner
       const ccPartner = db.prepare(`
-        SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cc,
-          COALESCE(NULLIF(partner_name,''),'بدون شريك') as partner,
-          COALESCE(SUM(CASE WHEN account_type IN ('income','income_other') THEN credit-debit ELSE 0 END),0) as revenue,
-          COALESCE(SUM(CASE WHEN account_type IN ('expense','expense_direct','expense_depreciation') THEN debit-credit ELSE 0 END),0) as expenses
-        FROM journal_items
-        WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND move_state='posted'
+        SELECT COALESCE(NULLIF(ji.analytic_account,''),'بدون مركز') as cc,
+          COALESCE(NULLIF(ji.partner_name,''),'بدون شريك') as partner,
+          COALESCE(SUM(CASE WHEN ${engine._sectionExpr('ji', 'o')} = 'income' THEN ji.credit - ji.debit ELSE 0 END),0) as revenue,
+          COALESCE(SUM(CASE WHEN ${engine._sectionExpr('ji', 'o')} = 'expense' THEN ji.debit - ji.credit ELSE 0 END),0) as expenses
+        FROM journal_items ji
+        ${engine._sectionJoin('ji', 'o')}
+        WHERE ji.company_id=@companyId AND ji.date>=@dateFrom AND ji.date<=@dateTo AND ji.move_state='posted'
         GROUP BY cc, partner
       `).all(p);
       
-      // Receivables by partner
+      // Receivables ending balance by partner
       const recvClose = db.prepare(`SELECT COALESCE(NULLIF(partner_name,''),'بدون شريك') as partner, SUM(debit-credit) as bal FROM journal_items WHERE company_id=@companyId AND date<=@dateTo AND account_type='asset_receivable' AND move_state='posted' GROUP BY partner`).all(p);
-      const recvOpen = db.prepare(`SELECT COALESCE(NULLIF(partner_name,''),'بدون شريك') as partner, SUM(debit-credit) as bal FROM journal_items WHERE company_id=@companyId AND date<@dateFrom AND account_type='asset_receivable' AND move_state='posted' GROUP BY partner`).all(p);
       const closeMap = Object.fromEntries(recvClose.map(r=>[r.partner,r.bal]));
-      const openMap = Object.fromEntries(recvOpen.map(r=>[r.partner,r.bal]));
+
+      // Actual cash collected by partner
+      const recvCashRows = db.prepare(`
+        SELECT COALESCE(NULLIF(ji.partner_name,''),'بدون شريك') as partner,
+               COALESCE(SUM(ji.credit - ji.debit), 0) as collected
+        FROM journal_items ji
+        JOIN _temp_cash_moves cm ON cm.company_id = ji.company_id AND cm.move_name = ji.move_name
+        WHERE ji.company_id = @companyId AND ji.date >= @dateFrom AND ji.date <= @dateTo
+          AND ji.account_type = 'asset_receivable' AND ji.move_state = 'posted'
+        GROUP BY partner
+      `).all(p);
+      const partnerCashCollected = Object.fromEntries(recvCashRows.map(r=>[r.partner,r.collected]));
       
       // Build costCenters → partners hierarchy
       // First: compute per-partner total revenue (across all CCs) for proportional distribution
       const partnerTotalRev = {};
       for (const row of ccPartner) {
         partnerTotalRev[row.partner] = (partnerTotalRev[row.partner] || 0) + row.revenue;
-      }
-      // Per-partner global collected
-      const partnerGlobalCollected = {};
-      for (const partner of Object.keys(partnerTotalRev)) {
-        const opn = openMap[partner] || 0, cls = closeMap[partner] || 0;
-        partnerGlobalCollected[partner] = opn + partnerTotalRev[partner] - cls;
       }
 
       const ccMap = {};
@@ -1500,12 +1379,13 @@ router.get('/presentation/data', (req, res) => {
         // Distribute collected proportionally by revenue share within this partner
         const totalRevForPartner = partnerTotalRev[row.partner] || 0;
         const revShare = totalRevForPartner > 0 ? (row.revenue / totalRevForPartner) : 0;
-        const collected = (partnerGlobalCollected[row.partner] || 0) * revShare;
-        const remaining = row.revenue - collected;
+        const collected = (partnerCashCollected[row.partner] || 0) * revShare;
+        const remaining = (closeMap[row.partner] || 0) * revShare;
+        const billedEst = row.revenue * 1.15; // Est inclusive of 15% VAT
         ccMap[row.cc].partners.push({
           name: row.partner, revenue: row.revenue, expenses: row.expenses,
           netIncome: row.revenue - row.expenses, collected, remaining,
-          collectionRate: row.revenue > 0 ? (collected/row.revenue*100) : 0,
+          collectionRate: billedEst > 0 ? (collected/billedEst*100) : 0,
           profitMargin: row.revenue > 0 ? ((row.revenue-row.expenses)/row.revenue*100) : 0,
         });
       }
@@ -1522,19 +1402,21 @@ router.get('/presentation/data', (req, res) => {
       
       // Revenue/Expenses by CostCenter + Account
       const ccAccount = db.prepare(`
-        SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cc,
-          account_code, account_name, account_type,
-          SUM(debit) as total_debit, SUM(credit) as total_credit
-        FROM journal_items
-        WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND move_state='posted'
-          AND account_type IN ('income','income_other','expense','expense_direct','expense_depreciation')
-        GROUP BY cc, account_code ORDER BY (SUM(debit)+SUM(credit)) DESC
+        SELECT COALESCE(NULLIF(ji.analytic_account,''),'بدون مركز') as cc,
+          ji.account_code, ji.account_name, ji.account_type,
+          ${engine._sectionExpr('ji', 'o')} as section,
+          SUM(ji.debit) as total_debit, SUM(ji.credit) as total_credit
+        FROM journal_items ji
+        ${engine._sectionJoin('ji', 'o')}
+        WHERE ji.company_id=@companyId AND ji.date>=@dateFrom AND ji.date<=@dateTo AND ji.move_state='posted'
+          AND ${engine._sectionExpr('ji', 'o')} IN ('income', 'expense')
+        GROUP BY cc, ji.account_code ORDER BY (SUM(ji.debit)+SUM(ji.credit)) DESC
       `).all(p);
       
       const atMap = {};
       for (const row of ccAccount) {
         if (!atMap[row.cc]) atMap[row.cc] = { name: row.cc, revenue:0, expenses:0, accounts:[] };
-        const isIncome = row.account_type.startsWith('income');
+        const isIncome = row.section === 'income';
         const amount = isIncome ? (row.total_credit - row.total_debit) : (row.total_debit - row.total_credit);
         if (isIncome) atMap[row.cc].revenue += amount; else atMap[row.cc].expenses += amount;
         atMap[row.cc].accounts.push({
@@ -1555,16 +1437,18 @@ router.get('/presentation/data', (req, res) => {
     function getPivotData(cid, dateFrom, dateTo) {
       const p = { companyId: cid, dateFrom, dateTo };
       const rows = db.prepare(`
-        SELECT account_code, account_name, account_type,
-          COALESCE(NULLIF(analytic_account,''),'\u0628\u062f\u0648\u0646 \u0645\u0631\u0643\u0632') as cc,
-          CAST(strftime('%m', date) AS INTEGER) as month,
-          COALESCE(SUM(CASE WHEN account_type IN ('income','income_other') THEN credit-debit ELSE 0 END),0) as revenue,
-          COALESCE(SUM(CASE WHEN account_type IN ('expense','expense_direct','expense_depreciation') THEN debit-credit ELSE 0 END),0) as expenses
-        FROM journal_items
-        WHERE company_id=@companyId AND date>=@dateFrom AND date<=@dateTo AND move_state='posted'
-          AND account_type IN ('income','income_other','expense','expense_direct','expense_depreciation')
-        GROUP BY account_code, account_name, account_type, cc, month
-        ORDER BY cc, account_code, month
+        SELECT ji.account_code, ji.account_name, ji.account_type,
+          ${engine._sectionExpr('ji', 'o')} as section,
+          COALESCE(NULLIF(ji.analytic_account,''),'\u0628\u062f\u0648\u0646 \u0645\u0631\u0643\u0632') as cc,
+          CAST(strftime('%m', ji.date) AS INTEGER) as month,
+          COALESCE(SUM(CASE WHEN ${engine._sectionExpr('ji', 'o')} = 'income' THEN ji.credit - ji.debit ELSE 0 END),0) as revenue,
+          COALESCE(SUM(CASE WHEN ${engine._sectionExpr('ji', 'o')} = 'expense' THEN ji.debit - ji.credit ELSE 0 END),0) as expenses
+        FROM journal_items ji
+        ${engine._sectionJoin('ji', 'o')}
+        WHERE ji.company_id=@companyId AND ji.date>=@dateFrom AND ji.date<=@dateTo AND ji.move_state='posted'
+          AND ${engine._sectionExpr('ji', 'o')} IN ('income', 'expense')
+        GROUP BY ji.account_code, ji.account_name, ji.account_type, cc, month
+        ORDER BY cc, ji.account_code, month
       `).all(p);
       return rows;
     }
@@ -1610,10 +1494,9 @@ router.get('/presentation/data', (req, res) => {
         kpis.netIncome = hierRevenue - hierExpenses;
         kpis.profitMargin = hierRevenue > 0 ? ((hierRevenue - hierExpenses) / hierRevenue * 100) : 0;
         kpis.expenseRatio = hierRevenue > 0 ? (hierExpenses / hierRevenue * 100) : 0;
-        // Recalculate collection based on adjusted revenue
-        kpis.remaining = kpis.revenue - kpis.collected;
-        kpis.collectionRate = kpis.revenue > 0 ? (kpis.collected / kpis.revenue * 100) : 0;
-        kpis.remainingRate = kpis.revenue > 0 ? (kpis.remaining / kpis.revenue * 100) : 0;
+        // Collection KPIs are already calculated accurately in ConsolidationEngine.getPresentationKPIs
+        kpis.collectionRate = kpis.billed > 0 ? (kpis.collected / kpis.billed * 100) : 0;
+        kpis.remainingRate = kpis.billed > 0 ? (kpis.remaining / kpis.billed * 100) : 0;
 
         const entry = { companyId: cid, companyName: company.name, currency: company.currency || 'SAR', kpis, topAccounts: kpis.topAccounts, costCenters: hd.costCenters, accountTree: hd.accountTree, pivotData: pivot };
         delete entry.kpis.topAccounts;
@@ -1649,7 +1532,7 @@ router.get('/guarantees', (req, res) => {
           gr.released_date, gr.notes as release_notes
         FROM journal_items ji
         LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name
-        WHERE ji.company_id = ? AND ji.account_name LIKE '%ضمان%' AND ji.move_state = 'posted' AND ji.date <= ?
+        WHERE ji.company_id = ? AND EXISTS (SELECT 1 FROM account_tags _t WHERE _t.company_id = ji.company_id AND _t.account_code = ji.account_code AND _t.tag = 'guarantee') AND ji.move_state = 'posted' AND ji.date <= ?
         ORDER BY ji.date DESC
       `).all(cid, today);
       if (items.length) {
@@ -1745,7 +1628,7 @@ router.get('/guarantee-details', (req, res) => {
       if (pendingOnly) {
         sql += ` LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name`;
       }
-      sql += ` WHERE ji.company_id = ? AND ji.account_name LIKE '%ضمان%' AND ji.move_state = 'posted' AND ji.date <= ?`;
+      sql += ` WHERE ji.company_id = ? AND EXISTS (SELECT 1 FROM account_tags _t WHERE _t.company_id = ji.company_id AND _t.account_code = ji.account_code AND _t.tag = 'guarantee') AND ji.move_state = 'posted' AND ji.date <= ?`;
       if (pendingOnly) {
         sql += ` AND gr.id IS NULL`;
       }
@@ -1779,7 +1662,7 @@ router.get('/guarantee-pending-list', (req, res) => {
           CASE WHEN gr.id IS NOT NULL THEN 1 ELSE 0 END as is_released
         FROM journal_items ji
         LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name
-        WHERE ji.company_id = ? AND ji.account_name LIKE '%ضمان%' AND ji.move_state = 'posted' AND ji.date <= ?
+        WHERE ji.company_id = ? AND EXISTS (SELECT 1 FROM account_tags _t WHERE _t.company_id = ji.company_id AND _t.account_code = ji.account_code AND _t.tag = 'guarantee') AND ji.move_state = 'posted' AND ji.date <= ?
         ORDER BY ji.date
       `).all(cid, today);
 

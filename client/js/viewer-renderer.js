@@ -334,8 +334,8 @@ function renderOverview(body, d, gt, yrs, yd, comps, multiCo, multiYear) {
       <div class="bi-kpi"><div class="bi-kpi-label">📤 المصروفات</div><div class="bi-kpi-value" style="color:#ef4444;">${fmt(ovExp)}</div><div class="bi-kpi-sub">${fmtP(expPct)} من الإيرادات</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">📈 صافي الربح</div><div class="bi-kpi-value" style="color:${ovNet>=0?'#10b981':'#ef4444'};">${fmt(ovNet)}</div><div class="bi-kpi-sub">هامش ${fmtP(ovPM)}</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">✅ المحصّل</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(collected)}</div><div class="bi-kpi-sub">${fmtP(collPct)}</div></div>
-      <div class="bi-kpi"><div class="bi-kpi-label">⏳ المتبقي</div><div class="bi-kpi-value" style="color:#f59e0b;">${fmt(ovRem)}</div><div class="bi-kpi-sub">${fmtP(ovRemRate)}</div></div>
-      <div class="bi-kpi"><div class="bi-kpi-label">🏦 الضمانات البنكية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div><div class="bi-kpi-sub">بتاريخ ${new Date().toISOString().slice(0,10)}</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">💵 النقدية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div><div class="bi-kpi-sub">رصيد النقدية المتاح في البنوك والخزينة</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">🏦 الضمانات البنكية</div><div class="bi-kpi-value" style="color:#8b5cf6;">${fmt(gt.guarantees || 0)}</div><div class="bi-kpi-sub">أصول محتجزة ككفالات وضمانات</div></div>
     </div>
     <div class="bi-card bi-full" style="padding:14px 20px;">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
@@ -486,7 +486,7 @@ function renderGuarantees(body, d, yrs, yd) {
   const gt = d.grandTotals;
   body.innerHTML = `
     <div class="bi-kpi-row" style="grid-template-columns:repeat(2,1fr);">
-      <div class="bi-kpi"><div class="bi-kpi-label">🏦 إجمالي الضمانات البنكية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div><div class="bi-kpi-sub">بتاريخ ${new Date().toISOString().slice(0,10)}</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">🏦 إجمالي الضمانات البنكية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.guarantees || 0)}</div><div class="bi-kpi-sub">بتاريخ ${new Date().toISOString().slice(0,10)}</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">📊 عدد الشركات</div><div class="bi-kpi-value" style="color:#8b5cf6;">${(yd[yrs[0]]?.companies||[]).length}</div></div>
     </div>
     <div class="bi-card bi-full"><div class="bi-card-title">🏦 تفاصيل الضمانات حسب الشركة</div><div style="overflow-x:auto;"><table class="bi-table" id="tbl-guar"></table></div></div>`;
@@ -496,10 +496,10 @@ function renderGuarantees(body, d, yrs, yd) {
     let rows = '';
     for (const yr of yrs) {
       for (const co of (yd[yr]?.companies || [])) {
-        rows += `<tr><td style="font-weight:700;color:#60a5fa;">${co.companyName}</td><td class="n" style="font-family:var(--font-en);color:rgba(255,255,255,0.5);">${yr}</td><td class="n" style="color:#06b6d4;font-weight:700;">${fmt(co.kpis.cash||0)}</td></tr>`;
+        rows += `<tr><td style="font-weight:700;color:#60a5fa;">${co.companyName}</td><td class="n" style="font-family:var(--font-en);color:rgba(255,255,255,0.5);">${yr}</td><td class="n" style="color:#06b6d4;font-weight:700;">${fmt(co.kpis.guarantees || 0)}</td></tr>`;
       }
     }
     tbl.innerHTML = `<thead><tr><th>الشركة</th><th class="n">السنة</th><th class="n">الضمانات</th></tr></thead><tbody>${rows}</tbody>
-      <tfoot><tr><td>المجموع</td><td></td><td class="n" style="color:#06b6d4;font-weight:800;">${fmt(gt.cash)}</td></tr></tfoot>`;
+      <tfoot><tr><td>المجموع</td><td></td><td class="n" style="color:#06b6d4;font-weight:800;">${fmt(gt.guarantees || 0)}</td></tr></tfoot>`;
   });
 }

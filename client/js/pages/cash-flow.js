@@ -48,6 +48,7 @@ const typeLabels = {
   'equity': 'حقوق ملكية',
   'equity_unaffected': 'أرباح مبقاة',
   'liability_non_current': 'التزامات طويلة الأجل',
+  'bank_guarantees': 'ضمانات بنكية',
 };
 
 function renderCashFlowStatement(el, data) {
@@ -86,15 +87,15 @@ function renderCashFlowStatement(el, data) {
           ${data.investing.map(item => `
             <tr class="indent-1">
               <td>${typeLabels[item.account_type] || item.account_type}</td>
-              <td class="number ${item.amount <= 0 ? '' : 'negative'}">
-                ${item.amount > 0 ? '(' : ''}${formatNumber(Math.abs(item.amount), 2)}${item.amount > 0 ? ')' : ''}
+              <td class="number ${item.amount >= 0 ? '' : 'negative'}">
+                ${item.amount < 0 ? '(' : ''}${formatNumber(Math.abs(item.amount), 2)}${item.amount < 0 ? ')' : ''}
               </td>
             </tr>
           `).join('')}
           <tr class="total-row">
             <td>صافي النقد من الأنشطة الاستثمارية</td>
-            <td class="number ${investingTotal <= 0 ? 'positive' : 'negative'}">
-              ${investingTotal > 0 ? '(' : ''}${formatNumber(Math.abs(investingTotal), 2)}${investingTotal > 0 ? ')' : ''}
+            <td class="number ${investingTotal >= 0 ? 'positive' : 'negative'}">
+              ${investingTotal < 0 ? '(' : ''}${formatNumber(Math.abs(investingTotal), 2)}${investingTotal < 0 ? ')' : ''}
             </td>
           </tr>
 
@@ -102,20 +103,36 @@ function renderCashFlowStatement(el, data) {
           ${data.financing.map(item => `
             <tr class="indent-1">
               <td>${typeLabels[item.account_type] || item.account_type}</td>
-              <td class="number">${formatNumber(item.amount, 2)}</td>
+              <td class="number ${item.amount >= 0 ? '' : 'negative'}">
+                ${item.amount < 0 ? '(' : ''}${formatNumber(Math.abs(item.amount), 2)}${item.amount < 0 ? ')' : ''}
+              </td>
             </tr>
           `).join('')}
           <tr class="total-row">
             <td>صافي النقد من الأنشطة التمويلية</td>
-            <td class="number ${financingTotal >= 0 ? 'positive' : 'negative'}">${formatNumber(financingTotal, 2)}</td>
-          </tr>
-
-          <tr class="total-row" style="font-size:1.1em;">
-            <td>صافي التغير في النقد</td>
-            <td class="number ${netCash >= 0 ? 'positive' : 'negative'}" style="font-size:1.1em;">
-              ${formatNumber(netCash, 2)}
+            <td class="number ${financingTotal >= 0 ? 'positive' : 'negative'}">
+              ${financingTotal < 0 ? '(' : ''}${formatNumber(Math.abs(financingTotal), 2)}${financingTotal < 0 ? ')' : ''}
             </td>
           </tr>
+
+          <tr class="total-row" style="font-size:1.05em; border-top:2px solid var(--border-color);">
+            <td>صافي التغير في النقد خلال الفترة</td>
+            <td class="number ${netCash >= 0 ? 'positive' : 'negative'}" style="font-size:1.05em;">
+              ${netCash < 0 ? '(' : ''}${formatNumber(Math.abs(netCash), 2)}${netCash < 0 ? ')' : ''}
+            </td>
+          </tr>
+          ${data.summary ? `
+          <tr class="total-row">
+            <td>رصيد النقد في بداية الفترة</td>
+            <td class="number">${formatNumber(data.summary.openingCash || 0, 2)}</td>
+          </tr>
+          <tr class="total-row" style="font-size:1.15em; border-top:2px solid var(--border-color);">
+            <td>رصيد النقد في نهاية الفترة</td>
+            <td class="number positive" style="font-size:1.15em;">
+              ${formatNumber(data.summary.closingCash || 0, 2)}
+            </td>
+          </tr>
+          ` : ''}
         </tbody>
       </table>
     </div>

@@ -560,11 +560,12 @@ function filterDataByCCs(orig, selectedCCs) {
       let revenue = 0, expenses = 0, collected = 0, remaining = 0;
       costCenters.forEach(cc => { revenue += cc.revenue || 0; expenses += cc.expenses || 0; collected += cc.collected || 0; remaining += cc.remaining || 0; });
       const netIncome = revenue - expenses;
+      const baseBilled = (co.kpis && co.kpis.billed > 0) ? co.kpis.billed : (revenue * 1.15);
       const kpis = { ...co.kpis, revenue, expenses, collected, remaining, netIncome,
         profitMargin: revenue > 0 ? (netIncome / revenue * 100) : 0,
         expenseRatio: revenue > 0 ? (expenses / revenue * 100) : 0,
-        collectionRate: revenue > 0 ? (collected / revenue * 100) : 0,
-        remainingRate: revenue > 0 ? (remaining / revenue * 100) : 0
+        collectionRate: baseBilled > 0 ? (collected / baseBilled * 100) : 0,
+        remainingRate: baseBilled > 0 ? (remaining / baseBilled * 100) : 0
       };
       allKpis.push(kpis);
       return { ...co, costCenters, accountTree, pivotData, kpis };
@@ -579,12 +580,13 @@ function filterDataByCCs(orig, selectedCCs) {
 }
 
 function sumKpisClient(arr) {
-  const t = { revenue:0,expenses:0,netIncome:0,assets:0,liabilities:0,equity:0,cash:0,receivables:0,openingReceivables:0,collected:0,remaining:0,payables:0 };
+  const t = { revenue:0,expenses:0,netIncome:0,assets:0,liabilities:0,equity:0,cash:0,guarantees:0,receivables:0,openingReceivables:0,billed:0,collected:0,remaining:0,payables:0 };
   for (const k of arr) for (const key of Object.keys(t)) t[key] += k[key] || 0;
   t.profitMargin = t.revenue > 0 ? (t.netIncome / t.revenue * 100) : 0;
   t.expenseRatio = t.revenue > 0 ? (t.expenses / t.revenue * 100) : 0;
-  t.collectionRate = t.revenue > 0 ? (t.collected / t.revenue * 100) : 0;
-  t.remainingRate = t.revenue > 0 ? (t.remaining / t.revenue * 100) : 0;
+  const baseBilled = t.billed > 0 ? t.billed : (t.revenue * 1.15);
+  t.collectionRate = baseBilled > 0 ? (t.collected / baseBilled * 100) : 0;
+  t.remainingRate = baseBilled > 0 ? (t.remaining / baseBilled * 100) : 0;
   return t;
 }
 
@@ -605,8 +607,8 @@ function renderOverview(body, d, gt, yrs, yd, comps, multiCo, multiYear) {
       <div class="bi-kpi"><div class="bi-kpi-label">📤 المصروفات</div><div class="bi-kpi-value" style="color:#ef4444;">${fmt(ovExp)}</div><div class="bi-kpi-sub">${fmtP(expPct)} من الإيرادات</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">📈 صافي الربح</div><div class="bi-kpi-value" style="color:${ovNet>=0?'#10b981':'#ef4444'};">${fmt(ovNet)}</div><div class="bi-kpi-sub">هامش ${fmtP(ovPM)}</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">✅ المحصّل</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(collected)}</div><div class="bi-kpi-sub">${fmtP(collPct)}</div></div>
-      <div class="bi-kpi"><div class="bi-kpi-label">⏳ المتبقي</div><div class="bi-kpi-value" style="color:#f59e0b;">${fmt(ovRem)}</div><div class="bi-kpi-sub">${fmtP(ovRemRate)}</div></div>
-      <div class="bi-kpi"><div class="bi-kpi-label">🏦 الضمانات البنكية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div><div class="bi-kpi-sub">بتاريخ ${new Date().toISOString().slice(0,10)}</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">💵 النقدية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div><div class="bi-kpi-sub">رصيد النقدية المتاح في البنوك والخزينة</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">🏦 الضمانات البنكية</div><div class="bi-kpi-value" style="color:#8b5cf6;">${fmt(gt.guarantees || 0)}</div><div class="bi-kpi-sub">أصول محتجزة ككفالات وضمانات</div></div>
     </div>
     <div class="bi-card bi-full" style="padding:14px 20px;">
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
@@ -694,11 +696,12 @@ function renderComparison(body, d, gt, yrs, yd, comps, multiCo, multiYear) {
 // ===== TAB: BALANCE =====
 function renderBalance(body, d, gt, yrs, yd, comps, multiCo, multiYear) {
   body.innerHTML = `
-    <div class="bi-kpi-row" style="grid-template-columns:repeat(4,1fr);">
+    <div class="bi-kpi-row" style="grid-template-columns:repeat(5,1fr);">
       <div class="bi-kpi"><div class="bi-kpi-label">📦 الأصول</div><div class="bi-kpi-value" style="color:#3b82f6;">${fmt(gt.assets)}</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">⚠️ الالتزامات</div><div class="bi-kpi-value" style="color:#ef4444;">${fmt(gt.liabilities)}</div></div>
       <div class="bi-kpi"><div class="bi-kpi-label">🏛️ حقوق الملكية</div><div class="bi-kpi-value" style="color:#10b981;">${fmt(gt.equity)}</div></div>
-      <div class="bi-kpi"><div class="bi-kpi-label">💵 النقدية</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">💵 النقدية المتاحة</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(gt.cash)}</div></div>
+      <div class="bi-kpi"><div class="bi-kpi-label">🏦 الضمانات البنكية</div><div class="bi-kpi-value" style="color:#8b5cf6;">${fmt(gt.guarantees || 0)}</div></div>
     </div>
     <div class="bi-charts">
       <div class="bi-card"><div class="bi-card-title">⚖️ المركز المالي ${multiCo?'حسب الشركة':(multiYear?'حسب السنة':'')}</div><canvas id="ch-bal-bar" height="340"></canvas></div>
@@ -1600,11 +1603,11 @@ function fillBalanceTable(tbl, d) {
   const yrs = d.years, yd = d.yearlyData, gt = d.grandTotals, mY = yrs.length > 1;
   const rows = [];
   yrs.forEach(yr => { (yd[yr]?.companies || []).forEach((c, i) => { const k = c.kpis;
-    rows.push({ l: c.companyName, yr, col: COLORS[i % COLORS.length], assets: k.assets, liabilities: k.liabilities, equity: k.equity, cash: k.cash, recv: k.receivables, pay: k.payables }); }); });
+    rows.push({ l: c.companyName, yr, col: COLORS[i % COLORS.length], assets: k.assets, liabilities: k.liabilities, equity: k.equity, cash: k.cash, guarantees: k.guarantees || 0, recv: k.receivables, pay: k.payables }); }); });
   const balOff = mY ? 1 : 0;
-  tbl.innerHTML = `<thead><tr><th>الشركة</th>${mY?'<th>السنة</th>':''}<th class="n sortable" data-col-idx="${1+balOff}">الأصول</th><th class="n sortable" data-col-idx="${2+balOff}">الالتزامات</th><th class="n sortable" data-col-idx="${3+balOff}">حقوق الملكية</th><th class="n sortable" data-col-idx="${4+balOff}">النقدية</th><th class="n sortable" data-col-idx="${5+balOff}">ذمم مدينة</th><th class="n sortable" data-col-idx="${6+balOff}">ذمم دائنة</th></tr></thead>
-  <tbody>${rows.map(r=>`<tr><td style="color:${r.col};font-weight:700;">${r.l}</td>${mY?`<td style="font-family:var(--font-en);color:rgba(255,255,255,0.5);">${r.yr}</td>`:''}<td class="n" style="color:#3b82f6;">${fmt(r.assets)}</td><td class="n" style="color:#ef4444;">${fmt(r.liabilities)}</td><td class="n" style="color:#10b981;">${fmt(r.equity)}</td><td class="n" style="color:#06b6d4;">${fmt(r.cash)}</td><td class="n" style="color:#f59e0b;">${fmt(r.recv)}</td><td class="n" style="color:#8b5cf6;">${fmt(r.pay)}</td></tr>`).join('')}</tbody>
-  <tfoot><tr><td>المجموع</td>${mY?'<td></td>':''}<td class="n" style="color:#3b82f6;">${fmt(gt.assets)}</td><td class="n" style="color:#ef4444;">${fmt(gt.liabilities)}</td><td class="n" style="color:#10b981;">${fmt(gt.equity)}</td><td class="n" style="color:#06b6d4;">${fmt(gt.cash)}</td><td class="n" style="color:#f59e0b;">${fmt(gt.receivables)}</td><td class="n" style="color:#8b5cf6;">${fmt(gt.payables)}</td></tr></tfoot>`;
+  tbl.innerHTML = `<thead><tr><th>الشركة</th>${mY?'<th>السنة</th>':''}<th class="n sortable" data-col-idx="${1+balOff}">الأصول</th><th class="n sortable" data-col-idx="${2+balOff}">الالتزامات</th><th class="n sortable" data-col-idx="${3+balOff}">حقوق الملكية</th><th class="n sortable" data-col-idx="${4+balOff}">النقدية</th><th class="n sortable" data-col-idx="${5+balOff}">الضمانات</th><th class="n sortable" data-col-idx="${6+balOff}">ذمم مدينة</th><th class="n sortable" data-col-idx="${7+balOff}">ذمم دائنة</th></tr></thead>
+  <tbody>${rows.map(r=>`<tr><td style="color:${r.col};font-weight:700;">${r.l}</td>${mY?`<td style="font-family:var(--font-en);color:rgba(255,255,255,0.5);">${r.yr}</td>`:''}<td class="n" style="color:#3b82f6;">${fmt(r.assets)}</td><td class="n" style="color:#ef4444;">${fmt(r.liabilities)}</td><td class="n" style="color:#10b981;">${fmt(r.equity)}</td><td class="n" style="color:#06b6d4;">${fmt(r.cash)}</td><td class="n" style="color:#8b5cf6;">${fmt(r.guarantees)}</td><td class="n" style="color:#f59e0b;">${fmt(r.recv)}</td><td class="n" style="color:#8b5cf6;">${fmt(r.pay)}</td></tr>`).join('')}</tbody>
+  <tfoot><tr><td>المجموع</td>${mY?'<td></td>':''}<td class="n" style="color:#3b82f6;">${fmt(gt.assets)}</td><td class="n" style="color:#ef4444;">${fmt(gt.liabilities)}</td><td class="n" style="color:#10b981;">${fmt(gt.equity)}</td><td class="n" style="color:#06b6d4;">${fmt(gt.cash)}</td><td class="n" style="color:#8b5cf6;">${fmt(gt.guarantees||0)}</td><td class="n" style="color:#f59e0b;">${fmt(gt.receivables)}</td><td class="n" style="color:#8b5cf6;">${fmt(gt.payables)}</td></tr></tfoot>`;
 }
 
 // ===== SHARING =====
@@ -2800,3 +2803,5 @@ async function renderVAT(body, d, yrs, selectedCCs) {
     body.innerHTML = '<div class="bi-empty" style="color:red;">❌ حدث خطأ أثناء حساب الضريبة</div>';
   }
 }
+
+
