@@ -92,11 +92,17 @@ class SalesSyncEngine {
       this._updateProgress(companyId, { phase: 'جارِ إعداد البيانات وحفظها...', total: (moves || []).length, inserted: 0 });
 
       const insertStmt = db.prepare(`
-        INSERT INTO sales_invoices (company_id, invoice_id, name, partner_name, date, amount_total, state, raw_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO sales_invoices (
+          company_id, invoice_id, name, partner_name, partner_id, journal_id, journal_name,
+          date, invoice_date_due, amount_total, amount_untaxed, amount_residual_signed, payment_state, state, raw_data
+        )
+        VALUES (
+          @company_id, @invoice_id, @name, @partner_name, @partner_id, @journal_id, @journal_name,
+          @date, @invoice_date_due, @amount_total, @amount_untaxed, @amount_residual_signed, @payment_state, @state, @raw_data
+        )
       `);
 
-      // Delete + insert in single transaction for atomic update
+      // Delete + insert + rebuild departments in single transaction for atomic update
       const insertMany = db.transaction((rows) => {
         db.prepare('DELETE FROM sales_invoices WHERE company_id = ?').run(companyId);
         let count = 0;
@@ -104,21 +110,26 @@ class SalesSyncEngine {
           const invId = r.id || 0;
           const name = (r.name || '').trim();
           const partnerName = Array.isArray(r.partner_id) ? r.partner_id[1] : (r.partner_id || 'عميل غير معروف');
+          const partnerId = Array.isArray(r.partner_id) ? r.partner_id[0] : (r.partner_id || null);
+          const journalId = Array.isArray(r.journal_id) ? r.journal_id[0] : (r.journal_id || null);
+          const journalName = Array.isArray(r.journal_id) ? r.journal_id[1] : (r.journal_id || '');
           const date = r.invoice_date || '';
+          const dueDate = r.invoice_date_due || r.invoice_date || '';
           const totalSigned = parseFloat(r.amount_total_signed) || 0;
           const untaxedSigned = parseFloat(r.amount_untaxed_signed) || 0;
           const residualSigned = parseFloat(r.amount_residual_signed) || 0;
           const totalPaid = totalSigned - residualSigned;
           const isRefund = r.move_type === 'out_refund';
           const moveType = isRefund ? 'Customer Credit Note' : 'Customer Invoice';
-          const journalName = Array.isArray(r.journal_id) ? r.journal_id[1] : (r.journal_id || '');
 
           const rawData = {
             id: invId,
             invoice_number: name,
             name: name,
             partner_name: partnerName,
+            partner_id: r.partner_id,
             invoice_date: date,
+            invoice_date_due: dueDate,
             amount_total_signed: totalSigned,
             amount_untaxed_signed: untaxedSigned,
             amount_untaxed: untaxedSigned,
@@ -130,25 +141,37 @@ class SalesSyncEngine {
             reference: (r.ref || '').trim(),
             payment_status: r.payment_state || '',
             payment_state: r.payment_state || '',
+            journal_id: r.journal_id,
             journal_name: journalName,
             company_id: companyId
           };
 
-          insertStmt.run(
-            companyId,
-            invId,
-            name,
-            partnerName,
-            date,
-            totalSigned,
-            'posted',
-            JSON.stringify(rawData)
-          );
+          insertStmt.run({
+            company_id: companyId,
+            invoice_id: invId,
+            name: name,
+            partner_name: partnerName,
+            partner_id: partnerId,
+            journal_id: journalId,
+            journal_name: journalName,
+            date: date,
+            invoice_date_due: dueDate,
+            amount_total: totalSigned,
+            amount_untaxed: untaxedSigned,
+            amount_residual_signed: residualSigned,
+            payment_state: r.payment_state || '',
+            state: 'posted',
+            raw_data: JSON.stringify(rawData)
+          });
           count++;
           if (count % 250 === 0) {
             this._updateProgress(companyId, { inserted: count, phase: 'حفظ الفواتير...' });
           }
         }
+
+        // Rebuild invoice departments in same transaction
+        this.rebuildInvoiceDepartments(companyId);
+
         return count;
       });
 
@@ -168,6 +191,23 @@ class SalesSyncEngine {
       this._updateProgress(companyId, { status: 'failed', phase: `حدث خطأ: ${err.message}` });
       throw err;
     }
+  }
+
+  /**
+   * Rebuild invoice_departments for a given sales company (or all companies).
+   * Attribution order:
+   * 1. journal_name -> group_id via analytic_group_mapping.journal_name
+   * 2. analytic_account of income lines for the same move in journal_items -> group_id (proportional)
+   * 3. otherwise unclassified (0)
+   */
+  rebuildInvoiceDepartments(companyId) {
+    const ConsolidationEngine = require('./consolidation');
+    const engine = new ConsolidationEngine(getDb());
+    return engine.resolveInvoiceDepartments(companyId);
+  }
+
+  rebuildAllInvoiceDepartments() {
+    this.rebuildInvoiceDepartments(null);
   }
 
   async syncAll() {

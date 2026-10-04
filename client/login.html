@@ -194,12 +194,20 @@
 
   <script>
     // If already logged in, redirect
-    const existingToken = localStorage.getItem('mizaniat_admin_token');
-    if (existingToken) {
+    const existingAdminToken = localStorage.getItem('mizaniat_admin_token');
+    const existingViewerToken = localStorage.getItem('mizaniat_viewer_token') || sessionStorage.getItem('mizaniat_viewer_token');
+
+    if (existingAdminToken && localStorage.getItem('mizaniat_viewer_mode') !== 'true') {
       fetch('/api/auth/admin/me', {
-        headers: { 'Authorization': 'Bearer ' + existingToken }
+        headers: { 'Authorization': 'Bearer ' + existingAdminToken }
       }).then(r => {
         if (r.ok) window.location.href = '/';
+      }).catch(() => {});
+    } else if (existingViewerToken) {
+      fetch('/api/auth/viewer/verify', {
+        headers: { 'x-viewer-token': existingViewerToken }
+      }).then(r => {
+        if (r.ok) window.location.href = '/?page=presentation';
       }).catch(() => {});
     }
 
@@ -239,7 +247,9 @@
 
         // Clear any viewer mode
         localStorage.removeItem('mizaniat_viewer_mode');
+        localStorage.removeItem('mizaniat_viewer_token');
         sessionStorage.removeItem('mizaniat_viewer_token');
+        localStorage.removeItem('mizaniat_viewer_info');
 
         // Save token and redirect
         localStorage.setItem('mizaniat_admin_token', data.token);
@@ -294,12 +304,16 @@
           return;
         }
 
+        // Clear any admin tokens
+        localStorage.removeItem('mizaniat_admin_token');
+        localStorage.removeItem('mizaniat_admin_info');
+
         // Store viewer token and set viewer mode flag
-        sessionStorage.removeItem('mizaniat_viewer_token');
         localStorage.setItem('mizaniat_viewer_mode', 'true');
-        localStorage.setItem('mizaniat_admin_token', data.token);
-        localStorage.setItem('mizaniat_admin_info', JSON.stringify(data.admin));
-        window.location.href = '/';
+        localStorage.setItem('mizaniat_viewer_token', data.token);
+        sessionStorage.setItem('mizaniat_viewer_token', data.token);
+        localStorage.setItem('mizaniat_viewer_info', JSON.stringify(data.viewer));
+        window.location.href = '/?page=presentation';
 
       } catch (err) {
         viewerError.textContent = 'تعذر الاتصال بالخادم';

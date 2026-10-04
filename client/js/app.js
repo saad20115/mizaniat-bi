@@ -52,6 +52,20 @@ const pages = {
 
 async function navigateTo(pageName) {
   const container = document.getElementById('main-content');
+  const isViewer = window.isViewerMode();
+
+  // S3: Route guard — viewers can only access presentation
+  if (isViewer && pageName !== 'presentation') {
+    console.warn(`[RouteGuard] Viewer is restricted to presentation. Blocked: ${pageName}`);
+    pageName = 'presentation';
+    store.set('currentPage', 'presentation');
+    const url = new URL(window.location);
+    if (url.searchParams.get('page') !== 'presentation') {
+      url.searchParams.set('page', 'presentation');
+      window.history.replaceState({}, '', url);
+    }
+  }
+
   let renderPage = pages[pageName];
 
   // Lazy load special expenses
@@ -94,7 +108,9 @@ window.mizaniatLogout = function() {
   localStorage.removeItem('mizaniat_admin_token');
   localStorage.removeItem('mizaniat_admin_info');
   localStorage.removeItem('mizaniat_viewer_mode');
+  localStorage.removeItem('mizaniat_viewer_token');
   sessionStorage.removeItem('mizaniat_viewer_token');
+  localStorage.removeItem('mizaniat_viewer_info');
   window.location.href = '/login.html';
 };
 
@@ -104,27 +120,43 @@ window.isViewerMode = () => localStorage.getItem('mizaniat_viewer_mode') === 'tr
 // Initialize app
 async function init() {
   const isViewer = window.isViewerMode();
-  const token = localStorage.getItem('mizaniat_admin_token');
 
-  if (!token) {
-    window.location.href = '/login.html';
-    return;
-  }
-
-  // Verify JWT token (same for admin and viewer — viewer gets a real admin JWT)
-  try {
-    const meRes = await fetch('/api/auth/admin/me', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (!meRes.ok) {
-      localStorage.removeItem('mizaniat_admin_token');
-      localStorage.removeItem('mizaniat_admin_info');
-      localStorage.removeItem('mizaniat_viewer_mode');
+  if (isViewer) {
+    const viewerToken = localStorage.getItem('mizaniat_viewer_token') || sessionStorage.getItem('mizaniat_viewer_token');
+    if (!viewerToken) {
       window.location.href = '/login.html';
       return;
     }
-  } catch (e) {
-    // Server might be down, continue anyway
+    // Verify viewer session
+    try {
+      const vRes = await fetch('/api/auth/viewer/verify', {
+        headers: { 'x-viewer-token': viewerToken }
+      });
+      if (!vRes.ok) {
+        window.mizaniatLogout();
+        return;
+      }
+    } catch (e) {
+      // Server might be down, continue anyway
+    }
+  } else {
+    const token = localStorage.getItem('mizaniat_admin_token');
+    if (!token) {
+      window.location.href = '/login.html';
+      return;
+    }
+    // Verify admin JWT token
+    try {
+      const meRes = await fetch('/api/auth/admin/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!meRes.ok) {
+        window.mizaniatLogout();
+        return;
+      }
+    } catch (e) {
+      // Server might be down, continue anyway
+    }
   }
 
   console.log(isViewer ? '👁️ Mizaniat BI Viewer mode' : '🚀 Mizaniat BI initializing...');
@@ -147,8 +179,15 @@ async function init() {
       }
     });
     
-    // Navigate to presentation for viewer, dashboard for admin
-    const startPage = isViewer ? 'presentation' : 'dashboard';
+    // Navigate to presentation for viewer, dashboard for admin, or ?page= URL param
+    const urlPage = new URLSearchParams(window.location.search).get('page');
+    let startPage = urlPage || (isViewer ? 'presentation' : 'dashboard');
+    if (isViewer && startPage !== 'presentation') {
+      startPage = 'presentation';
+      const url = new URL(window.location);
+      url.searchParams.set('page', 'presentation');
+      window.history.replaceState({}, '', url);
+    }
     store.set('currentPage', startPage);
     await navigateTo(startPage);
     

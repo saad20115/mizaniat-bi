@@ -44,6 +44,15 @@
   <!-- Export libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+      localStorage.setItem('mizaniat_admin_token', urlToken);
+      localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+    }
+  </script>
+
   <script type="module" src="./js/app.js"></script>
 </body>
 </html>

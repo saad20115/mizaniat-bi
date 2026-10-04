@@ -6,10 +6,10 @@
   <meta name="description" content="منصة تقارير مالية - نظام التقارير المالية المجمعة المتصل بأودو">
   <title>تقارير مالية | التقارير المالية المجمعة</title>
   <link rel="icon" type="image/png" href="/assets/logo-SiUukkZm.png">
-  <script type="module" crossorigin src="/assets/main-B93qcEpq.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/presentation-DG37YCw1.js">
-  <link rel="modulepreload" crossorigin href="/assets/filters-hwR2lCFq.js">
-  <link rel="stylesheet" crossorigin href="/assets/presentation-DOY8f1kd.css">
+  <script type="module" crossorigin src="/assets/main-b8AVrCCM.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/presentation-CT6XNb48.js">
+  <link rel="modulepreload" crossorigin href="/assets/filters-C4Z6nVT4.js">
+  <link rel="stylesheet" crossorigin href="/assets/presentation-CaWSzoDD.css">
 </head>
 <body>
   <div id="app">
@@ -46,6 +46,15 @@
 
   <!-- Export libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlToken = urlParams.get('token');
+    if (urlToken) {
+      localStorage.setItem('mizaniat_admin_token', urlToken);
+      localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+    }
+  </script>
 
 </body>
 </html>

@@ -100,6 +100,7 @@ class OdooConnector {
       'debit',          // مدين
       'credit',         // دائن
       'balance',        // الرصيد
+      'amount_residual',// المتبقي غير المطابق
       'date',           // التاريخ
       'analytic_distribution', // توزيع تحليلي
       'company_id',     // الشركة [id, name]
@@ -294,6 +295,7 @@ class OdooConnector {
           'name',
           'partner_id',
           'invoice_date',
+          'invoice_date_due',
           'amount_total_signed',
           'amount_untaxed_signed',
           'amount_residual_signed',

@@ -200,6 +200,7 @@ function initializeSchema() {
       debit REAL DEFAULT 0,
       credit REAL DEFAULT 0,
       balance REAL DEFAULT 0,
+      amount_residual REAL DEFAULT 0,
       currency TEXT DEFAULT 'SAR',
       date TEXT NOT NULL,
       journal_name TEXT,
@@ -322,12 +323,30 @@ function initializeSchema() {
       invoice_id INTEGER,
       name TEXT,
       partner_name TEXT,
+      partner_id INTEGER,
+      journal_id INTEGER,
+      journal_name TEXT,
       date TEXT,
-      amount_total REAL,
+      invoice_date_due TEXT,
+      amount_total REAL DEFAULT 0,
+      amount_untaxed REAL DEFAULT 0,
+      amount_residual_signed REAL DEFAULT 0,
+      payment_state TEXT,
       state TEXT,
       raw_data TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (company_id) REFERENCES sales_companies(id)
+    );
+
+    -- Invoice department allocation (M1a)
+    CREATE TABLE IF NOT EXISTS invoice_departments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sales_invoice_id INTEGER NOT NULL,
+      department_id INTEGER NOT NULL DEFAULT 0,
+      share REAL NOT NULL DEFAULT 1.0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (sales_invoice_id) REFERENCES sales_invoices(id) ON DELETE CASCADE,
+      UNIQUE(sales_invoice_id, department_id)
     );
 
     -- Sales App settings (key-value store for schedule)
@@ -335,6 +354,16 @@ function initializeSchema() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- User UI Preferences (for Executive View custom settings)
+    CREATE TABLE IF NOT EXISTS ui_preferences (
+      user_type TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      pref_key TEXT NOT NULL,
+      value_json TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (user_type, user_id, pref_key)
     );
 
     -- Sales Sync notifications
@@ -501,6 +530,64 @@ function initializeSchema() {
     -- Performance indexes for sales_invoices
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_name ON sales_invoices(company_id, name);
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_date ON sales_invoices(company_id, date);
+
+    -- Fact daily table for matrix reporting & rapid aggregations (M1)
+    CREATE TABLE IF NOT EXISTS fact_daily (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      year TEXT NOT NULL,
+      quarter TEXT NOT NULL,
+      month TEXT NOT NULL,
+      week_start TEXT NOT NULL,
+      account_code TEXT NOT NULL,
+      section TEXT NOT NULL,
+      department_id INTEGER NOT NULL DEFAULT 0,
+      analytic_account TEXT DEFAULT '',
+      journal_name TEXT DEFAULT '',
+      debit REAL DEFAULT 0,
+      credit REAL DEFAULT 0,
+      revenue REAL DEFAULT 0,
+      expense REAL DEFAULT 0,
+      billed REAL DEFAULT 0,
+      collected REAL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_date ON fact_daily(company_id, date);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_year ON fact_daily(company_id, year);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_quarter ON fact_daily(company_id, quarter);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_month ON fact_daily(company_id, month);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_week ON fact_daily(company_id, week_start);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_dept ON fact_daily(company_id, department_id);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_acc ON fact_daily(company_id, account_code);
+    CREATE INDEX IF NOT EXISTS idx_analytic_group_mapping_lookup ON analytic_group_mapping(company_id, analytic_account);
+    CREATE INDEX IF NOT EXISTS idx_analytic_group_mapping_journal ON analytic_group_mapping(company_id, journal_name);
+  `);
+
+  // Add columns to sales_invoices if not existing (must run before indexes)
+  const addSalesInvoiceCol = (col, type) => {
+    try { db.prepare(`ALTER TABLE sales_invoices ADD COLUMN ${col} ${type}`).run(); } catch (e) {}
+  };
+  addSalesInvoiceCol('partner_id', 'INTEGER');
+  addSalesInvoiceCol('journal_id', 'INTEGER');
+  addSalesInvoiceCol('journal_name', 'TEXT');
+  addSalesInvoiceCol('invoice_date_due', 'TEXT');
+  addSalesInvoiceCol('amount_untaxed', 'REAL DEFAULT 0');
+  addSalesInvoiceCol('amount_residual_signed', 'REAL DEFAULT 0');
+  addSalesInvoiceCol('payment_state', 'TEXT');
+
+  try {
+    db.prepare('ALTER TABLE journal_items ADD COLUMN amount_residual REAL DEFAULT 0').run();
+  } catch (e) {}
+
+  db.exec(`
+    -- Performance indexes for journal_items, sales_invoices & invoice_departments (M1a)
+    CREATE INDEX IF NOT EXISTS idx_ji_co_odoo_line ON journal_items(company_id, odoo_line_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_due ON sales_invoices(company_id, invoice_date_due);
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_partner ON sales_invoices(company_id, partner_id);
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_payment ON sales_invoices(company_id, payment_state);
+    CREATE INDEX IF NOT EXISTS idx_inv_dept_invoice ON invoice_departments(sales_invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_dept_dept ON invoice_departments(department_id);
   `);
 
   console.log('[DB] Schema initialized successfully');
@@ -517,6 +604,72 @@ function initializeSchema() {
     }
   } catch (e) {
     console.log('[DB] Admin seed:', e.message);
+  }
+
+  // Ensure fact_daily is populated if empty and journal_items exists
+  try {
+    const factCount = db.prepare('SELECT COUNT(*) as count FROM fact_daily').get();
+    const jiCount = db.prepare('SELECT COUNT(*) as count FROM journal_items').get();
+    if (factCount.count === 0 && jiCount.count > 0) {
+      console.log('[DB] Populating fact_daily for existing journal items...');
+      const SyncEngine = require('../services/sync-engine');
+      const syncEngine = new SyncEngine(db);
+      syncEngine.rebuildFactDaily();
+      const newFactCount = db.prepare('SELECT COUNT(*) as count FROM fact_daily').get();
+      console.log(`[DB] fact_daily populated with ${newFactCount.count} records`);
+    }
+  } catch (e) {
+    console.log('[DB] fact_daily init error:', e.message);
+  }
+
+  // Backfill sales_invoices columns and invoice_departments if needed (M1a)
+  try {
+    const nullResidualCount = db.prepare(`SELECT COUNT(*) as cnt FROM sales_invoices WHERE partner_id IS NULL AND raw_data IS NOT NULL`).get().cnt;
+    if (nullResidualCount > 0) {
+      console.log(`[DB] Backfilling ${nullResidualCount} sales_invoices from raw_data...`);
+      const updateStmt = db.prepare(`
+        UPDATE sales_invoices
+        SET partner_id = @partner_id,
+            journal_id = @journal_id,
+            journal_name = @journal_name,
+            invoice_date_due = @invoice_date_due,
+            amount_untaxed = @amount_untaxed,
+            amount_residual_signed = @amount_residual_signed,
+            payment_state = @payment_state
+        WHERE id = @id
+      `);
+      const rows = db.prepare(`SELECT id, date, raw_data FROM sales_invoices WHERE partner_id IS NULL AND raw_data IS NOT NULL`).all();
+      db.transaction(() => {
+        for (const r of rows) {
+          let p = {};
+          try { p = JSON.parse(r.raw_data); } catch (e) {}
+          updateStmt.run({
+            id: r.id,
+            partner_id: Array.isArray(p.partner_id) ? p.partner_id[0] : (p.partner_id || null),
+            journal_id: Array.isArray(p.journal_id) ? p.journal_id[0] : (p.journal_id || null),
+            journal_name: p.journal_name || '',
+            invoice_date_due: p.invoice_date_due || p.invoice_date || r.date || null,
+            amount_untaxed: parseFloat(p.amount_untaxed_signed ?? p.amount_untaxed) || 0,
+            amount_residual_signed: parseFloat(p.amount_residual_signed) || 0,
+            payment_state: p.payment_state || p.payment_status || ''
+          });
+        }
+      })();
+      console.log(`[DB] Backfill completed.`);
+    }
+
+    const invDeptCount = db.prepare(`SELECT COUNT(*) as cnt FROM invoice_departments`).get().cnt;
+    const invCount = db.prepare(`SELECT COUNT(*) as cnt FROM sales_invoices`).get().cnt;
+    if (invDeptCount === 0 && invCount > 0) {
+      console.log(`[DB] Populating invoice_departments...`);
+      const SalesSyncEngine = require('../services/sales-sync-engine');
+      const salesSync = new SalesSyncEngine();
+      salesSync.rebuildAllInvoiceDepartments();
+      const newInvDeptCount = db.prepare(`SELECT COUNT(*) as cnt FROM invoice_departments`).get().cnt;
+      console.log(`[DB] invoice_departments populated with ${newInvDeptCount} records.`);
+    }
+  } catch (e) {
+    console.log('[DB] Sales invoice backfill error:', e.message);
   }
 }
 

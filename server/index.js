@@ -13,6 +13,7 @@ const { startScheduler } = require('./cron/scheduler');
 const { startScheduler: startSalesScheduler } = require('./cron/sales_scheduler');
 
 const app = express();
+app.set('trust proxy', 'loopback');
 const PORT = process.env.PORT || 3090;
 
 // Middleware
@@ -28,18 +29,36 @@ app.use('/api', (req, res, next) => {
   // Skip auth routes (already handled above, but just in case)
   if (req.path.startsWith('/auth')) return next();
 
-  // External API — no auth required (for budget program integration)
-  if (req.path.startsWith('/external')) return next();
+  // External API — require x-api-key if EXTERNAL_API_KEY is configured
+  if (req.path.startsWith('/external')) {
+    if (process.env.EXTERNAL_API_KEY) {
+      const apiKey = req.headers['x-api-key'];
+      if (!apiKey || apiKey !== process.env.EXTERNAL_API_KEY) {
+        return res.status(401).json({ error: 'مفتاح API غير صالح أو مفقود', code: 'INVALID_API_KEY' });
+      }
+    }
+    return next();
+  }
 
   // Viewer-accessible routes: require viewer OR admin token
   const viewerPaths = [
     '/presentation/share', '/presentation/data', '/presentation',
-    '/companies', '/filter-options',
+    '/companies', '/filters', '/filter-options',
     '/analytic-groups', '/analytic-group-mappings',
-    '/guarantee-details', '/guarantee-pending-list',
+    '/guarantee-details', '/guarantee-pending-list', '/guarantees',
+    '/matrix', '/receivables', '/data-quality', '/performance-summary',
+    '/executive', '/preferences',
+    '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies'
   ];
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));
   if (isViewerPath) {
+    // SEC1: Strict read-only for viewers. Any non-GET requires admin, EXCEPT PUT /preferences/:key
+    if (req.method !== 'GET') {
+      if (req.method === 'PUT' && req.path.startsWith('/preferences/')) {
+        return requireViewer(req, res, next);
+      }
+      return requireAdmin(req, res, next);
+    }
     return requireViewer(req, res, next);
   }
 
@@ -88,6 +107,11 @@ async function start() {
     // Start cron scheduler
     startScheduler();
     startSalesScheduler();
+
+    // Check external API key configuration
+    if (!process.env.EXTERNAL_API_KEY) {
+      console.warn('[SECURITY WARNING] EXTERNAL_API_KEY is not set. External API endpoints (/api/external/*) are currently accessible without API key.');
+    }
 
     // Auto-sync on startup if database is empty (fresh deploy)
     try {

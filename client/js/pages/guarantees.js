@@ -53,7 +53,8 @@ export async function renderGuaranteesPage(container) {
       </div>
       <div class="gr-legend">
         <span><span class="gr-dot" style="background:#60a5fa"></span> معلّقة</span>
-        <span><span class="gr-dot" style="background:#fbbf24"></span> مفرج عنها</span>
+        <span><span class="gr-dot" style="background:#fbbf24"></span> مفرج تلقائياً (قيد مطابق)</span>
+        <span><span class="gr-dot" style="background:#facc15"></span> استثناء / تعليم يدوي</span>
         <span><span class="gr-dot" style="background:#a78bfa"></span> تفصيل يدوي</span>
       </div>
       <div id="gr-content">
@@ -111,16 +112,25 @@ async function loadGuarantees(container) {
         return s + (i.is_released ? 0 : Math.abs(i.balance));
       }, 0);
 
+      const diff = Math.round((pendAmt - (co.ledgerBalance || 0)) * 100) / 100;
+      const isMatched = Math.abs(diff) <= 0.05;
+
       html += `
         <div class="gr-company">
           <div class="gr-company-header">
             <div class="gr-company-name">🏢 ${co.companyName}</div>
-            <div class="gr-company-total">معلّق: ${fmt(pendAmt)}</div>
+            <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+              <div style="font-size:0.85rem;color:#94a3b8">رصيد الأستاذ: <b style="color:#e2e8f0;font-family:var(--font-en)">${fmt(co.ledgerBalance || 0)}</b></div>
+              <div class="gr-company-total">معلّق: ${fmt(pendAmt)}</div>
+              ${isMatched
+                ? '<span style="color:#34d399;font-size:0.82rem;font-weight:700">✓ مطابقة تامة</span>'
+                : `<span style="color:#f87171;font-size:0.82rem;font-weight:700">⚠️ فرق: ${fmt(diff)}</span>`}
+            </div>
           </div>
           <div class="gr-table-wrap">
             <table class="gr-table">
               <thead><tr>
-                <th>الحالة</th><th>التاريخ</th><th>رقم القيد</th><th>الحساب</th><th>البيان</th><th>الطرف</th><th>المبلغ</th><th>إجراء</th>
+                <th>الحالة</th><th>التاريخ</th><th>رقم القيد</th><th>الحساب</th><th>البيان والملاحظات</th><th>الطرف</th><th>المبلغ</th><th>إجراء</th>
               </tr></thead>
               <tbody>
       `;
@@ -129,20 +139,39 @@ async function loadGuarantees(container) {
         const hasSubs = item.subItems && item.subItems.length > 0;
         const key = `${co.companyId}|${item.account_code}|${item.move_name}`;
 
+        let statusBadge = '<span class="gr-badge gr-badge-pending">معلّقة</span>';
+        if (hasSubs) {
+          statusBadge = `<span class="gr-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa">مفصّل (${item.subItems.length})</span>`;
+        } else if (item.match_type === 'manual') {
+          statusBadge = `<span class="gr-badge" style="background:rgba(234,179,8,0.15);color:#facc15" title="${item.release_notes || ''}">استثناء يدوي</span>`;
+        } else if (item.match_type === 'auto') {
+          statusBadge = `<span class="gr-badge gr-badge-released" title="${item.release_notes || ''}">مفرج تلقائياً</span>`;
+        } else if (item.is_released) {
+          statusBadge = '<span class="gr-badge gr-badge-released">مفرج</span>';
+        }
+
         // Parent row
         html += `<tr class="${!hasSubs && item.is_released ? 'gr-released' : ''}">
-          <td>${hasSubs ? '<span class="gr-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa">مفصّل (' + item.subItems.length + ')</span>'
-            : (item.is_released ? '<span class="gr-badge gr-badge-released">مفرج</span>' : '<span class="gr-badge gr-badge-pending">معلّقة</span>')}</td>
+          <td>${statusBadge}</td>
           <td style="font-family:var(--font-en);color:#94a3b8;font-size:0.82rem;white-space:nowrap">${item.date}</td>
           <td style="font-family:var(--font-en);color:#818cf8;font-size:0.82rem">${item.move_name || ''}</td>
           <td style="font-size:0.82rem">${item.account_code}</td>
-          <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${item.label || item.account_name || ''}</td>
+          <td style="max-width:280px;">
+            <div>${item.label || item.account_name || ''}</div>
+            ${item.release_notes ? `
+              <div style="font-size:0.75rem;color:#facc15;margin-top:3px;background:rgba(234,179,8,0.08);padding:3px 6px;border-radius:4px;border:1px dashed rgba(234,179,8,0.25);line-height:1.3;">
+                📌 ${item.release_notes}
+              </div>
+            ` : ''}
+          </td>
           <td style="font-size:0.82rem;color:#94a3b8">${item.partner_name || ''}</td>
           <td class="num" style="font-weight:700;color:${item.balance >= 0 ? '#34d399' : '#f87171'}">${fmt(Math.abs(item.balance))}</td>
           <td style="display:flex;gap:4px;flex-wrap:nowrap">
-            ${!hasSubs ? (item.is_released
-              ? `<button class="gr-btn gr-btn-unrelease" data-action="unrelease" data-cid="${co.companyId}" data-acc="${item.account_code}" data-move="${item.move_name}">↩️ إلغاء</button>`
-              : `<button class="gr-btn gr-btn-release" data-action="release" data-cid="${co.companyId}" data-acc="${item.account_code}" data-move="${item.move_name}">✅ إفراج</button>`) : ''}
+            ${!hasSubs ? (item.match_type === 'manual'
+              ? `<button class="gr-btn gr-btn-unrelease" data-action="unrelease" data-cid="${co.companyId}" data-acc="${item.account_code}" data-move="${item.move_name}">↩️ إلغاء الاستثناء</button>`
+              : (item.match_type === 'auto'
+                ? `<span style="font-size:0.75rem;color:#94a3b8;padding:4px 6px">مطابق بالأستاذ</span>`
+                : `<button class="gr-btn gr-btn-release" data-action="release" data-cid="${co.companyId}" data-acc="${item.account_code}" data-move="${item.move_name}">✅ إفراج / استثناء</button>`)) : ''}
             <button class="gr-btn gr-btn-break" data-action="breakdown" data-key="${key}">📋 تفصيل</button>
           </td>
         </tr>`;

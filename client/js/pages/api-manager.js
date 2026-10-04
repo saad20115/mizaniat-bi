@@ -376,7 +376,7 @@ export async function renderApiManager(container) {
         const hdr = cols.map(c => `<th style="white-space:nowrap;font-size:0.82rem;">${c}</th>`).join('');
         const tbody = rows.slice(0, 300).map(r => `<tr>${cols.map(c => {
           const v = r[c]; const isNum = typeof v === 'number';
-          return `<td class="${isNum?'n':''}" style="font-size:0.85rem;${isNum?'font-family:var(--font-en);':''}">${isNum ? v.toLocaleString('en') : (v ?? '-')}</td>`;
+          return `<td class="${isNum?'n':''}" style="font-size:0.85rem;${isNum?'font-family:var(--font-en);':''}">${isNum ? v.toLocaleString('en-US') : (v ?? '-')}</td>`;
         }).join('')}</tr>`).join('');
         tbl.innerHTML = `<thead><tr>${hdr}</tr></thead><tbody>${tbody}</tbody>`;
         if (rows.length > 300) tbl.innerHTML += `<tfoot><tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-muted);">عرض أول 300 من ${rows.length}</td></tr></tfoot>`;

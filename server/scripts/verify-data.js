@@ -52,6 +52,29 @@ const orphanRel = db.prepare(`SELECT COUNT(*) n FROM guarantee_releases gr WHERE
     AND ji.account_code = gr.account_code AND ji.move_name = gr.move_name)`).get().n;
 check('guarantees: all linked to entries', orphanSub + orphanRel === 0, `${orphanSub} sub-items, ${orphanRel} releases unlinked`);
 
+// 16b. Payment state consistency (R1)
+const badPaymentStates = db.prepare(`
+  SELECT count(*) as cnt
+  FROM sales_invoices
+  WHERE (payment_state IN ('paid', 'reversed') AND ABS(amount_residual_signed) > 0.001)
+     OR (payment_state = 'not_paid' AND ABS(amount_residual_signed - amount_total) > 0.01)
+     OR (payment_state = 'partial' AND (ABS(amount_residual_signed) <= 0.001 OR ABS(amount_residual_signed - amount_total) <= 0.01))
+`).get().cnt;
+check('sales_invoices: payment_state consistency (paid/not_paid/partial/reversed)', badPaymentStates === 0,
+  `${badPaymentStates} inconsistent invoices`);
+
+// 16d. Invoice departments: sum of shares per invoice = 1.0
+const badDeptShares = db.prepare(`
+  SELECT count(*) as cnt FROM (
+    SELECT sales_invoice_id, ROUND(SUM(share), 4) as total_share
+    FROM invoice_departments
+    GROUP BY sales_invoice_id
+    HAVING ABS(total_share - 1.0) > 0.001
+  )
+`).get().cnt;
+check('invoice_departments: sum of shares per invoice equals 1.0', badDeptShares === 0,
+  `${badDeptShares} invoices with unnormalized share`);
+
 for (const c of companies) {
   console.log(`\n── Company ${c.id}: ${c.name}`);
 
@@ -125,6 +148,36 @@ for (const c of companies) {
   const rawCashDiff = Math.abs(cashGuarSum - round(rawCash));
   check('guarantees separation: cash + guarantees = raw asset_cash', rawCashDiff < 0.01,
     `cash ${round(pkpi.cash)} + guar ${round(pkpi.guarantees)} = ${cashGuarSum} vs raw ${round(rawCash)} (diff ${round(rawCashDiff)})`);
+
+  // 11c. Active guarantees verification (G1): automatic derivation from ledger
+  const activeGuarData = engine.getActiveGuarantees({ companyIds: [c.id], asOfDate: today });
+  const activeCompany = activeGuarData.find(g => g.companyId === c.id);
+  if (activeCompany) {
+    const actItems = activeCompany.items || [];
+    // Rule 1: No item in the active list originates from a credit entry
+    const creditOriginItems = actItems.filter(item => {
+      if (item.type === 'item' && item.itemId) {
+        const ji = db.prepare('SELECT debit, credit FROM journal_items WHERE id = ?').get(item.itemId);
+        return ji && ji.credit > 0 && ji.debit === 0;
+      }
+      return false;
+    });
+    check('guarantees G1: no credit items in active list', creditOriginItems.length === 0,
+      `${creditOriginItems.length} credit items found`);
+
+    // Rule 2: List sum - diff = ledger balance
+    const listSum = round(activeCompany.totalAmount);
+    const ledgerBal = round(activeCompany.ledgerBalance);
+    const repDiff = round(activeCompany.diff);
+    check('guarantees G1: list sum - diff = ledger balance', Math.abs((listSum - repDiff) - ledgerBal) < 0.01,
+      `list ${listSum} - diff ${repDiff} = ${round(listSum - repDiff)} vs ledger ${ledgerBal}`);
+
+    // Rule 3 (G1-b): If diff is zero (within penny limit), unmatchedCredits must be empty
+    if (Math.abs(repDiff) <= 0.05) {
+      check('guarantees G1-b: unmatchedCredits is empty when diff is zero', activeCompany.unmatchedCredits.length === 0,
+        `${activeCompany.unmatchedCredits.length} unmatched credits found`);
+    }
+  }
 
   // 12. Accurate collection metrics (F2): billed, collected, remaining match independent calculation
   const pCheck = { companyId: c.id, dateFrom: yearStart, dateTo: today };
@@ -242,6 +295,363 @@ for (const c of companies) {
       console.log(`        (info: ${unlinked.length} ledger move(s) with income+receivable not in sales_invoices: ${prefixes})`);
     }
   }
+
+  // 15. Matrix Engine Verifications (M1a)
+  // 15a. getMatrix revenue and expenses match getIncomeStatement for current year
+  const matRev = engine.getMatrix({
+    measure: 'revenue',
+    rowDims: ['company'],
+    timeGrain: 'year',
+    dateFrom: yearStart,
+    dateTo: today,
+    companyIds: [c.id]
+  });
+  const matExp = engine.getMatrix({
+    measure: 'expense',
+    rowDims: ['company'],
+    timeGrain: 'year',
+    dateFrom: yearStart,
+    dateTo: today,
+    companyIds: [c.id]
+  });
+  const matRevTotal = matRev.totals.grandTotal;
+  const matExpTotal = matExp.totals.grandTotal;
+  const isRevTotal = round(isRev);
+  const isExpTotal = round(isExp);
+  const mRevMatch = Math.abs(matRevTotal - isRevTotal) < 0.05;
+  const mExpMatch = Math.abs(matExpTotal - isExpTotal) < 0.05;
+  check('matrix: revenue & expenses match income statement', mRevMatch && mExpMatch,
+    `rev ${matRevTotal}==${isRevTotal}, exp ${matExpTotal}==${isExpTotal} (diff rev ${round(Math.abs(matRevTotal - isRevTotal))}, exp ${round(Math.abs(matExpTotal - isExpTotal))})`);
+
+  // 15b. Time grains consistency: sum of months = year = sum of quarters = sum of days
+  const matYear = engine.getMatrix({ measure: 'revenue', timeGrain: 'year', dateFrom: yearStart, dateTo: today, companyIds: [c.id] });
+  const matQuarter = engine.getMatrix({ measure: 'revenue', timeGrain: 'quarter', dateFrom: yearStart, dateTo: today, companyIds: [c.id] });
+  const matMonth = engine.getMatrix({ measure: 'revenue', timeGrain: 'month', dateFrom: yearStart, dateTo: today, companyIds: [c.id] });
+  const matDay = engine.getMatrix({ measure: 'revenue', timeGrain: 'day', dateFrom: yearStart, dateTo: today, companyIds: [c.id] });
+  const sumYear = matYear.totals.grandTotal;
+  const sumQuarter = matQuarter.totals.grandTotal;
+  const sumMonth = matMonth.totals.grandTotal;
+  const sumDay = matDay.totals.grandTotal;
+  const grainMatch = Math.abs(sumYear - sumQuarter) < 0.05 && Math.abs(sumYear - sumMonth) < 0.05 && Math.abs(sumYear - sumDay) < 0.05;
+  check('matrix: time grains consistent (year = quarters = months = days)', grainMatch,
+    `year ${sumYear} == qtr ${sumQuarter} == mon ${sumMonth} == day ${sumDay}`);
+
+  // 15c. Department sum = company total (no leaked SAR, unclassified included)
+  const matDept = engine.getMatrix({
+    measure: 'revenue',
+    rowDims: ['department'],
+    timeGrain: 'year',
+    dateFrom: yearStart,
+    dateTo: today,
+    companyIds: [c.id]
+  });
+  let sumDepts = 0;
+  for (const row of matDept.rows) {
+    sumDepts += row.total;
+  }
+  sumDepts = round(sumDepts);
+  const deptMatch = Math.abs(sumDepts - matRevTotal) < 0.05;
+  check('matrix: department sum equals company total', deptMatch,
+    `depts ${sumDepts} == company ${matRevTotal} (diff ${round(Math.abs(sumDepts - matRevTotal))})`);
+
+  // 15d. collected and billed in matrix match getPresentationKPIs
+  const matBilled = engine.getMatrix({
+    measure: 'billed',
+    rowDims: ['company'],
+    timeGrain: 'year',
+    dateFrom: yearStart,
+    dateTo: today,
+    companyIds: [c.id]
+  });
+  const matCollected = engine.getMatrix({
+    measure: 'collected',
+    rowDims: ['company'],
+    timeGrain: 'year',
+    dateFrom: yearStart,
+    dateTo: today,
+    companyIds: [c.id]
+  });
+  const mBilled = matBilled.totals.grandTotal;
+  const mCollected = matCollected.totals.grandTotal;
+  const pBilled = round(pkpi.billed);
+  const pCollected = round(pkpi.collected);
+  const billedMatchMatrix = Math.abs(mBilled - pBilled) < 0.05;
+  const collMatchMatrix = Math.abs(mCollected - pCollected) < 0.05;
+  check('matrix: collected & billed match presentation KPIs', billedMatchMatrix && collMatchMatrix,
+    `billed ${mBilled}==${pBilled}, collected ${mCollected}==${pCollected}`);
+
+  // 15e. fact_daily debit and credit totals match journal_items
+  const factTotals = engine.db.prepare(`
+    SELECT ROUND(SUM(debit), 2) as deb, ROUND(SUM(credit), 2) as cred
+    FROM fact_daily
+    WHERE company_id = ?
+  `).get(c.id);
+  const jiTotals = engine.db.prepare(`
+    SELECT ROUND(SUM(debit), 2) as deb, ROUND(SUM(credit), 2) as cred
+    FROM journal_items
+    WHERE company_id = ? AND move_state = 'posted'
+  `).get(c.id);
+  const debDiff = Math.abs((factTotals.deb || 0) - (jiTotals.deb || 0));
+  const credDiff = Math.abs((factTotals.cred || 0) - (jiTotals.cred || 0));
+  const factJiMatch = debDiff < 0.05 && credDiff < 0.05;
+  check('matrix: fact_daily debits & credits match journal_items', factJiMatch,
+    `deb ${factTotals.deb}==${jiTotals.deb}, cred ${factTotals.cred}==${jiTotals.cred} (diff deb ${round(debDiff)}, cred ${round(credDiff)})`);
+
+  // 16. Receivables & collections integrity (M1a)
+  // 16a. 3-source reconciliation: invoice residual + non-invoice entries equals ledger receivables
+  const recon = engine.getReceivables({ type: 'reconciliation', companyIds: [c.id] });
+  const compRecon = recon.companies[0] || {};
+  const recLedger = compRecon.ledgerReceivables || 0;
+  const recInv = compRecon.invoicesResidual || 0;
+  const recDiff = compRecon.unmatchedDifference || 0;
+  const reconSum = round(recInv + recDiff);
+  const reconMatch = Math.abs(reconSum - recLedger) < 0.01;
+  check('receivables: 3-source reconciliation (invoices + non-invoice entries = ledger)', reconMatch,
+    `invoices ${recInv} + non-inv ${recDiff} = ${reconSum} vs ledger ${recLedger} (diff ${round(Math.abs(reconSum - recLedger))})`);
+
+  // 16c. Department sum equals company total, and sum of aging buckets equals total residual
+  const agingData = engine.getReceivables({ type: 'aging', companyIds: [c.id], asOfDate: today });
+  const compAging = agingData.tree[0] || { buckets: {}, departments: [], total_residual: 0 };
+  const agingTotalRes = compAging.total_residual || 0;
+  
+  const deptResSum = round(compAging.departments.reduce((s, d) => s + (d.total_residual || 0), 0));
+  const deptResMatch = Math.abs(deptResSum - agingTotalRes) < 0.05;
+  check('receivables: department aging sum equals company total residual', deptResMatch,
+    `depts ${deptResSum} == company ${agingTotalRes} (diff ${round(Math.abs(deptResSum - agingTotalRes))})`);
+
+  const ab = compAging.buckets || {};
+  const bucketsSum = round((ab.not_due || 0) + (ab.b1_30 || 0) + (ab.b31_60 || 0) + (ab.b61_90 || 0) + (ab.b91_180 || 0) + (ab.b181_365 || 0) + (ab.over_365 || 0));
+  const bucketsMatch = Math.abs(bucketsSum - agingTotalRes) < 0.05;
+  check('receivables: sum of aging buckets equals company residual', bucketsMatch,
+    `buckets ${bucketsSum} == residual ${agingTotalRes} (diff ${round(Math.abs(bucketsSum - agingTotalRes))})`);
+
+  // 16e. Unified department attribution consistency (R2)
+  if (sc) {
+    const invDeptSums = engine.db.prepare(`
+      SELECT id.department_id, ROUND(SUM(si.amount_untaxed * id.share), 2) as total_untaxed
+      FROM sales_invoices si
+      JOIN invoice_departments id ON id.sales_invoice_id = si.id
+      WHERE si.company_id = ? AND si.date >= '2024-01-01'
+        AND EXISTS (
+          SELECT 1 FROM journal_items ji
+          ${engine._sectionJoin('ji', 'o')}
+          WHERE ji.company_id = ? AND ji.move_name = si.name
+            AND ji.move_state = 'posted' AND ${engine._sectionExpr('ji', 'o')} = 'income'
+        )
+      GROUP BY id.department_id
+    `).all(sc.id, c.id);
+
+    const factDeptSums = engine.db.prepare(`
+      SELECT department_id, ROUND(SUM(revenue), 2) as total_rev
+      FROM fact_daily
+      WHERE company_id = ? AND date >= '2024-01-01'
+        AND account_code IN (
+          SELECT account_code FROM journal_items
+          WHERE company_id = ? AND move_name IN (SELECT name FROM sales_invoices WHERE company_id = ?)
+        )
+      GROUP BY department_id
+    `).all(c.id, c.id, sc.id);
+
+    const invMap = Object.fromEntries(invDeptSums.map(d => [d.department_id, d.total_untaxed]));
+    const factMap = Object.fromEntries(factDeptSums.map(d => [d.department_id, d.total_rev]));
+    let r2MaxDiff = 0;
+    const allDeptIds = new Set([...Object.keys(invMap), ...Object.keys(factMap)]);
+    for (const did of allDeptIds) {
+      const iAmt = invMap[did] || 0;
+      const fAmt = factMap[did] || 0;
+      const diff = Math.abs(iAmt - fAmt);
+      if (diff > r2MaxDiff) r2MaxDiff = diff;
+    }
+    const r2Match = r2MaxDiff < 1.0;
+    check('receivables: unified department attribution matches fact_daily revenue (R2)', r2Match,
+      `${allDeptIds.size} departments, max diff ${round(r2MaxDiff)} SAR`);
+  }
+
+  // 16f. Aging tree and registry nodes have non-empty valid names (U0 check)
+  let emptyNameFound = false;
+  for (const node of compAging ? [compAging] : []) {
+    if (!node.name || !node.company_name) emptyNameFound = true;
+    for (const d of node.departments || []) {
+      if (!d.name || !d.department_name) emptyNameFound = true;
+      for (const p of d.partners || []) {
+        if (!p.name || !p.partner_name) emptyNameFound = true;
+      }
+    }
+  }
+  if (sc) {
+    const regCheck = engine.getReceivables({ type: 'registry', companyIds: [c.id], limit: 20 });
+    for (const inv of regCheck.invoices || []) {
+      if (!inv.name || !inv.partner_name || !inv.department_name) emptyNameFound = true;
+    }
+  }
+  check('receivables: aging tree and registry nodes have valid names (U0)', !emptyNameFound,
+    emptyNameFound ? 'Found undefined or empty names in aging/registry' : 'All aging and registry names valid');
+
+  // 16g. Performance summary matches income statement & receivables for company (H1-fix)
+  const cPerfSum = engine.getPerformanceSummary({ companyIds: [c.id], year: '2026' });
+  const cIs26 = engine.getIncomeStatement({ companyIds: [c.id], dateFrom: '2026-01-01', dateTo: '2026-12-31' });
+  const cRec26 = engine.getReceivables({ type: 'revenue_collection', companyIds: [c.id], dateFrom: '2026-01-01', dateTo: '2026-12-31', includePaid: true });
+  const cPerfMatch = Math.abs(cPerfSum.revenue - Math.round(cIs26.summary?.totalRevenue || 0)) <= 1
+    && Math.abs(cPerfSum.expenses - Math.round(cIs26.summary?.totalExpenses || 0)) <= 1
+    && Math.abs(cPerfSum.outstanding - Math.round(cRec26.totals?.total_residual || 0)) <= 1;
+  check('performance summary: company KPIs match income statement & receivables (H1-fix)', cPerfMatch,
+    `rev ${cPerfSum.revenue}==${Math.round(cIs26.summary?.totalRevenue||0)}, exp ${cPerfSum.expenses}==${Math.round(cIs26.summary?.totalExpenses||0)}, rem ${cPerfSum.outstanding}==${Math.round(cRec26.totals?.total_residual||0)}`);
+}
+
+// 17. Consolidated Performance Summary Verification across years (H1-fix)
+console.log('\n── Consolidated Performance Summary (H1-fix)');
+const testYears = ['2026', '2025', '2024'];
+for (const yr of testYears) {
+  const perfSum = engine.getPerformanceSummary({ year: yr });
+  const isYr = engine.getIncomeStatement({ dateFrom: `${yr}-01-01`, dateTo: `${yr}-12-31` });
+  const recYr = engine.getReceivables({ type: 'revenue_collection', dateFrom: `${yr}-01-01`, dateTo: `${yr}-12-31`, includePaid: true });
+
+  const revMatch = Math.abs(perfSum.revenue - Math.round(isYr.summary?.totalRevenue || 0)) <= 1;
+  const expMatch = Math.abs(perfSum.expenses - Math.round(isYr.summary?.totalExpenses || 0)) <= 1;
+  const netMatch = Math.abs(perfSum.netProfit - Math.round(isYr.summary?.netProfit || 0)) <= 1;
+  const remMatch = Math.abs(perfSum.outstanding - Math.round(recYr.totals?.total_residual || 0)) <= 1;
+  const billMatch = Math.abs(perfSum.billed - Math.round(recYr.totals?.total_billed || 0)) <= 1;
+  const collMatch = Math.abs(perfSum.collected - Math.round(recYr.totals?.total_collected || 0)) <= 1;
+
+  const allMatch = revMatch && expMatch && netMatch && remMatch && billMatch && collMatch;
+  check(`performance summary (${yr}): matches income statement & receivables`, allMatch,
+    `rev ${perfSum.revenue}==${Math.round(isYr.summary?.totalRevenue||0)}, exp ${perfSum.expenses}==${Math.round(isYr.summary?.totalExpenses||0)}, net ${perfSum.netProfit}==${Math.round(isYr.summary?.netProfit||0)}, rem ${perfSum.outstanding}==${Math.round(recYr.totals?.total_residual||0)}`);
+}
+
+// 18. Executive Dashboard Verification (شاشة الإدارة الموحدة)
+console.log('\n── Executive Dashboard Verification (شاشة الإدارة الموحدة)');
+const exec26 = engine.getExecutiveSummary({ year: '2026' });
+
+// 18a. Cards match income statement & receivables & independent overdue query for 2026 (X1)
+const is26 = engine.getIncomeStatement({ dateFrom: '2026-01-01', dateTo: '2026-12-31' });
+const rec26 = engine.getReceivables({ type: 'revenue_collection', dateFrom: '2026-01-01', dateTo: '2026-12-31', includePaid: true });
+const todayStr = new Date().toISOString().slice(0, 10);
+const indepOverdueRow = engine.db.prepare(`
+  SELECT SUM(si.amount_residual_signed * id.share) as over90
+  FROM sales_invoices si
+  JOIN invoice_departments id ON id.sales_invoice_id = si.id
+  WHERE si.date >= '2026-01-01' AND si.date <= '2026-12-31'
+    AND si.amount_residual_signed > 0
+    AND CAST(julianday(?) - julianday(COALESCE(NULLIF(si.invoice_date_due, ''), si.date)) AS INTEGER) > 90
+`).get(todayStr);
+const indepOverdue = Math.round(indepOverdueRow.over90 || 0);
+
+const rMatch26 = Math.abs(exec26.cards.revenue - Math.round(is26.summary?.totalRevenue || 0)) <= 1;
+const eMatch26 = Math.abs(exec26.cards.expenses - Math.round(is26.summary?.totalExpenses || 0)) <= 1;
+const nMatch26 = Math.abs(exec26.cards.net_profit - Math.round(is26.summary?.netProfit || 0)) <= 1;
+const resMatch26 = Math.abs(exec26.cards.residual_period - Math.round(rec26.totals?.total_residual || 0)) <= 1;
+const overMatch26 = exec26.cards.overdue_90 === indepOverdue;
+
+const cardsMatch26 = rMatch26 && eMatch26 && nMatch26 && resMatch26 && overMatch26;
+check('executive summary (2026): cards match target figures & independent overdue query (X1)', cardsMatch26,
+  `rev ${exec26.cards.revenue}==${Math.round(is26.summary?.totalRevenue||0)}, exp ${exec26.cards.expenses}==${Math.round(is26.summary?.totalExpenses||0)}, net ${exec26.cards.net_profit}==${Math.round(is26.summary?.netProfit||0)}, res ${exec26.cards.residual_period}==${Math.round(rec26.totals?.total_residual||0)}, overdue90 ${exec26.cards.overdue_90}==${indepOverdue}`);
+
+// 18b. Monthly series revenue sum equals cards.revenue
+const monthlyRevSum = exec26.monthly_series.reduce((s, m) => s + m.revenue, 0);
+check('executive summary (2026): monthly series revenue sum equals cards.revenue', monthlyRevSum === exec26.cards.revenue,
+  `monthly sum ${monthlyRevSum} == cards ${exec26.cards.revenue}`);
+
+// 18c. Hierarchy integrity: Department sum equals company total, and company sum equals group totals for all columns
+let treeDeptsMatch = true;
+for (const co of exec26.tree.rows) {
+  let coDRev = 0, coDExp = 0, coDBill = 0, coDColl = 0, coDRes = 0;
+  for (const d of co.children || []) {
+    coDRev += d.revenue;
+    coDExp += d.expenses;
+    coDBill += d.billed;
+    coDColl += d.collected;
+    coDRes += d.residual;
+  }
+  if (co.revenue !== coDRev || co.expenses !== coDExp || co.billed !== coDBill || co.collected !== coDColl || co.residual !== coDRes) {
+    treeDeptsMatch = false;
+  }
+}
+check('executive summary (2026): department sum equals company total for all columns', treeDeptsMatch,
+  treeDeptsMatch ? 'All departments sum to company total across all columns' : 'Mismatch in department sums');
+
+const sumCoRev = exec26.tree.rows.reduce((s, c) => s + c.revenue, 0);
+const sumCoExp = exec26.tree.rows.reduce((s, c) => s + c.expenses, 0);
+const sumCoNet = exec26.tree.rows.reduce((s, c) => s + c.net_profit, 0);
+const sumCoBill = exec26.tree.rows.reduce((s, c) => s + c.billed, 0);
+const sumCoColl = exec26.tree.rows.reduce((s, c) => s + c.collected, 0);
+const sumCoRes = exec26.tree.rows.reduce((s, c) => s + c.residual, 0);
+
+const treeCosMatch = sumCoRev === exec26.tree.totals.revenue
+  && sumCoExp === exec26.tree.totals.expenses
+  && sumCoNet === exec26.tree.totals.net_profit
+  && sumCoBill === exec26.tree.totals.billed
+  && sumCoColl === exec26.tree.totals.collected
+  && sumCoRes === exec26.tree.totals.residual;
+
+check('executive summary (2026): company sum equals group totals for all columns', treeCosMatch,
+  `rev ${sumCoRev}==${exec26.tree.totals.revenue}, exp ${sumCoExp}==${exec26.tree.totals.expenses}, net ${sumCoNet}==${exec26.tree.totals.net_profit}, bill ${sumCoBill}==${exec26.tree.totals.billed}, coll ${sumCoColl}==${exec26.tree.totals.collected}, res ${sumCoRes}==${exec26.tree.totals.residual}`);
+
+// 18d. Raw totals match cards within penny rounding limit before adjustment (X2)
+const rawRevMatch = Math.abs(exec26.tree.raw_totals.revenue - exec26.cards.revenue) <= 1;
+const rawExpMatch = Math.abs(exec26.tree.raw_totals.expenses - exec26.cards.expenses) <= 1;
+const rawNetMatch = Math.abs(exec26.tree.raw_totals.net_profit - exec26.cards.net_profit) <= 1;
+const rawBilledMatch = Math.abs(exec26.tree.raw_totals.billed - exec26.cards.billed_period_untaxed) <= 1;
+const rawCollMatch = Math.abs(exec26.tree.raw_totals.collected - exec26.cards.collected_period_untaxed) <= 1;
+const rawResMatch = Math.abs(exec26.tree.raw_totals.residual - exec26.cards.residual_period) <= 1;
+const rawMatches = rawRevMatch && rawExpMatch && rawNetMatch && rawBilledMatch && rawCollMatch && rawResMatch;
+check('executive summary (2026): raw totals match cards within penny limit before adjustment (X2)', rawMatches,
+  `rev diff ${exec26.tree.raw_totals.revenue - exec26.cards.revenue}, exp diff ${exec26.tree.raw_totals.expenses - exec26.cards.expenses}, res diff ${exec26.tree.raw_totals.residual - exec26.cards.residual_period}`);
+
+// 18e. Across years consistency
+for (const yr of ['2025', '2024']) {
+  const exYr = engine.getExecutiveSummary({ year: yr });
+  const isYr = engine.getIncomeStatement({ dateFrom: `${yr}-01-01`, dateTo: `${yr}-12-31` });
+  const recYr = engine.getReceivables({ type: 'revenue_collection', dateFrom: `${yr}-01-01`, dateTo: `${yr}-12-31`, includePaid: true });
+
+  const rMatch = Math.abs(exYr.cards.revenue - Math.round(isYr.summary?.totalRevenue || 0)) <= 1;
+  const eMatch = Math.abs(exYr.cards.expenses - Math.round(isYr.summary?.totalExpenses || 0)) <= 1;
+  const resMatch = Math.abs(exYr.cards.residual_period - Math.round(recYr.totals?.total_residual || 0)) <= 1;
+
+  check(`executive summary (${yr}): cards match income statement & receivables`, rMatch && eMatch && resMatch,
+    `rev ${exYr.cards.revenue}==${Math.round(isYr.summary?.totalRevenue||0)}, exp ${exYr.cards.expenses}==${Math.round(isYr.summary?.totalExpenses||0)}, res ${exYr.cards.residual_period}==${Math.round(recYr.totals?.total_residual||0)}`);
+}
+
+// 19. Multi-Year Mathematical Identity Verification (YR1)
+console.log('\n── Multi-Year Mathematical Identity Verification (YR1)');
+
+const activeCompanies = engine.db.prepare('SELECT id, name FROM companies WHERE is_active = 1 ORDER BY id').all();
+const testPairs = [
+  { name: '2025 + 2026 (متتالية)', years: ['2025', '2026'] },
+  { name: '2024 + 2026 (غير متتالية)', years: ['2024', '2026'] }
+];
+
+for (const pair of testPairs) {
+  const [y1, y2] = pair.years;
+  for (const comp of activeCompanies) {
+    const sumMulti = engine.getExecutiveSummary({ companyIds: [comp.id], years: pair.years });
+    const sum1 = engine.getExecutiveSummary({ companyIds: [comp.id], year: y1 });
+    const sum2 = engine.getExecutiveSummary({ companyIds: [comp.id], year: y2 });
+
+    const revDiff = Math.abs(sumMulti.cards.revenue - (sum1.cards.revenue + sum2.cards.revenue));
+    const expDiff = Math.abs(sumMulti.cards.expenses - (sum1.cards.expenses + sum2.cards.expenses));
+    const billedDiff = Math.abs(sumMulti.cards.billed_period_untaxed - (sum1.cards.billed_period_untaxed + sum2.cards.billed_period_untaxed));
+    const collDiff = Math.abs(sumMulti.cards.collected_period_untaxed - (sum1.cards.collected_period_untaxed + sum2.cards.collected_period_untaxed));
+    const resDiff = Math.abs(sumMulti.cards.residual_period - (sum1.cards.residual_period + sum2.cards.residual_period));
+
+    const ok = revDiff <= 1 && expDiff <= 1 && billedDiff <= 1 && collDiff <= 1 && resDiff <= 1;
+    check(`multi-year identity (${pair.name} - ${comp.name}): summary(years) == sum(y1) + sum(y2)`, ok,
+      `revDiff=${revDiff}, expDiff=${expDiff}, billedDiff=${billedDiff}, collDiff=${collDiff}, resDiff=${resDiff}`);
+  }
+
+  // Also verify group level (all companies together)
+  const groupMulti = engine.getExecutiveSummary({ years: pair.years });
+  const group1 = engine.getExecutiveSummary({ year: y1 });
+  const group2 = engine.getExecutiveSummary({ year: y2 });
+
+  const gRevDiff = Math.abs(groupMulti.cards.revenue - (group1.cards.revenue + group2.cards.revenue));
+  const gExpDiff = Math.abs(groupMulti.cards.expenses - (group1.cards.expenses + group2.cards.expenses));
+  const gBilledDiff = Math.abs(groupMulti.cards.billed_period_untaxed - (group1.cards.billed_period_untaxed + group2.cards.billed_period_untaxed));
+  const gCollDiff = Math.abs(groupMulti.cards.collected_period_untaxed - (group1.cards.collected_period_untaxed + group2.cards.collected_period_untaxed));
+  const gResDiff = Math.abs(groupMulti.cards.residual_period - (group1.cards.residual_period + group2.cards.residual_period));
+
+  const gOk = gRevDiff <= 1 && gExpDiff <= 1 && gBilledDiff <= 1 && gCollDiff <= 1 && gResDiff <= 1;
+  check(`multi-year group identity (${pair.name} - المجموعة): summary(years) == sum(y1) + sum(y2)`, gOk,
+    `gRevDiff=${gRevDiff}, gExpDiff=${gExpDiff}, gBilledDiff=${gBilledDiff}, gCollDiff=${gCollDiff}, gResDiff=${gResDiff}`);
 }
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

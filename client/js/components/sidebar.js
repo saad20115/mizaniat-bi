@@ -70,7 +70,8 @@ export function renderSidebar() {
 
   // Logout button
   const adminInfo = JSON.parse(localStorage.getItem('mizaniat_admin_info') || '{}');
-  const userName = isViewer ? ('👁️ ' + (adminInfo.name || 'مشاهد')) : (adminInfo.name || adminInfo.email || 'مدير');
+  const viewerInfo = JSON.parse(localStorage.getItem('mizaniat_viewer_info') || '{}');
+  const userName = isViewer ? ('👁️ ' + (viewerInfo.name || adminInfo.name || 'مشاهد')) : (adminInfo.name || adminInfo.email || 'مدير');
   html += `
     <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:16px; padding-top:12px;">
       <div style="padding:8px 16px; font-size:0.8rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:8px;">

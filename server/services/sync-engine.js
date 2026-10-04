@@ -123,13 +123,13 @@ class SyncEngine {
         INSERT INTO journal_items (
           company_id, odoo_line_id, account_code, account_name, account_type,
           partner_name, partner_id, analytic_account, label,
-          debit, credit, balance, currency, date,
+          debit, credit, balance, amount_residual, currency, date,
           journal_name, journal_type, move_name, move_ref, move_state,
           fiscal_year, period
         ) VALUES (
           @company_id, @odoo_line_id, @account_code, @account_name, @account_type,
           @partner_name, @partner_id, @analytic_account, @label,
-          @debit, @credit, @balance, @currency, @date,
+          @debit, @credit, @balance, @amount_residual, @currency, @date,
           @journal_name, @journal_type, @move_name, @move_ref, @move_state,
           @fiscal_year, @period
         )
@@ -186,6 +186,7 @@ class SyncEngine {
 
         this._generateSyntheticMoveNames(companyId);
         this._relinkGuarantees(companyId, linkedEntries);
+        this.rebuildFactDaily(companyId);
       });
 
       this._progress[companyId].phase = `جاري حفظ ${totalItems} سجل...`;
@@ -417,6 +418,7 @@ class SyncEngine {
       debit: debit,
       credit: credit,
       balance: (item.balance !== undefined ? parseFloat(item.balance) : 0) || (debit - credit),
+      amount_residual: parseFloat(item.amount_residual) || 0,
       currency: item.currency || 'SAR',
       date: date,
       journal_name: journalName,
@@ -442,6 +444,139 @@ class SyncEngine {
       ORDER BY sl.started_at DESC
       LIMIT 50
     `).all();
+  }
+
+  /**
+   * Rebuild fact_daily table for a given company (or all companies).
+   * Aggregates posted journal_items by date, account, section, department, and analytic account.
+   */
+  rebuildFactDaily(companyId) {
+    const ConsolidationEngine = require('./consolidation');
+    const engine = new ConsolidationEngine(this.db);
+
+    const companies = companyId ? [companyId] : this.db.prepare('SELECT id FROM companies').all().map(c => c.id);
+
+    this.db.exec(`
+      CREATE TEMP TABLE IF NOT EXISTS _temp_fact_income (
+        move_name TEXT PRIMARY KEY
+      );
+      CREATE TEMP TABLE IF NOT EXISTS _temp_fact_cash (
+        move_name TEXT PRIMARY KEY
+      );
+    `);
+
+    for (const cid of companies) {
+      this.db.prepare('DELETE FROM fact_daily WHERE company_id = ?').run(cid);
+      this.db.exec(`
+        DELETE FROM _temp_fact_income;
+        DELETE FROM _temp_fact_cash;
+      `);
+
+      this.db.prepare(`
+        INSERT OR IGNORE INTO _temp_fact_income (move_name)
+        SELECT DISTINCT ji.move_name
+        FROM journal_items ji
+        ${engine._sectionJoin('ji', 'o')}
+        WHERE ji.company_id = ?
+          AND ji.move_state = 'posted'
+          AND ${engine._sectionExpr('ji', 'o')} = 'income'
+      `).run(cid);
+
+      this.db.prepare(`
+        INSERT OR IGNORE INTO _temp_fact_cash (move_name)
+        SELECT DISTINCT ji.move_name
+        FROM journal_items ji
+        WHERE ji.company_id = ?
+          AND ji.move_state = 'posted'
+          AND ${engine._cashFilter('ji')}
+      `).run(cid);
+
+      this.db.prepare(`
+        INSERT INTO fact_daily (
+          company_id,
+          date,
+          year,
+          quarter,
+          month,
+          week_start,
+          account_code,
+          section,
+          department_id,
+          analytic_account,
+          journal_name,
+          debit,
+          credit,
+          revenue,
+          expense,
+          billed,
+          collected
+        )
+        SELECT
+          ji.company_id,
+          ji.date,
+          strftime('%Y', ji.date) as year,
+          strftime('%Y', ji.date) || '-Q' || ((CAST(strftime('%m', ji.date) AS INTEGER) + 2) / 3) as quarter,
+          strftime('%Y-%m', ji.date) as month,
+          date(ji.date, '-' || strftime('%w', ji.date) || ' days') as week_start,
+          ji.account_code,
+          ${engine._sectionExpr('ji', 'o')} as section,
+          COALESCE(
+            (SELECT m1.group_id 
+             FROM analytic_group_mapping m1 
+             WHERE m1.company_id = ji.company_id 
+               AND m1.analytic_account = ji.analytic_account 
+               AND ji.analytic_account IS NOT NULL 
+               AND ji.analytic_account != '' 
+             ORDER BY m1.id ASC
+             LIMIT 1),
+            (SELECT m2.group_id 
+             FROM analytic_group_mapping m2 
+             WHERE m2.company_id = ji.company_id 
+               AND m2.journal_name = ji.journal_name 
+               AND ji.journal_name IS NOT NULL 
+               AND ji.journal_name != '' 
+             ORDER BY m2.id ASC
+             LIMIT 1),
+            0
+          ) as department_id,
+          COALESCE(ji.analytic_account, '') as analytic_account,
+          COALESCE(ji.journal_name, '') as journal_name,
+          ROUND(SUM(ji.debit), 2) as debit,
+          ROUND(SUM(ji.credit), 2) as credit,
+          ROUND(SUM(CASE 
+            WHEN ${engine._sectionExpr('ji', 'o')} = 'income' THEN ji.credit - ji.debit 
+            ELSE 0 
+          END), 2) as revenue,
+          ROUND(SUM(CASE 
+            WHEN ${engine._sectionExpr('ji', 'o')} = 'expense' THEN ji.debit - ji.credit 
+            ELSE 0 
+          END), 2) as expense,
+          ROUND(SUM(CASE 
+            WHEN ji.account_type = 'asset_receivable' AND im.move_name IS NOT NULL 
+            THEN ji.debit - ji.credit 
+            ELSE 0 
+          END), 2) as billed,
+          ROUND(SUM(CASE 
+            WHEN ji.account_type = 'asset_receivable' AND cm.move_name IS NOT NULL 
+            THEN ji.credit - ji.debit 
+            ELSE 0 
+          END), 2) as collected
+        FROM journal_items ji
+        ${engine._sectionJoin('ji', 'o')}
+        LEFT JOIN _temp_fact_income im ON im.move_name = ji.move_name
+        LEFT JOIN _temp_fact_cash cm ON cm.move_name = ji.move_name
+        WHERE ji.company_id = ?
+          AND ji.move_state = 'posted'
+        GROUP BY 
+          ji.company_id,
+          ji.date,
+          ji.account_code,
+          section,
+          department_id,
+          COALESCE(ji.analytic_account, ''),
+          COALESCE(ji.journal_name, '')
+      `).run(cid);
+    }
   }
 }
 

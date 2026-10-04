@@ -7,10 +7,15 @@ async function request(endpoint, options = {}) {
     ...options
   };
 
-  // Attach JWT token if available
-  const token = localStorage.getItem('mizaniat_admin_token');
-  if (token) {
-    config.headers = { ...config.headers, 'Authorization': `Bearer ${token}` };
+  // Attach auth token
+  const isViewer = localStorage.getItem('mizaniat_viewer_mode') === 'true';
+  const viewerToken = localStorage.getItem('mizaniat_viewer_token') || sessionStorage.getItem('mizaniat_viewer_token');
+  const adminToken = localStorage.getItem('mizaniat_admin_token');
+
+  if (isViewer && viewerToken) {
+    config.headers = { ...config.headers, 'x-viewer-token': viewerToken };
+  } else if (adminToken) {
+    config.headers = { ...config.headers, 'Authorization': `Bearer ${adminToken}` };
   }
   
   if (config.body && typeof config.body === 'object') {
@@ -24,6 +29,9 @@ async function request(endpoint, options = {}) {
     localStorage.removeItem('mizaniat_admin_token');
     localStorage.removeItem('mizaniat_admin_info');
     localStorage.removeItem('mizaniat_viewer_mode');
+    localStorage.removeItem('mizaniat_viewer_token');
+    sessionStorage.removeItem('mizaniat_viewer_token');
+    localStorage.removeItem('mizaniat_viewer_info');
     window.location.href = '/login.html';
     throw new Error('جلسة غير صالحة');
   }
@@ -88,6 +96,18 @@ export const api = {
   getClosingEntries: (params) => request(`/closing-entries?${buildQuery(params)}`),
   deleteClosingEntry: (params) => request(`/closing-entry?${buildQuery(params)}`, { method: 'DELETE' }),
   getCompanyAccounts: (params) => request(`/company-accounts?${buildQuery(params)}`),
+
+  // Matrix Engine & Receivables (M1)
+  getMatrix: (params) => request(`/matrix?${buildQuery(params)}`),
+  getReceivables: (params) => request(`/receivables?${buildQuery(params)}`),
+  getPerformanceSummary: (params) => request(`/performance-summary?${buildQuery(params)}`),
+  getExecutiveSummary: (params) => request(`/executive?${buildQuery(params)}`),
+  getExecutiveChildren: (params) => request(`/executive/children?${buildQuery(params)}`),
+  getExecutiveInvoices: (params) => request(`/executive/invoices?${buildQuery(params)}`),
+  getExecutiveAging: (params) => request(`/executive/aging?${buildQuery(params)}`),
+  getPreferences: (key) => request(`/preferences/${encodeURIComponent(key)}`),
+  setPreferences: (key, data) => request(`/preferences/${encodeURIComponent(key)}`, { method: 'PUT', body: data }),
+  getDepartmentConflicts: () => request('/data-quality/department-conflicts'),
 
   // Filters
   getFilterOptions: (params) => request(`/filters?${buildQuery(params)}`),

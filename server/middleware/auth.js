@@ -1,6 +1,7 @@
 /**
  * Authentication middleware for Mizaniat BI
  * Two layers: Admin (JWT) and Viewer (session token)
+ * Extensible for Odoo IdP in the future.
  */
 const jwt = require('jsonwebtoken');
 const { getDb } = require('../db/connection');
@@ -35,63 +36,100 @@ function verifyToken(token) {
 }
 
 /**
- * Middleware: require admin authentication
+ * Central identity resolver: extracts and authenticates credentials from request.
+ * Returns { userType: 'admin'|'viewer', userId, displayName, role: 'admin'|'viewer' } or null.
+ * Pluggable for future IdPs (e.g. Odoo).
  */
-function requireAdmin(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'غير مصرح — يرجى تسجيل الدخول', code: 'UNAUTHORIZED' });
-  }
-
-  const token = authHeader.substring(7);
-  const decoded = verifyToken(token);
-  if (!decoded || decoded.role !== 'admin') {
-    return res.status(401).json({ error: 'جلسة غير صالحة — يرجى إعادة تسجيل الدخول', code: 'INVALID_TOKEN' });
-  }
-
-  // Verify admin still exists and is active
+function resolveUser(req) {
   const db = getDb();
-  const admin = db.prepare('SELECT id, email, name, is_active FROM admin_users WHERE id = ?').get(decoded.id);
-  if (!admin || !admin.is_active) {
-    return res.status(401).json({ error: 'الحساب غير نشط', code: 'ACCOUNT_DISABLED' });
-  }
 
-  req.admin = admin;
-  next();
-}
-
-/**
- * Middleware: require viewer authentication
- * Checks for viewer token in Authorization header or query param
- */
-function requireViewer(req, res, next) {
-  // Admin tokens also work for viewer routes
+  // 1. Check Authorization: Bearer <token>
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     const decoded = verifyToken(token);
     if (decoded && decoded.role === 'admin') {
-      req.admin = decoded;
-      return next();
+      const admin = db.prepare('SELECT id, email, name, is_active FROM admin_users WHERE id = ?').get(decoded.id);
+      if (admin && admin.is_active) {
+        return {
+          userType: 'admin',
+          userId: admin.id,
+          displayName: admin.name || admin.email,
+          email: admin.email,
+          role: 'admin',
+          admin
+        };
+      }
+    }
+
+    // Check if Bearer token is a viewer session token
+    const vSession = db.prepare(
+      "SELECT vs.*, av.id as viewer_id, av.name as viewer_name, av.is_active FROM viewer_sessions vs INNER JOIN allowed_viewers av ON av.phone = vs.phone WHERE vs.token = ? AND vs.expires_at > datetime('now') AND av.is_active = 1"
+    ).get(token);
+    if (vSession) {
+      return {
+        userType: 'viewer',
+        userId: vSession.viewer_id || vSession.phone,
+        displayName: vSession.viewer_name || vSession.phone,
+        phone: vSession.phone,
+        role: 'viewer',
+        viewer: { id: vSession.viewer_id, phone: vSession.phone, name: vSession.viewer_name }
+      };
     }
   }
 
-  // Check viewer token
-  const viewerToken = req.headers['x-viewer-token'] || req.query.viewerToken;
-  if (!viewerToken) {
+  // 2. Check x-viewer-token (query param token is intentionally disallowed for security)
+  const viewerToken = req.headers['x-viewer-token'];
+  if (viewerToken) {
+    const vSession = db.prepare(
+      "SELECT vs.*, av.id as viewer_id, av.name as viewer_name, av.is_active FROM viewer_sessions vs INNER JOIN allowed_viewers av ON av.phone = vs.phone WHERE vs.token = ? AND vs.expires_at > datetime('now') AND av.is_active = 1"
+    ).get(viewerToken);
+    if (vSession) {
+      return {
+        userType: 'viewer',
+        userId: vSession.viewer_id || vSession.phone,
+        displayName: vSession.viewer_name || vSession.phone,
+        phone: vSession.phone,
+        role: 'viewer',
+        viewer: { id: vSession.viewer_id, phone: vSession.phone, name: vSession.viewer_name }
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Middleware: require admin authentication
+ */
+function requireAdmin(req, res, next) {
+  const user = resolveUser(req);
+  if (!user || user.role !== 'admin') {
+    return res.status(401).json({ error: 'غير مصرح — يرجى تسجيل الدخول كمسؤول', code: 'UNAUTHORIZED' });
+  }
+
+  req.user = user;
+  req.admin = user.admin;
+  next();
+}
+
+/**
+ * Middleware: require viewer authentication
+ * Allows both admin and viewer to access viewer-permitted routes
+ */
+function requireViewer(req, res, next) {
+  const user = resolveUser(req);
+  if (!user) {
     return res.status(401).json({ error: 'يرجى تسجيل الدخول برقم الجوال', code: 'VIEWER_UNAUTHORIZED' });
   }
 
-  const db = getDb();
-  const session = db.prepare(
-    "SELECT * FROM viewer_sessions WHERE token = ? AND expires_at > datetime('now')"
-  ).get(viewerToken);
-
-  if (!session) {
-    return res.status(401).json({ error: 'انتهت صلاحية الجلسة — يرجى إعادة الدخول', code: 'VIEWER_SESSION_EXPIRED' });
+  req.user = user;
+  if (user.role === 'admin') {
+    req.admin = user.admin;
   }
-
-  req.viewer = { phone: session.phone };
+  if (user.role === 'viewer') {
+    req.viewer = user.viewer;
+  }
   next();
 }
 
@@ -119,6 +157,7 @@ module.exports = {
   JWT_SECRET,
   generateAdminToken,
   verifyToken,
+  resolveUser,
   requireAdmin,
   requireViewer,
   hashPassword,

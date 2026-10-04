@@ -26,9 +26,9 @@ window.fetch = function(url, options = {}) {
   return originalFetch.call(this, url, options);
 };
 
-// Prevent api.js from redirecting to login.html on 401
-// by setting a dummy admin token in localStorage
-localStorage.setItem('mizaniat_admin_token', 'viewer-mode');
+// Ensure viewer mode flag is set and admin token is cleared
+localStorage.setItem('mizaniat_viewer_mode', 'true');
+localStorage.removeItem('mizaniat_admin_token');
 
 // ===== INIT =====
 checkAuth();
@@ -37,7 +37,9 @@ async function checkAuth() {
   // If we have a stored viewer token, verify it
   if (viewerToken) {
     try {
-      const vr = await originalFetch('/api/auth/viewer/verify?token=' + viewerToken);
+      const vr = await originalFetch('/api/auth/viewer/verify', {
+        headers: { 'x-viewer-token': viewerToken }
+      });
       if (vr.ok) {
         hideLogin();
         loadApp();
@@ -95,6 +97,9 @@ async function doLogin() {
 
     viewerToken = data.token;
     sessionStorage.setItem('mizaniat_viewer_token', viewerToken);
+    localStorage.setItem('mizaniat_viewer_token', viewerToken);
+    localStorage.setItem('mizaniat_viewer_mode', 'true');
+    localStorage.removeItem('mizaniat_admin_token');
     hideLogin();
     loadApp();
   } catch (e) {

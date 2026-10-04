@@ -2,16 +2,22 @@ import { api } from '../api.js';
 import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { showToast } from '../utils/ui.js';
+import { renderExecutiveDashboardTab } from './presentation-executive.js';
+import { renderPerformanceReceivablesTab } from './presentation-performance.js';
+import { renderReceivablesTab } from './presentation-receivables.js';
+import { renderMatrixTab } from './presentation-matrix.js';
 
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+const LIGHT_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed','#db2777','#0d9488','#4d7c0f'];
 const YR_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+const LIGHT_YR_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed'];
 const fmt = v => formatNumber(v, 0);
 const fmtP = v => (v||0).toFixed(1) + '%';
 const MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const MN_SHORT = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
 let dashData = null;
-let activeTab = 'overview';
+let activeTab = 'executive';
 let analyticGroups = [];
 let analyticGroupMappings = {}; // { analytic_account: group_id }
 let redistByCompany = {}; // { companyId: Set of redistributable CC names }
@@ -19,9 +25,16 @@ let lastUpdatedTime = null;
 function fmtTimestamp(d) { if (!d) return ''; const pad = n => String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 
 export async function renderPresentation(container) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTab = urlParams.get('tab');
+  if (urlTab) activeTab = urlTab;
+  const urlYear = urlParams.get('year');
   const companies = store.get('companies') || [];
-  const fiscalYears = store.get('filterOptions')?.fiscalYears || [];
-  const fy = store.get('fiscalYear') || fiscalYears[fiscalYears.length - 1] || '';
+  const rawYears = store.get('filterOptions')?.fiscalYears || ['2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+  const fiscalYears = [...rawYears].sort((a, b) => Number(b) - Number(a));
+  const defaultYear = fiscalYears[0] || '2026';
+  const isAllYear = urlYear === 'ALL';
+  const fy = isAllYear ? null : (urlYear || store.get('fiscalYear') || defaultYear);
 
   container.innerHTML = `
     <style>
@@ -30,9 +43,9 @@ export async function renderPresentation(container) {
       .bi-topbar{display:flex;align-items:center;gap:16px;padding:16px 28px;background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
       .bi-topbar .slicer-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .bi-topbar .slicer-label{font-size:0.95rem;color:rgba(255,255,255,0.55);font-weight:700;white-space:nowrap}
-      .bi-chip{padding:9px 20px;border-radius:22px;font-size:0.95rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.45);font-weight:600;user-select:none;white-space:nowrap}
-      .bi-chip.active{color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
-      .bi-chip:hover{background:rgba(255,255,255,0.07);transform:translateY(-1px)}
+      .bi-chip{padding:9px 20px;border-radius:22px;font-size:0.95rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.55);font-weight:600;user-select:none;white-space:nowrap}
+      .bi-chip.active{background:var(--chip-color, #3b82f6);border-color:var(--chip-color, #3b82f6);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.3)}
+      .bi-chip:hover{background:rgba(255,255,255,0.07);transform:translateY(-1px);color:#fff}
       .bi-date{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 14px;color:rgba(255,255,255,0.7);font-size:0.92rem;font-family:var(--font-en);outline:none;width:140px}
       .bi-date:focus{border-color:rgba(59,130,246,0.5)}
 
@@ -118,6 +131,7 @@ export async function renderPresentation(container) {
       .bi-adv-toggle:hover{background:rgba(255,255,255,0.03)}
       .bi-adv-toggle .arrow{transition:transform 0.25s;display:inline-block;font-size:0.7rem;color:rgba(255,255,255,0.4)}
       .bi-adv-toggle.open .arrow{transform:rotate(90deg)}
+      .bi-adv-toggle .adv-toggle-text{font-size:0.95rem;color:rgba(255,255,255,0.7);font-weight:700}
       .bi-adv-panel{max-height:0;overflow:hidden;transition:max-height 0.35s ease}
       .bi-adv-panel.open{max-height:2500px}
       .bi-single-chk{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:0.88rem;color:rgba(255,255,255,0.5);font-weight:600;white-space:nowrap}
@@ -131,20 +145,23 @@ export async function renderPresentation(container) {
       <div class="bi-topbar">
         <span class="slicer-label">🏢 الشركات</span>
         <div class="slicer-group" id="co-slicer">
-          <div class="bi-chip active all-chip co-all" data-color="#8b5cf6" style="border-color:#8b5cf6;background:#8b5cf620;color:#8b5cf6;font-weight:800;">الكل</div>
-          ${companies.map((c, i) => `<div class="bi-chip active co-chip" data-id="${c.id}" data-color="${COLORS[i%COLORS.length]}" style="border-color:${COLORS[i%COLORS.length]};background:${COLORS[i%COLORS.length]}20;color:${COLORS[i%COLORS.length]};">${c.name}</div>`).join('')}
+          <div class="bi-chip active all-chip co-all" data-color="#8b5cf6" data-light-color="#7c3aed" style="--chip-color:#8b5cf6;--chip-color-light:#7c3aed;font-weight:800;">الكل</div>
+          ${companies.map((c, i) => `<div class="bi-chip active co-chip" data-id="${c.id}" data-color="${COLORS[i%COLORS.length]}" data-light-color="${LIGHT_COLORS[i%LIGHT_COLORS.length]}" style="--chip-color:${COLORS[i%COLORS.length]};--chip-color-light:${LIGHT_COLORS[i%LIGHT_COLORS.length]};">${c.name}</div>`).join('')}
         </div>
         <div style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
         <span class="slicer-label">📅 السنوات</span>
         <div class="slicer-group" id="yr-slicer">
-          <div class="bi-chip all-chip yr-all" data-color="#ec4899" style="border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.4);font-weight:800;font-family:var(--font-en);">الكل</div>
-          ${fiscalYears.map((y, i) => `<div class="bi-chip ${y===fy?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" style="${y===fy?`border-color:${YR_COLORS[i%YR_COLORS.length]};background:${YR_COLORS[i%YR_COLORS.length]}20;color:${YR_COLORS[i%YR_COLORS.length]};`:''}font-family:var(--font-en);" data-idx="${i}">${y}</div>`).join('')}
+          <div class="bi-chip ${isAllYear?'active':''} yr-all" data-color="#ec4899" data-light-color="#db2777" style="--chip-color:#ec4899;--chip-color-light:#db2777;font-weight:800;font-family:var(--font-en);">الكل</div>
+          ${fiscalYears.map((y, i) => `<div class="bi-chip ${!isAllYear && y===fy?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" data-light-color="${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]}" style="--chip-color:${YR_COLORS[i%YR_COLORS.length]};--chip-color-light:${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]};font-family:var(--font-en);" data-idx="${i}">${y}</div>`).join('')}
         </div>
         <div style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
         <span class="slicer-label">📆 الفترة</span>
-        <input type="date" id="date-from" class="bi-date" value="" placeholder="من">
-        <span style="color:rgba(255,255,255,0.3);font-size:0.88rem;">→</span>
-        <input type="date" id="date-to" class="bi-date" value="" placeholder="إلى">
+        <div style="display:inline-flex;align-items:center;gap:6px;">
+          <input type="date" id="date-from" class="bi-date" value="" placeholder="من">
+          <span style="color:rgba(255,255,255,0.3);font-size:0.88rem;">→</span>
+          <input type="date" id="date-to" class="bi-date" value="" placeholder="إلى">
+          <button id="btn-clear-date" title="إلغاء الفترة المخصصة والرجوع للسنة" style="display:none;background:rgba(239,68,68,0.18);color:#ef4444;border:1px solid rgba(239,68,68,0.35);border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:bold;font-size:0.85rem;line-height:1;">✕</button>
+        </div>
         <div class="bi-actions">
           <div class="bi-last-updated" id="bi-last-updated">🕐 آخر تحديث: <span class="ts" id="bi-last-updated-ts">—</span></div>
           <button class="bi-refresh-btn" id="btn-refresh"><span class="spin-icon">🔄</span> تحديث</button>
@@ -156,36 +173,36 @@ export async function renderPresentation(container) {
       <!-- CC & Group Toggle -->
       <div class="bi-adv-toggle" id="adv-toggle">
         <span class="arrow">▶</span>
-        <span style="font-size:0.95rem;color:rgba(255,255,255,0.55);font-weight:700;">🔍 فلترة متقدمة — مراكز التكلفة والمجموعات</span>
+        <span class="adv-toggle-text">🔍 فلترة متقدمة — مراكز التكلفة والمجموعات</span>
       </div>
       <div class="bi-adv-panel" id="adv-panel">
         <div class="bi-topbar" style="padding:10px 28px;gap:12px;border-top:none;">
           <span class="slicer-label">🏗️ مركز التكلفة</span>
           <div class="slicer-group" id="cc-slicer">
-            <div class="bi-chip active all-chip cc-all" data-color="#06b6d4" style="border-color:#06b6d4;background:#06b6d420;color:#06b6d4;font-weight:800;">الكل</div>
+            <div class="bi-chip active all-chip cc-all" data-color="#06b6d4" data-light-color="#0d9488" style="--chip-color:#06b6d4;--chip-color-light:#0d9488;font-weight:800;">الكل</div>
           </div>
           <label class="bi-single-chk"><input type="checkbox" id="cc-single-mode"> اختيار فردي</label>
         </div>
         <div class="bi-topbar" style="padding:10px 28px;gap:12px;border-top:none;">
           <span class="slicer-label">📂 المجموعة</span>
           <div class="slicer-group" id="grp-slicer">
-            <div class="bi-chip active all-chip grp-all" data-color="#f59e0b" style="border-color:#f59e0b;background:#f59e0b20;color:#f59e0b;font-weight:800;">الكل</div>
+            <div class="bi-chip active all-chip grp-all" data-color="#f59e0b" data-light-color="#b45309" style="--chip-color:#f59e0b;--chip-color-light:#b45309;font-weight:800;">الكل</div>
           </div>
         </div>
       </div>
 
       <!-- Tab Bar -->
       <div class="bi-tabs" id="bi-tabs">
-        <div class="bi-tab active" data-tab="overview">📊 نظرة عامة</div>
-        <div class="bi-tab" data-tab="collection">📥 التحصيل</div>
-        <div class="bi-tab" data-tab="comparison">📋 المقارنة</div>
-        <div class="bi-tab" data-tab="details">📖 التفاصيل</div>
-        <div class="bi-tab" data-tab="pivot-acc">📊 تقاطعي - حسابات</div>
-        <div class="bi-tab" data-tab="pivot-cc">📊 تقاطعي - مراكز</div>
-        <div class="bi-tab" data-tab="redist">🔄 إعادة التوزيع</div>
-        <div class="bi-tab" data-tab="guarantees">🏦 الضمانات البنكية</div>
-        <div class="bi-tab" data-tab="sales">🛍️ المبيعات</div>
-        <div class="bi-tab" data-tab="sales-details">🛒 تفاصيل المبيعات</div>
+        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" style="border-right:1px solid rgba(255,255,255,0.08);background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:800;">🏢 لوحة الإدارة</div>
+        <div class="bi-tab ${activeTab==='overview'?'active':''}" data-tab="overview">📊 نظرة عامة</div>
+        <div class="bi-tab ${activeTab==='collection'?'active':''}" data-tab="collection">📥 التحصيل</div>
+        <div class="bi-tab ${activeTab==='details'?'active':''}" data-tab="details">📖 التفاصيل</div>
+        <div class="bi-tab ${activeTab==='pivot-acc'?'active':''}" data-tab="pivot-acc">📊 تقاطعي - حسابات</div>
+        <div class="bi-tab ${activeTab==='pivot-cc'?'active':''}" data-tab="pivot-cc">📊 تقاطعي - مراكز</div>
+        <div class="bi-tab ${activeTab==='redist'?'active':''}" data-tab="redist">🔄 إعادة التوزيع</div>
+        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">🏦 الضمانات البنكية</div>
+        <div class="bi-tab ${activeTab==='sales'?'active':''}" data-tab="sales">🛍️ المبيعات</div>
+        <div class="bi-tab ${activeTab==='sales-details'?'active':''}" data-tab="sales-details">🛒 تفاصيل المبيعات</div>
       </div>
 
       <!-- Dashboard Body -->
@@ -209,45 +226,114 @@ export async function renderPresentation(container) {
   // Chip toggle
   function setChipActive(chip, active) {
     const color = chip.dataset.color;
+    const lightColor = chip.dataset.lightColor || color;
     if (active) {
-      chip.classList.add('active'); chip.style.borderColor = color; chip.style.background = color + '20'; chip.style.color = color;
+      chip.classList.add('active');
+      if (color) {
+        chip.style.setProperty('--chip-color', color);
+        chip.style.setProperty('--chip-color-light', lightColor);
+      }
     } else {
-      chip.classList.remove('active'); chip.style.borderColor = 'rgba(255,255,255,0.12)'; chip.style.background = 'rgba(255,255,255,0.03)'; chip.style.color = 'rgba(255,255,255,0.4)';
+      chip.classList.remove('active');
     }
+    chip.style.borderColor = '';
+    chip.style.background = '';
+    chip.style.color = '';
   }
   function toggleChip(chip) { setChipActive(chip, !chip.classList.contains('active')); syncAllChips(); loadDashboard(container); }
 
   function syncAllChips() {
     const allCo = container.querySelectorAll('.co-chip');
-    const allYr = container.querySelectorAll('.yr-chip');
     const allCc = container.querySelectorAll('.cc-chip');
     const allGrp = container.querySelectorAll('.grp-chip');
     const coAll = container.querySelector('.co-all');
-    const yrAll = container.querySelector('.yr-all');
     const ccAll = container.querySelector('.cc-all');
     const grpAll = container.querySelector('.grp-all');
     if (coAll) setChipActive(coAll, [...allCo].every(c => c.classList.contains('active')));
-    if (yrAll) setChipActive(yrAll, [...allYr].every(c => c.classList.contains('active')));
     if (ccAll) setChipActive(ccAll, allCc.length === 0 || [...allCc].every(c => c.classList.contains('active')));
     if (grpAll) setChipActive(grpAll, allGrp.length === 0 || [...allGrp].every(c => c.classList.contains('active')));
   }
 
   container.querySelectorAll('.co-chip').forEach(c => c.addEventListener('click', () => toggleChip(c)));
-  container.querySelectorAll('.yr-chip').forEach(c => c.addEventListener('click', () => toggleChip(c)));
 
-  // Select All chips
+  // Year slicer: Multi-choice selection (Claude YR1 directive)
+  container.querySelectorAll('.yr-chip').forEach(c => {
+    c.addEventListener('click', () => {
+      const yrAll = container.querySelector('.yr-all');
+      if (yrAll) setChipActive(yrAll, false);
+
+      const wasActive = c.classList.contains('active');
+      setChipActive(c, !wasActive);
+
+      // Rule: cannot have 0 selection, restore if all deselected
+      const activeChips = container.querySelectorAll('.yr-chip.active');
+      if (activeChips.length === 0) {
+        setChipActive(c, true);
+      }
+
+      // Clear custom date range picker
+      const df = container.querySelector('#date-from');
+      const dt = container.querySelector('#date-to');
+      if (df) df.value = '';
+      if (dt) dt.value = '';
+      const clearBtn = container.querySelector('#btn-clear-date');
+      if (clearBtn) clearBtn.style.display = 'none';
+
+      loadDashboard(container);
+    });
+  });
+
+  // "ALL" years chip: Mutually exclusive with individual years
+  container.querySelector('.yr-all')?.addEventListener('click', () => {
+    const yrAll = container.querySelector('.yr-all');
+    container.querySelectorAll('.yr-chip').forEach(ch => setChipActive(ch, false));
+    setChipActive(yrAll, true);
+    const df = container.querySelector('#date-from');
+    const dt = container.querySelector('#date-to');
+    if (df) df.value = '';
+    if (dt) dt.value = '';
+    const clearBtn = container.querySelector('#btn-clear-date');
+    if (clearBtn) clearBtn.style.display = 'none';
+    loadDashboard(container);
+  });
+
+  // Date range picker: Takes precedence over year chips (Claude H1-fix directive)
+  const handleDateChange = () => {
+    const df = container.querySelector('#date-from')?.value;
+    const dt = container.querySelector('#date-to')?.value;
+    const clearBtn = container.querySelector('#btn-clear-date');
+    if (df || dt) {
+      container.querySelectorAll('.yr-chip, .yr-all').forEach(ch => setChipActive(ch, false));
+      if (clearBtn) clearBtn.style.display = 'inline-flex';
+    }
+    if ((df && dt) || (!df && !dt)) {
+      loadDashboard(container);
+    }
+  };
+
+  container.querySelector('#date-from')?.addEventListener('change', handleDateChange);
+  container.querySelector('#date-to')?.addEventListener('change', handleDateChange);
+
+  // Clear date range button: reverts to default year
+  container.querySelector('#btn-clear-date')?.addEventListener('click', () => {
+    const df = container.querySelector('#date-from');
+    const dt = container.querySelector('#date-to');
+    if (df) df.value = '';
+    if (dt) dt.value = '';
+    const clearBtn = container.querySelector('#btn-clear-date');
+    if (clearBtn) clearBtn.style.display = 'none';
+    container.querySelectorAll('.yr-chip, .yr-all').forEach(ch => setChipActive(ch, false));
+    const defChip = container.querySelector(`.yr-chip[data-year="${defaultYear}"]`) || container.querySelector('.yr-chip');
+    if (defChip) setChipActive(defChip, true);
+    loadDashboard(container);
+  });
+
+  // Select All companies
   container.querySelector('.co-all')?.addEventListener('click', () => {
     const all = container.querySelectorAll('.co-chip');
     const allActive = [...all].every(c => c.classList.contains('active'));
     all.forEach(c => setChipActive(c, !allActive));
     setChipActive(container.querySelector('.co-all'), !allActive);
-    loadDashboard(container);
-  });
-  container.querySelector('.yr-all')?.addEventListener('click', () => {
-    const all = container.querySelectorAll('.yr-chip');
-    const allActive = [...all].every(c => c.classList.contains('active'));
-    all.forEach(c => setChipActive(c, !allActive));
-    setChipActive(container.querySelector('.yr-all'), !allActive);
     loadDashboard(container);
   });
 
@@ -273,12 +359,10 @@ export async function renderPresentation(container) {
     container.querySelectorAll('.co-chip, .yr-chip, .co-all, .yr-all, .cc-chip, .cc-all, .grp-chip, .grp-all').forEach(c => setChipActive(c, false));
     container.querySelector('#date-from').value = '';
     container.querySelector('#date-to').value = '';
+    const clearBtn = container.querySelector('#btn-clear-date');
+    if (clearBtn) clearBtn.style.display = 'none';
     loadDashboard(container);
   });
-
-  // Date filter
-  container.querySelector('#date-from')?.addEventListener('change', () => loadDashboard(container));
-  container.querySelector('#date-to')?.addEventListener('change', () => loadDashboard(container));
 
   // Advanced filter toggle
   container.querySelector('#adv-toggle')?.addEventListener('click', () => {
@@ -296,7 +380,7 @@ export async function renderPresentation(container) {
       container.querySelectorAll('.bi-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       activeTab = tab.dataset.tab;
-      if (dashData) renderDashboard(container);
+      renderDashboard(container);
     });
   });
 
@@ -358,6 +442,7 @@ export async function renderPresentation(container) {
 }
 
 const CC_COLORS = ['#06b6d4','#14b8a6','#0ea5e9','#22d3ee','#2dd4bf','#0891b2','#0d9488','#0284c7'];
+const LIGHT_CC_COLORS = ['#0891b2','#0d9488','#0284c7','#0891b2','#0f766e','#0e7490','#047857','#0369a1'];
 
 function populateCCSlider(container, d) {
   const ccSet = new Set();
@@ -376,33 +461,29 @@ function populateCCSlider(container, d) {
   if (allChip) slicer.appendChild(allChip);
   ccNames.forEach((cc, i) => {
     const color = CC_COLORS[i % CC_COLORS.length];
+    const lightColor = LIGHT_CC_COLORS[i % LIGHT_CC_COLORS.length];
     const chip = document.createElement('div');
     chip.className = 'bi-chip active cc-chip';
     chip.dataset.cc = cc;
     chip.dataset.color = color;
-    chip.style.cssText = `border-color:${color};background:${color}20;color:${color};`;
+    chip.dataset.lightColor = lightColor;
+    chip.style.setProperty('--chip-color', color);
+    chip.style.setProperty('--chip-color-light', lightColor);
     chip.textContent = cc;
     chip.addEventListener('click', () => {
       const singleMode = container.querySelector('#cc-single-mode')?.checked;
       if (singleMode) {
         // Deactivate all CC chips, then activate only this one
-        container.querySelectorAll('.cc-chip').forEach(c => {
-          c.classList.remove('active');
-          c.style.borderColor = 'rgba(255,255,255,0.12)'; c.style.background = 'rgba(255,255,255,0.03)'; c.style.color = 'rgba(255,255,255,0.4)';
-        });
-        chip.classList.add('active');
-        chip.style.borderColor = color; chip.style.background = color + '20'; chip.style.color = color;
+        container.querySelectorAll('.cc-chip').forEach(c => setChipActive(c, false));
+        setChipActive(chip, true);
       } else {
-        const isActive = chip.classList.contains('active');
-        chip.classList.toggle('active');
-        if (isActive) { chip.style.borderColor = 'rgba(255,255,255,0.12)'; chip.style.background = 'rgba(255,255,255,0.03)'; chip.style.color = 'rgba(255,255,255,0.4)'; }
-        else { chip.style.borderColor = color; chip.style.background = color + '20'; chip.style.color = color; }
+        setChipActive(chip, !chip.classList.contains('active'));
       }
       // Sync "All" chip
       const allCc = container.querySelectorAll('.cc-chip');
       const ccAll = container.querySelector('.cc-all');
       const allActive = [...allCc].every(c => c.classList.contains('active'));
-      if (ccAll) { ccAll.classList.toggle('active', allActive); ccAll.style.borderColor = allActive ? '#06b6d4' : 'rgba(255,255,255,0.12)'; ccAll.style.background = allActive ? '#06b6d420' : 'rgba(255,255,255,0.03)'; ccAll.style.color = allActive ? '#06b6d4' : 'rgba(255,255,255,0.4)'; }
+      if (ccAll) setChipActive(ccAll, allActive);
       if (dashData) renderDashboard(container);
     });
     slicer.appendChild(chip);
@@ -424,22 +505,22 @@ function populateGroupSlicer(container) {
   if (allChip) slicer.appendChild(allChip);
   analyticGroups.forEach(g => {
     const color = g.color || '#f59e0b';
+    const lightColor = '#b45309';
     const chip = document.createElement('div');
     chip.className = 'bi-chip active grp-chip';
     chip.dataset.groupId = g.id;
     chip.dataset.color = color;
-    chip.style.cssText = `border-color:${color};background:${color}20;color:${color};`;
+    chip.dataset.lightColor = lightColor;
+    chip.style.setProperty('--chip-color', color);
+    chip.style.setProperty('--chip-color-light', lightColor);
     chip.textContent = g.name;
     chip.addEventListener('click', () => {
-      const isActive = chip.classList.contains('active');
-      chip.classList.toggle('active');
-      if (isActive) { chip.style.borderColor = 'rgba(255,255,255,0.12)'; chip.style.background = 'rgba(255,255,255,0.03)'; chip.style.color = 'rgba(255,255,255,0.4)'; }
-      else { chip.style.borderColor = color; chip.style.background = color + '20'; chip.style.color = color; }
+      setChipActive(chip, !chip.classList.contains('active'));
       // Sync "All" chip
       const allGrp = container.querySelectorAll('.grp-chip');
       const grpAll = container.querySelector('.grp-all');
       const allActive = [...allGrp].every(c => c.classList.contains('active'));
-      if (grpAll) { grpAll.classList.toggle('active', allActive); grpAll.style.borderColor = allActive ? '#f59e0b' : 'rgba(255,255,255,0.12)'; grpAll.style.background = allActive ? '#f59e0b20' : 'rgba(255,255,255,0.03)'; grpAll.style.color = allActive ? '#f59e0b' : 'rgba(255,255,255,0.4)'; }
+      if (grpAll) setChipActive(grpAll, allActive);
       // When groups change, auto-filter CC chips
       syncCCFromGroups(container);
       if (dashData) renderDashboard(container);
@@ -474,50 +555,139 @@ function syncCCFromGroups(container) {
   });
 }
 
-async function loadDashboard(container) {
-  const selectedCos = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
-  let selectedYrs = [...container.querySelectorAll('.yr-chip.active')].map(c => c.dataset.year).sort();
-  const body = container.querySelector('#bi-body');
+function getEffectiveTimeFilter(container) {
+  const currentYearStr = String(new Date().getFullYear());
+  if (!container) return { isCustomDate: false, selectedYear: currentYearStr, selectedYears: [currentYearStr], dateFrom: `${currentYearStr}-01-01`, dateTo: `${currentYearStr}-12-31`, periodLabel: currentYearStr };
 
   const df = container.querySelector('#date-from')?.value;
   const dt = container.querySelector('#date-to')?.value;
-  const hasCustomDates = df && dt;
+  const hasCustomDates = !!(df || dt);
 
-  // When custom dates are set, derive year from dateFrom if no years selected
-  if (hasCustomDates && !selectedYrs.length) {
-    selectedYrs = [df.substring(0, 4)];
+  if (hasCustomDates) {
+    const formatAr = (dStr) => {
+      if (!dStr) return '';
+      const parts = dStr.split('-');
+      if (parts.length < 3) return dStr;
+      const mIdx = parseInt(parts[1], 10) - 1;
+      return `${parseInt(parts[2], 10)} ${MONTH_NAMES[mIdx] || parts[1]} ${parts[0]}`;
+    };
+    let label = '';
+    if (df && dt) label = `${formatAr(df)} – ${formatAr(dt)}`;
+    else if (df) label = `من ${formatAr(df)}`;
+    else if (dt) label = `حتى ${formatAr(dt)}`;
+
+    return {
+      isCustomDate: true,
+      selectedYear: 'CUSTOM',
+      selectedYears: [],
+      dateFrom: df || undefined,
+      dateTo: dt || undefined,
+      periodLabel: label
+    };
   }
 
-  if (!selectedCos.length || !selectedYrs.length) {
-    body.innerHTML = '<div class="bi-empty">اختر شركة وسنة مالية واحدة على الأقل</div>';
+  const yrAll = container.querySelector('.yr-all');
+  if (yrAll && yrAll.classList.contains('active')) {
+    return {
+      isCustomDate: false,
+      selectedYear: 'ALL',
+      selectedYears: ['ALL'],
+      dateFrom: undefined,
+      dateTo: undefined,
+      periodLabel: 'كافة السنوات'
+    };
+  }
+
+  const activeChips = [...container.querySelectorAll('.yr-chip.active')];
+  let years = activeChips.map(c => c.dataset.year).filter(Boolean);
+  if (years.length === 0) {
+    const defChip = container.querySelector(`.yr-chip[data-year="${currentYearStr}"]`) || container.querySelector('.yr-chip');
+    if (defChip) {
+      setChipActive(defChip, true);
+      years = [defChip.dataset.year];
+    } else {
+      years = [currentYearStr];
+    }
+  }
+
+  years.sort();
+  const periodLabel = years.join(' + ');
+
+  return {
+    isCustomDate: false,
+    selectedYear: years.length === 1 ? years[0] : years.join(','),
+    selectedYears: years,
+    dateFrom: years.length === 1 ? `${years[0]}-01-01` : undefined,
+    dateTo: years.length === 1 ? `${years[0]}-12-31` : undefined,
+    periodLabel: periodLabel
+  };
+}
+
+async function loadDashboard(container) {
+  const selectedCos = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
+  const timeFilter = getEffectiveTimeFilter(container);
+  const body = container.querySelector('#bi-body');
+
+  let selectedYrs = [];
+  if (timeFilter.selectedYear === 'ALL') {
+    selectedYrs = [...container.querySelectorAll('.yr-chip')].map(c => c.dataset.year).sort();
+  } else if (timeFilter.selectedYear === 'CUSTOM') {
+    if (timeFilter.dateFrom) selectedYrs = [timeFilter.dateFrom.substring(0, 4)];
+    else selectedYrs = [String(new Date().getFullYear())];
+  } else {
+    selectedYrs = (timeFilter.selectedYears && timeFilter.selectedYears.length > 0) ? timeFilter.selectedYears : [timeFilter.selectedYear];
+  }
+
+  if (!selectedCos.length) {
+    body.innerHTML = '<div class="bi-empty">اختر شركة واحدة على الأقل</div>';
     return;
   }
 
-  body.innerHTML = '<div class="bi-empty">⏳ جاري تحميل البيانات...</div>';
+  lastUpdatedTime = new Date();
+  const tsEl = container.querySelector('#bi-last-updated-ts');
+  if (tsEl) tsEl.textContent = fmtTimestamp(lastUpdatedTime);
+
+  // If executive tab is active, render immediately without awaiting legacy presentation data (P1)
+  if (activeTab === 'executive') {
+    dashData = null; // Invalidate legacy data so it re-fetches cleanly if switched later
+    renderDashboard(container);
+    return;
+  }
+
+  body.innerHTML = '<div class="bi-empty"><span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;margin-left:8px;">⏳</span> جاري تحميل البيانات...</div>';
 
   try {
     const params = { companyIds: selectedCos.join(','), years: selectedYrs.join(',') };
-    if (df) params.dateFrom = df;
-    if (dt) params.dateTo = dt;
-    console.log('[loadDashboard] params:', JSON.stringify(params));
+    if (timeFilter.dateFrom) params.dateFrom = timeFilter.dateFrom;
+    if (timeFilter.dateTo) params.dateTo = timeFilter.dateTo;
     dashData = await api.getPresentationData(params);
     dashData._selectedCos = selectedCos;
     dashData._selectedYrs = selectedYrs;
-    // Update last-updated timestamp
-    lastUpdatedTime = new Date();
-    const tsEl = container.querySelector('#bi-last-updated-ts');
-    if (tsEl) tsEl.textContent = fmtTimestamp(lastUpdatedTime);
-    // Populate CC slicer from loaded data
+    dashData._timeFilter = timeFilter;
     populateCCSlider(container, dashData);
     renderDashboard(container);
   } catch (err) {
     console.error(err);
-    body.innerHTML = '<div class="bi-empty" style="color:#ef4444;">❌ خطأ في تحميل البيانات</div>';
+    body.innerHTML = '<div class="bi-empty" style="color:#ef4444;">❌ خطأ في تحميل البيانات <button id="btn-retry-dash" style="margin-right:12px;padding:6px 14px;background:#3b82f6;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;">إعادة المحاولة</button></div>';
+    body.querySelector('#btn-retry-dash')?.addEventListener('click', () => loadDashboard(container));
   }
 }
 
 function renderDashboard(container) {
   const body = container.querySelector('#bi-body');
+  const timeFilter = getEffectiveTimeFilter(container);
+  const selectedNumCos = [...container.querySelectorAll('.co-chip.active')].map(c => Number(c.dataset.id));
+
+  if (activeTab === 'executive') {
+    renderExecutiveDashboardTab(body, container, timeFilter, selectedNumCos);
+    return;
+  }
+
+  if (!dashData) {
+    loadDashboard(container);
+    return;
+  }
+
   const selectedCCs = getSelectedCCs(container);
   // Create filtered copy of dashData if CCs are selected
   const d = selectedCCs ? filterDataByCCs(dashData, selectedCCs) : dashData;
@@ -529,8 +699,12 @@ function renderDashboard(container) {
   const multiYear = yrs.length > 1;
 
   switch (activeTab) {
+    case 'executive': renderExecutiveDashboardTab(body, container, timeFilter, selectedNumCos); break;
     case 'overview': renderOverview(body, d, gt, yrs, yd, firstComps, multiCo, multiYear); break;
     case 'collection': renderCollection(body, d, gt, yrs, yd, firstComps, multiCo, multiYear); break;
+    case 'performance':
+    case 'receivables':
+    case 'matrix': renderPerformanceReceivablesTab(body, container, timeFilter, selectedNumCos); break;
     case 'comparison': renderComparison(body, d, gt, yrs, yd, firstComps, multiCo, multiYear); break;
     case 'details': renderDetails(body, d, gt, yrs, yd, firstComps, multiCo, multiYear); break;
     case 'pivot-acc': renderPivotAcc(body, d); break;
@@ -1897,11 +2071,18 @@ async function renderGuarantees(body, d, yrs, yd) {
 
     data.forEach(co => {
       const coTotal = co.items.reduce((s, i) => s + i.amount, 0);
+      const ledgerBal = co.ledgerBalance !== undefined ? co.ledgerBalance : coTotal;
+      const diff = Math.round((coTotal - ledgerBal) * 100) / 100;
+      const isMatched = Math.abs(diff) <= 0.05;
+
       html += `
         <div class="bi-card bi-full" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
             <div style="font-size:1.05rem;font-weight:700;color:var(--text-white);">🏢 ${co.companyName}</div>
-            <div style="font-family:var(--font-en);font-weight:700;color:#06b6d4;font-size:1.05rem">${fmt(coTotal)}</div>
+            <div style="display:flex;gap:16px;align-items:center;">
+              <div style="font-size:0.85rem;color:#94a3b8">رصيد الأستاذ: <b style="color:#e2e8f0;font-family:var(--font-en)">${fmt(ledgerBal)}</b></div>
+              <div style="font-family:var(--font-en);font-weight:700;color:#06b6d4;font-size:1.05rem">معلّق: ${fmt(coTotal)}</div>
+            </div>
           </div>
           <table class="bi-table" style="font-size:0.9rem" data-guarantee-tbl>
             <thead>
@@ -1917,7 +2098,7 @@ async function renderGuarantees(body, d, yrs, yd) {
                 <tr>
                   <td style="text-align:center;color:#475569;font-size:0.8rem">${i + 1}</td>
                   <td style="color:var(--text-white)">${item.description}</td>
-                  <td style="color:#94a3b8;font-size:0.85rem">${item.account}</td>
+                  <td style="color:#94a3b8;font-size:0.85rem">${item.account || item.accountName || ''}</td>
                   <td class="n" style="color:#06b6d4;font-weight:700">${fmt(item.amount)}</td>
                 </tr>
               `).join('')}
@@ -1927,6 +2108,28 @@ async function renderGuarantees(body, d, yrs, yd) {
               </tr>
             </tbody>
           </table>
+          <div style="margin-top:12px;padding:9px 14px;border-radius:8px;font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;${
+            isMatched
+              ? 'background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);'
+              : 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);'
+          }">
+            <div style="color:#cbd5e1">
+              <span>رصيد الأستاذ العام: <b style="font-family:var(--font-en);color:#e2e8f0">${fmt(ledgerBal)}</b></span>
+              <span style="margin:0 8px;color:#64748b">|</span>
+              <span>مجموع القائمة النشطة: <b style="font-family:var(--font-en);color:#06b6d4">${fmt(coTotal)}</b></span>
+            </div>
+            ${isMatched
+              ? '<span style="color:#34d399;font-weight:700;display:flex;align-items:center;gap:6px">✓ مطابقة تامة مع رصيد الأستاذ</span>'
+              : `<span style="color:#f87171;font-weight:700;display:flex;align-items:center;gap:6px">⚠️ فرق يحتاج مراجعة: ${fmt(diff)}</span>`}
+          </div>
+          ${!isMatched && co.unmatchedCredits && co.unmatchedCredits.length ? `
+            <div style="margin-top:8px;padding:8px 12px;background:rgba(239,68,68,0.05);border-radius:6px;font-size:0.8rem;color:#fca5a5">
+              <b>إفراجات لم تُطابَق مع إصدار ولا بند فرعي:</b>
+              <ul style="margin:4px 0 0 16px;padding:0">
+                ${co.unmatchedCredits.map(c => `<li>${c.date} | ${c.moveName || ''} | ${fmt(c.amount)} | ${c.label || ''}</li>`).join('')}
+              </ul>
+            </div>
+          ` : ''}
         </div>
       `;
     });

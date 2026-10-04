@@ -6,7 +6,9 @@
 
 // ===== CONSTANTS =====
 const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+const LIGHT_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed','#db2777','#0d9488','#4d7c0f'];
 const YR_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
+const LIGHT_YR_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed'];
 const EXP_COLORS = ['#ef4444','#f59e0b','#ec4899','#f97316','#e11d48','#dc2626','#be123c','#ea580c'];
 const MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 
@@ -21,7 +23,7 @@ function formatNumber(num, decimals = 0) {
 // ===== STATE =====
 let allData = null, allYears = [], activeTab = 'overview', lastUpdated = null, shareData = null;
 const token = new URLSearchParams(location.search).get('token');
-let viewerToken = sessionStorage.getItem('mizaniat_viewer_token') || '';
+let viewerToken = sessionStorage.getItem('mizaniat_viewer_token') || localStorage.getItem('mizaniat_viewer_token') || '';
 
 // ===== INIT =====
 if (!token) showErr('لم يتم تحديد رمز العرض'); else checkViewerAuth();
@@ -30,7 +32,9 @@ async function checkViewerAuth() {
   // If we have a stored viewer token, verify it
   if (viewerToken) {
     try {
-      const vr = await fetch('/api/auth/viewer/verify?token=' + viewerToken);
+      const vr = await fetch('/api/auth/viewer/verify', {
+        headers: { 'x-viewer-token': viewerToken }
+      });
       if (vr.ok) {
         hideLoginOverlay();
         init();
@@ -73,6 +77,9 @@ async function doViewerLogin() {
 
     viewerToken = data.token;
     sessionStorage.setItem('mizaniat_viewer_token', viewerToken);
+    localStorage.setItem('mizaniat_viewer_token', viewerToken);
+    localStorage.setItem('mizaniat_viewer_mode', 'true');
+    localStorage.removeItem('mizaniat_admin_token');
     hideLoginOverlay();
     document.getElementById('loading').style.display = 'block';
     init();
@@ -171,10 +178,10 @@ function render(aCids, aYrs) {
   dash.innerHTML = `
     <div class="bi-topbar">
       <span class="sl">🏢</span>
-      ${fc.map((c,i) => `<div class="bi-chip active co-chip" data-id="${c.companyId}" data-color="${COLORS[i%COLORS.length]}" style="border-color:${COLORS[i%COLORS.length]};background:${COLORS[i%COLORS.length]}20;color:${COLORS[i%COLORS.length]};">${c.companyName}</div>`).join('')}
+      ${fc.map((c,i) => `<div class="bi-chip active co-chip" data-id="${c.companyId}" data-color="${COLORS[i%COLORS.length]}" data-light-color="${LIGHT_COLORS[i%LIGHT_COLORS.length]}" style="--chip-color:${COLORS[i%COLORS.length]};--chip-color-light:${LIGHT_COLORS[i%LIGHT_COLORS.length]};">${c.companyName}</div>`).join('')}
       <div style="width:1px;height:20px;background:rgba(255,255,255,0.08);margin:0 4px;"></div>
       <span class="sl">📅</span>
-      ${allYears.map((y,i) => `<div class="bi-chip ${aYrs.includes(y)?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" style="${aYrs.includes(y)?`border-color:${YR_COLORS[i%YR_COLORS.length]};background:${YR_COLORS[i%YR_COLORS.length]}20;color:${YR_COLORS[i%YR_COLORS.length]};`:''}font-family:var(--font-en);">${y}</div>`).join('')}
+      ${allYears.map((y,i) => `<div class="bi-chip ${aYrs.includes(y)?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" data-light-color="${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]}" style="--chip-color:${YR_COLORS[i%YR_COLORS.length]};--chip-color-light:${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]};font-family:var(--font-en);">${y}</div>`).join('')}
       <div style="margin-right:auto;display:flex;align-items:center;gap:8px;">
         <div class="bi-last-updated" id="last-updated">🕐 آخر تحديث: <span class="ts">${fmtTime(lastUpdated)}</span></div>
         <div class="bi-refresh-btn" id="refresh-btn" onclick="manualRefresh()"><span class="spin-icon">🔄</span> تحديث</div>
@@ -197,10 +204,9 @@ function render(aCids, aYrs) {
   dash.querySelectorAll('.co-chip,.yr-chip').forEach(ch => {
     ch.addEventListener('click', () => {
       ch.classList.toggle('active');
-      const c = ch.dataset.color;
-      ch.style.borderColor = ch.classList.contains('active') ? c : 'rgba(255,255,255,0.12)';
-      ch.style.background = ch.classList.contains('active') ? c + '20' : 'rgba(255,255,255,0.03)';
-      ch.style.color = ch.classList.contains('active') ? c : 'rgba(255,255,255,0.4)';
+      ch.style.borderColor = '';
+      ch.style.background = '';
+      ch.style.color = '';
       refilt();
     });
   });

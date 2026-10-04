@@ -1223,6 +1223,324 @@ router.post('/tax-report-custom', (req, res) => {
 });
 
 // ==============================================
+// ===== HELPER: PARSE & VALIDATE YEARS (YR1) =====
+// ==============================================
+function parseYearsParam(req) {
+  const raw = req.query.years || req.query.year;
+  if (!raw) return undefined;
+  if (raw === 'ALL' || raw === 'all') return 'ALL';
+  const list = Array.isArray(raw) ? raw : String(raw).split(',');
+  const years = [];
+  for (const item of list) {
+    const trimmed = String(item).trim();
+    if (!trimmed) continue;
+    if (trimmed === 'ALL' || trimmed === 'all') return 'ALL';
+    if (!/^\d{4}$/.test(trimmed)) {
+      const err = new Error('سنة غير صالحة: يجب أن تتكون السنة من 4 أرقام');
+      err.statusCode = 400;
+      throw err;
+    }
+    years.push(trimmed);
+  }
+  return years.length > 0 ? years : undefined;
+}
+
+// ==============================================
+// ===== MATRIX REPORT ENGINE (M1) =====
+// ==============================================
+
+router.get('/matrix', (req, res) => {
+  try {
+    const {
+      measure,
+      rowDims,
+      timeGrain,
+      dateFrom,
+      dateTo,
+      companyIds,
+      departmentIds,
+      compare
+    } = req.query;
+
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getMatrix({
+      measure,
+      rowDims: rowDims ? (Array.isArray(rowDims) ? rowDims : String(rowDims).split(',')) : undefined,
+      timeGrain,
+      dateFrom,
+      dateTo,
+      years,
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      departmentIds: departmentIds ? (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')) : undefined,
+      compare
+    });
+
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /matrix] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== RECEIVABLES & COLLECTIONS ENGINE (M1a) =====
+// ==============================================
+
+router.get('/receivables', (req, res) => {
+  try {
+    const {
+      type,
+      companyIds,
+      departmentIds,
+      partnerId,
+      partnerName,
+      paymentState,
+      dateFrom,
+      dateTo,
+      timeGrain,
+      search,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+      asOfDate
+    } = req.query;
+
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getReceivables({
+      type: type || 'registry',
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      departmentIds: departmentIds ? (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')) : undefined,
+      partnerId: partnerId ? parseInt(partnerId) : undefined,
+      partnerName: partnerName || undefined,
+      paymentState: paymentState ? (Array.isArray(paymentState) ? paymentState : String(paymentState).split(',')) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      timeGrain: timeGrain || 'month',
+      search: search || undefined,
+      sortBy: sortBy || 'date',
+      sortOrder: sortOrder || 'desc',
+      page: page ? parseInt(page) : 1,
+      limit: limit !== undefined ? (limit === 'all' ? 'all' : parseInt(limit)) : 50,
+      asOfDate: asOfDate || undefined,
+      includePaid: req.query.includePaid === 'true'
+    });
+
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /receivables] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== PERFORMANCE SUMMARY (H1-fix) =====
+// ==============================================
+
+router.get('/performance-summary', (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo } = req.query;
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getPerformanceSummary({
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /performance-summary] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== EXECUTIVE DASHBOARD (لوحة الإدارة الموحدة) =====
+// ==============================================
+
+router.get('/executive', (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, asOfDate, fullTree, includeAging } = req.query;
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getExecutiveSummary({
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined,
+      fullTree: fullTree === 'true',
+      includeAging: includeAging === 'true'
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /executive] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/executive/children', (req, res) => {
+  try {
+    const { companyId, departmentId, kind, dateFrom, dateTo } = req.query;
+    if (!companyId || departmentId === undefined) {
+      return res.status(400).json({ error: 'companyId and departmentId are required' });
+    }
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getExecutiveDepartmentChildren({
+      companyId: Number(companyId),
+      departmentId: Number(departmentId),
+      kind: kind || 'both',
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /executive/children] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/executive/invoices', (req, res) => {
+  try {
+    const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
+    if (!companyId) {
+      return res.status(400).json({ error: 'companyId is required' });
+    }
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getExecutiveClientInvoices({
+      companyId: Number(companyId),
+      partnerId: partnerId || undefined,
+      departmentId: departmentId ? Number(departmentId) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /executive/invoices] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/executive/aging', (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, asOfDate, includeInvoices } = req.query;
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getExecutiveAging({
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined,
+      includeInvoices: includeInvoices === 'true'
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /executive/aging] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== USER UI PREFERENCES (P4) =====
+// ==============================================
+
+const ALLOWED_PREF_KEYS = ['executive_view'];
+
+router.get('/preferences/:key', (req, res) => {
+  try {
+    const { key } = req.params;
+    if (!ALLOWED_PREF_KEYS.includes(key)) {
+      return res.status(400).json({ error: 'المفتاح غير مسموح به' });
+    }
+
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    const userType = req.admin ? 'admin' : (req.viewer ? 'viewer' : 'anonymous');
+    const userId = req.admin ? String(req.admin.id) : (req.viewer ? String(req.viewer.phone) : 'guest');
+
+    const row = db.prepare(`
+      SELECT value_json FROM ui_preferences 
+      WHERE user_type = ? AND user_id = ? AND pref_key = ?
+    `).get(userType, userId, key);
+
+    if (!row) {
+      return res.json({ found: false, data: null });
+    }
+    res.json({ found: true, data: JSON.parse(row.value_json) });
+  } catch (err) {
+    console.error('[API /preferences GET] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/preferences/:key', (req, res) => {
+  try {
+    const { key } = req.params;
+    if (!ALLOWED_PREF_KEYS.includes(key)) {
+      return res.status(400).json({ error: 'المفتاح غير مسموح به' });
+    }
+
+    const valueJson = JSON.stringify(req.body);
+    if (Buffer.byteLength(valueJson, 'utf8') > 20480) {
+      return res.status(413).json({ error: 'حجم البيانات يتجاوز الحد المسموح (20 كيلوبايت)' });
+    }
+
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    const userType = req.admin ? 'admin' : (req.viewer ? 'viewer' : 'anonymous');
+    const userId = req.admin ? String(req.admin.id) : (req.viewer ? String(req.viewer.phone) : 'guest');
+
+    db.prepare(`
+      INSERT INTO ui_preferences (user_type, user_id, pref_key, value_json, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(user_type, user_id, pref_key) DO UPDATE SET
+        value_json = excluded.value_json,
+        updated_at = datetime('now')
+    `).run(userType, userId, key, valueJson);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[API /preferences PUT] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== DATA QUALITY: DEPARTMENT CONFLICTS (R2) =====
+// ==============================================
+
+router.get('/data-quality/department-conflicts', (req, res) => {
+  try {
+    const { companyId } = req.query;
+    const engine = new ConsolidationEngine();
+    const result = engine.getDepartmentConflicts({
+      companyId: companyId ? parseInt(companyId) : undefined
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[API /data-quality/department-conflicts] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
 // ===== PRESENTATION SHARES =====
 
 const crypto = require('crypto');
@@ -1514,33 +1832,17 @@ router.get('/presentation/data', (req, res) => {
 });
 
 // ===== GUARANTEE MANAGEMENT =====
-// List all guarantee journal items with release status
+// List all guarantee journal items with release status (admin)
 router.get('/guarantees', (req, res) => {
   try {
     const companyIds = parseCompanyIds(req.query);
-    const db = getDb();
-    const ids = companyIds || db.prepare('SELECT id FROM companies').all().map(c => c.id);
-    const today = new Date().toISOString().slice(0, 10);
-    const results = [];
-    for (const cid of ids) {
-      const company = db.prepare('SELECT name FROM companies WHERE id = ?').get(cid);
-      if (!company) continue;
-      const items = db.prepare(`
-        SELECT ji.id, ji.account_code, ji.account_name, ji.move_name, ji.date, ji.label,
-          ji.partner_name, ji.debit, ji.credit, (ji.debit - ji.credit) as balance,
-          CASE WHEN gr.id IS NOT NULL THEN 1 ELSE 0 END as is_released,
-          gr.released_date, gr.notes as release_notes
-        FROM journal_items ji
-        LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name
-        WHERE ji.company_id = ? AND EXISTS (SELECT 1 FROM account_tags _t WHERE _t.company_id = ji.company_id AND _t.account_code = ji.account_code AND _t.tag = 'guarantee') AND ji.move_state = 'posted' AND ji.date <= ?
-        ORDER BY ji.date DESC
-      `).all(cid, today);
-      if (items.length) {
-        results.push({ companyId: cid, companyName: company.name, items });
-      }
-    }
+    const engine = new ConsolidationEngine();
+    const results = engine.getGuaranteesAdminList({ companyIds, asOfDate: req.query.asOfDate });
     res.json(results);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('Guarantees admin list error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Mark a guarantee as released
@@ -1649,40 +1951,14 @@ router.get('/guarantee-details', (req, res) => {
 router.get('/guarantee-pending-list', (req, res) => {
   try {
     const companyIds = parseCompanyIds(req.query);
-    const db = getDb();
-    if (!companyIds || !companyIds.length) return res.json([]);
-    const today = new Date().toISOString().slice(0, 10);
-    const results = [];
-    for (const cid of companyIds) {
-      const company = db.prepare('SELECT name FROM companies WHERE id = ?').get(cid);
-      if (!company) continue;
-      const items = db.prepare(`
-        SELECT ji.account_code, ji.account_name, ji.move_name, ji.date, ji.label,
-          ji.partner_name, ji.debit, ji.credit, (ji.debit - ji.credit) as balance,
-          CASE WHEN gr.id IS NOT NULL THEN 1 ELSE 0 END as is_released
-        FROM journal_items ji
-        LEFT JOIN guarantee_releases gr ON gr.company_id = ji.company_id AND gr.account_code = ji.account_code AND gr.move_name = ji.move_name
-        WHERE ji.company_id = ? AND EXISTS (SELECT 1 FROM account_tags _t WHERE _t.company_id = ji.company_id AND _t.account_code = ji.account_code AND _t.tag = 'guarantee') AND ji.move_state = 'posted' AND ji.date <= ?
-        ORDER BY ji.date
-      `).all(cid, today);
-
-      const pendingItems = [];
-      for (const item of items) {
-        const subs = db.prepare(`SELECT * FROM guarantee_sub_items WHERE parent_company_id = ? AND parent_account_code = ? AND parent_move_name = ? ORDER BY created_at`).all(cid, item.account_code, item.move_name);
-        if (subs.length > 0) {
-          subs.filter(s => !s.is_released).forEach(s => {
-            pendingItems.push({ description: s.description, amount: s.amount, date: item.date, account: item.account_name, moveName: item.move_name, partner: item.partner_name, type: 'sub' });
-          });
-        } else if (!item.is_released) {
-          pendingItems.push({ description: item.label || item.account_name, amount: Math.abs(item.balance), date: item.date, account: item.account_name, moveName: item.move_name, partner: item.partner_name, type: 'item' });
-        }
-      }
-      if (pendingItems.length) {
-        results.push({ companyId: cid, companyName: company.name, items: pendingItems, date: today });
-      }
-    }
+    const engine = new ConsolidationEngine();
+    const data = engine.getActiveGuarantees({ companyIds, asOfDate: req.query.asOfDate });
+    const results = data.filter(co => co.items && co.items.length > 0);
     res.json(results);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('Guarantee pending list error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===== ACCOUNT STATEMENT =====
