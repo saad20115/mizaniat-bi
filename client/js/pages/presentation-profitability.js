@@ -40,11 +40,18 @@ function fmtVal(num, showZeroDash = true) {
 function fmtMargin(margin) {
   if (margin === null || margin === undefined || isNaN(margin)) return '—';
   const m = Number(margin);
-  const color = m >= 20 ? '#10b981' : (m > 0 ? '#3b82f6' : '#ef4444');
-  const bg = m >= 20 ? 'rgba(16,185,129,0.12)' : (m > 0 ? 'rgba(59,130,246,0.12)' : 'rgba(239,68,68,0.12)');
+  if (m < 0) {
+    return `
+      <span class="exec-rate-neg" style="display:inline-block;padding:2px 8px;border-radius:6px;background:rgba(239,68,68,0.12);color:#ef4444;font-weight:700;font-size:0.82rem;direction:ltr;font-family:var(--font-en);">
+        (${Math.abs(m).toFixed(1)}%)
+      </span>
+    `;
+  }
+  const color = m >= 20 ? '#10b981' : (m > 0 ? '#3b82f6' : 'var(--exec-text-muted, #94a3b8)');
+  const bg = m >= 20 ? 'rgba(16,185,129,0.12)' : (m > 0 ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.05)');
   return `
-    <span class="exec-num" style="display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${color};font-weight:700;font-size:0.82rem;">
-      ${m > 0 ? '+' : ''}${m.toFixed(1)}%
+    <span class="exec-num" style="display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${color};font-weight:700;font-size:0.82rem;font-family:var(--font-en);">
+      ${m.toFixed(1)}%
     </span>
   `;
 }
@@ -69,13 +76,13 @@ function getPeriodParamsFromFilter(timeFilter) {
 
 export async function renderDepartmentsProfitabilityTab(body, container, timeFilter, selectedCos) {
   body.innerHTML = `
-    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;">
+    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
       <div id="prof-loading" style="text-align:center;padding:80px 20px;color:rgba(255,255,255,0.5);font-size:1.1rem;">
         <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-left:8px;font-size:1.4rem;">⏳</span>
         جاري تحميل تقرير الأقسام والربحية...
       </div>
-      <div id="prof-main-content" style="display:none;flex-direction:column;gap:22px;"></div>
+      <div id="prof-main-content" style="display:none;flex-direction:column;gap:22px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
     </div>
   `;
 
@@ -266,7 +273,7 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
     </div>
 
     <!-- TreeTable Section -->
-    <div style="background:var(--exec-card-bg, rgba(255,255,255,0.02));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;">
+    <div style="background:var(--exec-card-bg, rgba(255,255,255,0.02));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       
       <!-- Table Header Bar with Search -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -288,7 +295,7 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
       </div>
 
       <!-- TreeTable Container -->
-      <div id="prof-tree-container" style="overflow-x:auto;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
+      <div id="prof-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
     </div>
   `;
 
@@ -359,26 +366,61 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
   });
 }
 
+function renderProfitVisual(node, periodCols) {
+  if (!periodCols || periodCols.length === 0) return '—';
+  const vals = periodCols.map(c => Number(node.values?.[c.key]) || 0);
+  const maxAbs = Math.max(...vals.map(Math.abs), 1);
+  const w = 120;
+  const h = 20;
+  const barGap = 4;
+  const totalBars = periodCols.length;
+  const barW = Math.max(6, Math.floor((w - (totalBars - 1) * barGap) / totalBars));
+  
+  const bars = vals.map((v, i) => {
+    const col = periodCols[i];
+    const bH = Math.max(2, Math.round((Math.abs(v) / maxAbs) * (h - 4)));
+    const x = i * (barW + barGap);
+    const y = h - bH - 2;
+    const color = v >= 0 ? (currentMeasure === 'expense' ? '#f59e0b' : '#3b82f6') : '#ef4444';
+    const tip = `${col.label}: ${Math.round(v).toLocaleString('en-US')}`;
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${bH}" rx="2" fill="${color}" opacity="0.9"><title>${escapeHtml(tip)}</title></rect>`;
+  }).join('');
+
+  return `
+    <div style="display:inline-flex;align-items:center;justify-content:center;width:100%;height:100%;">
+      <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" style="overflow:visible;display:block;">
+        ${bars}
+      </svg>
+    </div>
+  `;
+}
+
 function initProfitabilityTreeTable(container, data) {
   const periodCols = data.columns || [];
   const treeData = data.tree || [];
   const totals = data.totals || {};
 
   const columns = [
-    { id: 'name', label: 'البيان / الهيكل الهرمي', minWidth: 'min(46vw, 240px)', align: 'right', priority: 1 },
+    { id: 'name', label: 'البيان / الهيكل الهرمي', minWidth: '260px', align: 'right', priority: 1 },
     ...periodCols.map((col, idx) => ({
       id: col.key,
       label: col.label,
       align: 'left',
-      minWidth: '115px',
+      width: '115px',
+      minWidth: '100px',
       priority: (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1
     })),
-    { id: 'total', label: 'الإجمالي', align: 'left', minWidth: '120px', priority: 1 }
+    { id: 'total', label: 'الإجمالي', align: 'left', width: '120px', minWidth: '110px', priority: 1 }
   ];
 
   if (currentMeasure === 'net') {
-    columns.push({ id: 'margin', label: 'هامش الربح', align: 'center', minWidth: '95px', priority: 2 });
+    columns.push({ id: 'margin', label: 'هامش الربح', align: 'center', width: '90px', minWidth: '85px', priority: 2 });
   }
+
+  columns.push(
+    { id: 'group_pct', label: '% من المجموعة', align: 'center', width: '95px', minWidth: '85px', priority: 2 },
+    { id: 'profit_visual', label: 'الاتجاه والمساهمة', align: 'center', flex: true, minWidth: '160px', priority: 1 }
+  );
 
   currentTreeTable = createTreeTable(container, {
     storageKey: 'mizaniat_prof_tree_expanded',
@@ -420,6 +462,11 @@ function initProfitabilityTreeTable(container, data) {
 
       const cursor = hasKids ? 'cursor:pointer;' : '';
 
+      const grandTot = totals.total || 0;
+      const groupPct = (grandTot !== 0 && node.total !== undefined)
+        ? ((node.total / grandTot) * 100).toFixed(1) + '%'
+        : '—';
+
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
           <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
@@ -440,6 +487,12 @@ function initProfitabilityTreeTable(container, data) {
               ${node.margin !== undefined ? fmtMargin(node.margin) : '—'}
             </td>
           ` : ''}
+          <td class="tree-col-num" data-col-id="group_pct" data-priority="2" style="text-align:center;font-weight:700;color:var(--exec-accent, #60a5fa);">
+            ${groupPct}
+          </td>
+          <td class="tree-col-visual" data-col-id="profit_visual" data-priority="1" style="text-align:center;padding:6px 10px;">
+            ${renderProfitVisual(node, periodCols)}
+          </td>
         </tr>
       `;
     },
@@ -463,6 +516,12 @@ function initProfitabilityTreeTable(container, data) {
               ${fmtMargin(overallMargin)}
             </td>
           ` : ''}
+          <td class="tree-col-num" data-col-id="group_pct" data-priority="2" style="text-align:center;padding:14px 18px;color:var(--exec-accent, #60a5fa);">
+            100.0%
+          </td>
+          <td class="tree-col-visual" data-col-id="profit_visual" data-priority="1" style="text-align:center;padding:14px 10px;">
+            ${renderProfitVisual(totals, periodCols)}
+          </td>
         </tr>
       `;
     }

@@ -56,13 +56,13 @@ function getPeriodParamsFromFilter(timeFilter) {
 
 export async function renderVatTab(body, container, timeFilter, selectedCos) {
   body.innerHTML = `
-    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;">
+    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
       <div id="vat-loading" style="text-align:center;padding:80px 20px;color:rgba(255,255,255,0.5);font-size:1.1rem;">
         <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-left:8px;font-size:1.4rem;">⏳</span>
         جاري تحميل تقرير ضريبة القيمة المضافة...
       </div>
-      <div id="vat-main-content" style="display:none;flex-direction:column;gap:22px;"></div>
+      <div id="vat-main-content" style="display:none;flex-direction:column;gap:22px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
     </div>
   `;
 
@@ -113,15 +113,15 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
 
   mainContent.innerHTML = `
     <!-- Top 4 KPI Cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));gap:16px;">
+    <div class="vat-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
       <!-- Card 1: Output VAT -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;">
+      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#3b82f6;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المخرجات (المبيعات)</span>
           <span style="font-size:1.2rem;">📤</span>
         </div>
-        <div style="font-size:1.75rem;font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;">
+        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           ${fmtVal(cards.output_tax, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
@@ -130,13 +130,13 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
       </div>
 
       <!-- Card 2: Input VAT -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;">
+      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#10b981;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المدخلات (المشتريات)</span>
           <span style="font-size:1.2rem;">📥</span>
         </div>
-        <div style="font-size:1.75rem;font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;">
+        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           ${fmtVal(cards.input_tax, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
@@ -145,13 +145,13 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
       </div>
 
       <!-- Card 3: Net Tax Due (Highlighted) -->
-      <div class="exec-card" style="background:linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(30,41,59,0.7) 100%);border:1px solid rgba(59,130,246,0.35);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;">
+      <div class="exec-card" style="background:linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(30,41,59,0.7) 100%);border:1px solid rgba(59,130,246,0.35);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#60a5fa;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:#93c5fd;font-weight:700;">صافي الضريبة المستحقة للفترة</span>
           <span style="font-size:1.2rem;">🧾</span>
         </div>
-        <div style="font-size:1.85rem;font-weight:900;color:#ffffff;letter-spacing:-0.5px;">
+        <div style="font-size:clamp(1.2rem, 2.3vw, 1.85rem);font-weight:900;color:#ffffff;letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           ${fmtVal(cards.net_tax_due, false)} <span style="font-size:0.95rem;font-weight:500;color:#93c5fd;">ر.س</span>
         </div>
         <div style="font-size:0.82rem;color:${cards.last_completed_period ? '#60a5fa' : 'var(--exec-text-dim, #94a3b8)'};font-weight:500;">
@@ -160,13 +160,13 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
       </div>
 
       <!-- Card 4: Ledger Balance -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;">
+      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#f59e0b;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">رصيد حسابات الضريبة الدفتري</span>
           <span style="font-size:1.2rem;">🏦</span>
         </div>
-        <div style="font-size:1.75rem;font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;">
+        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
           ${fmtVal(cards.ledger_balance, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
@@ -232,7 +232,7 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
     </div>
 
     <!-- TreeTable Container -->
-    <div id="vat-tree-container" class="vat-treetable-container" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;overflow:hidden;"></div>
+    <div id="vat-tree-container" class="vat-treetable-container tree-table-wrap" data-scroll-x="true" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
 
     <!-- Slide-over Drawer for Details -->
     <div id="vat-drawer-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9998;backdrop-filter:blur(2px);transition:opacity 0.2s;"></div>
@@ -301,15 +301,38 @@ function renderVatTreeTable(body, data) {
   const rawTree = data.tree || [];
   const totals = data.totals || {};
 
+  function renderVatVisual(node) {
+    const outTax = Math.max(0, node.output_tax || 0);
+    const inTax = Math.max(0, node.input_tax || 0);
+    const total = outTax + inTax;
+    if (total <= 0) return '—';
+    const pOut = (outTax / total * 100).toFixed(1);
+    const pIn = (inTax / total * 100).toFixed(1);
+    const tip = `ضريبة المخرجات: ${Math.round(outTax).toLocaleString('en-US')} (${pOut}%)\nضريبة المدخلات: ${Math.round(inTax).toLocaleString('en-US')} (${pIn}%)`;
+    return `
+      <div title="${escapeHtml(tip)}" style="display:flex;flex-direction:column;gap:3px;width:100%;min-width:120px;cursor:help;padding:2px 4px;">
+        <div style="display:flex;width:100%;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+          <div style="width:${pOut}%;background:#3b82f6;height:100%;"></div>
+          <div style="width:${pIn}%;background:#10b981;height:100%;"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--exec-text-dim, #94a3b8);padding:0 2px;">
+          <span style="color:#60a5fa;">مخرجات ${pOut}%</span>
+          <span style="color:#34d399;">مدخلات ${pIn}%</span>
+        </div>
+      </div>
+    `;
+  }
+
   const columns = [
-    { id: 'name', key: 'name', label: 'البيان / الفترة', minWidth: 'min(46vw, 240px)', priority: 1 },
-    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', minWidth: '110px', priority: 2 },
-    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', minWidth: '115px', priority: 1 },
-    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', minWidth: '110px', priority: 2 },
-    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', minWidth: '115px', priority: 1 },
-    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة المستحقة', minWidth: '120px', priority: 1 },
-    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', minWidth: '110px', priority: 2 },
-    { id: 'actions', key: 'actions', label: '', minWidth: '80px', priority: 1 }
+    { id: 'name', key: 'name', label: 'البيان / الفترة', minWidth: '260px', priority: 1 },
+    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '110px', minWidth: '100px', priority: 2 },
+    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '115px', minWidth: '100px', priority: 1 },
+    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '110px', minWidth: '100px', priority: 2 },
+    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '115px', minWidth: '100px', priority: 1 },
+    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '120px', minWidth: '105px', priority: 1 },
+    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '110px', minWidth: '100px', priority: 2 },
+    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات مقابل المدخلات', align: 'center', flex: true, minWidth: '160px', priority: 1 },
+    { id: 'actions', key: 'actions', label: '', width: '44px', minWidth: '44px', maxWidth: '44px', priority: 1 }
   ];
 
   currentTreeTable = createTreeTable(container, {
@@ -367,8 +390,8 @@ function renderVatTreeTable(body, data) {
 
       const actionBtn = (node.type === 'month' || node.type === 'quarter') ? `
         <button type="button" class="vat-detail-btn exec-btn-icon" data-cid="${node.company_id}" data-period="${escapeHtml(node.period_key || node.month || node.quarter)}" title="عرض تفاصيل الفترة"
-          style="padding:4px 8px;border-radius:4px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;cursor:pointer;font-size:0.75rem;">
-          📑 تفاصيل
+          style="width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;cursor:pointer;font-size:0.9rem;padding:0;">
+          📑
         </button>
       ` : '';
 
@@ -393,7 +416,12 @@ function renderVatTreeTable(body, data) {
           <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 14px;text-align:right;">${fmtVal(node.input_tax)}</td>
           <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 14px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
           <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.settlements)}</td>
-          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="padding:10px 10px;text-align:center;">${actionBtn}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:8px 12px;">
+            ${renderVatVisual(node)}
+          </td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:44px;min-width:44px;max-width:44px;padding:4px 2px;">
+            ${actionBtn}
+          </td>
         </tr>
       `;
     },
@@ -410,7 +438,10 @@ function renderVatTreeTable(body, data) {
           <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
           <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:12px 14px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
           <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
-          <td class="tree-col-num" data-col-id="actions" data-priority="1"></td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:12px 12px;">
+            ${renderVatVisual(tot)}
+          </td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:44px;min-width:44px;max-width:44px;padding:4px 2px;"></td>
         </tr>
       `;
     }

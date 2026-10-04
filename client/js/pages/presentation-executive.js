@@ -552,44 +552,44 @@ function renderExecutiveContent(container, data) {
   container.innerHTML = `
     <!-- (1) 5 KPI Summary Cards (Arabic only) -->
     ${showCards ? `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:16px;">
+      <div class="exec-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:16px;">
         
         <!-- 1. Revenue -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:8px;min-width:0;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">الإيرادات</span>
-          <div style="font-size:1.85rem;font-weight:900;color:#3b82f6;" class="exec-num">${(cards.revenue || 0).toLocaleString('en-US')}</div>
+          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#3b82f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.revenue || 0).toLocaleString('en-US')}</div>
           <span style="font-size:0.8rem;color:var(--exec-text-muted);">إيرادات النشاط من الأستاذ (بدون ضريبة)</span>
         </div>
 
         <!-- 2. Expenses -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:8px;min-width:0;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المصروفات</span>
-          <div style="font-size:1.85rem;font-weight:900;color:#f59e0b;" class="exec-num">${(cards.expenses || 0).toLocaleString('en-US')}</div>
+          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#f59e0b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.expenses || 0).toLocaleString('en-US')}</div>
           <span style="font-size:0.8rem;color:var(--exec-text-muted);">إجمالي المصروفات من الأستاذ</span>
         </div>
 
         <!-- 3. Net Profit -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:8px;min-width:0;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">صافي الربح</span>
-          <div style="font-size:1.85rem;font-weight:900;color:#10b981;" class="exec-num">${(cards.net_profit || 0).toLocaleString('en-US')}</div>
+          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#10b981;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.net_profit || 0).toLocaleString('en-US')}</div>
           <span style="font-size:0.82rem;font-weight:700;color:var(--exec-text-muted);">الهامش: <span class="exec-num" style="color:#10b981;">${fmtRate(cards.profit_margin, true, cards.revenue)}</span></span>
         </div>
 
         <!-- 4. Collected Period Untaxed -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #06b6d4;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #06b6d4;display:flex;flex-direction:column;gap:8px;min-width:0;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المحصّل من إيراد الفترة</span>
-          <div style="font-size:1.85rem;font-weight:900;color:#06b6d4;" class="exec-num">${(cards.collected_period_untaxed || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.82rem;color:var(--exec-text-muted);"><strong class="exec-num" style="color:#06b6d4;">${cards.collection_rate_untaxed || 0}%</strong> من المفوتر (${(cards.billed_period_untaxed || 0).toLocaleString('en-US')} بدون ضريبة)</span>
+          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#06b6d4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.collected_period_untaxed || 0).toLocaleString('en-US')}</div>
+          <span style="font-size:0.82rem;color:var(--exec-text-muted);"><strong class="exec-num" style="color:#06b6d4;">${cards.collection_rate_untaxed || 0}%</strong> من المفوتر (${Math.round(cards.billed_period_untaxed || 0).toLocaleString('en-US')} بدون ضريبة)</span>
           ${showCollectedNotice ? `
             <span style="font-size:0.75rem;color:var(--exec-text-muted);line-height:1.4;margin-top:2px;">* يشمل تحصيلات عن فواتير سنوات سابقة لا يقابلها إيراد في الأستاذ</span>
           ` : ''}
         </div>
 
         <!-- 5. Period Residual -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:8px;">
+        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:8px;min-width:0;">
           <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المتبقي من فواتير الفترة</span>
-          <div style="font-size:1.85rem;font-weight:900;color:var(--exec-danger);" class="exec-num">${(cards.residual_period || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.82rem;color:var(--exec-text-muted);">المتأخر +90 يوماً: <span class="exec-num" style="color:var(--exec-danger);font-weight:700;">${(cards.overdue_90 || 0).toLocaleString('en-US')}</span></span>
+          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:var(--exec-danger);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.residual_period || 0).toLocaleString('en-US')}</div>
+          <span style="font-size:0.82rem;color:var(--exec-text-muted);">المتأخر +90 يوماً: <span class="exec-num" style="color:var(--exec-danger);font-weight:700;">${Math.round(cards.overdue_90 || 0).toLocaleString('en-US')}</span></span>
         </div>
 
       </div>
@@ -863,7 +863,7 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
  */
 // Aging table column definitions
 const agingColumns = [
-  { id: 'name', label: 'البيان', minWidth: '220px', align: 'right', priority: 1 },
+  { id: 'name', label: 'البيان', minWidth: '260px', align: 'right', priority: 1 },
   { id: 'not_due', label: 'غير مستحق', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
   { id: 'b1_30', label: '1-30 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
   { id: 'b31_60', label: '31-60 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
@@ -876,14 +876,14 @@ const agingColumns = [
 
 function getMainTableColumns(prefs) {
   const cols = prefs.columns || defaultPreferences.columns;
-  const list = [{ id: 'name', label: 'البيان', minWidth: '220px', align: 'right', priority: 1 }];
-  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
-  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
-  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
-  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', minWidth: '85px', maxWidth: '100px', priority: 2 });
-  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
-  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'تحصيل الإيراد (%)', align: 'center', minWidth: '110px', maxWidth: '130px', priority: 2 });
-  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي من فواتير الفترة', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
+  const list = [{ id: 'name', label: 'البيان', minWidth: '260px', align: 'right', priority: 1 }];
+  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
+  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
+  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
+  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', width: '85px', minWidth: '80px', priority: 2 });
+  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
+  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'تحصيل الإيراد (%)', align: 'center', flex: true, minWidth: '160px', priority: 2 });
+  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي من فواتير الفترة', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
   return list;
 }
 
@@ -934,12 +934,12 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
       ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${fmtRate(node.margin, true, node.revenue)}</td>` : ''}
       ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.collected)}</td>` : ''}
       ${showRate ? `
-        <td data-col-id="collection_rate" data-priority="2" class="tree-col-num" style="text-align:center;">
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 12px;">
           ${node.collection_rate !== null && node.collection_rate !== undefined ? `
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
-              <span class="exec-num" style="font-size:0.82rem;">${fmtRate(node.collection_rate)}</span>
-              <div style="width:40px;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
-                <div style="width:${Math.min(100, node.collection_rate || 0)}%;height:100%;background:#06b6d4;"></div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
+              <span class="exec-num" style="font-size:0.82rem;font-weight:700;width:38px;text-align:right;">${fmtRate(node.collection_rate)}</span>
+              <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+                <div style="width:${Math.min(100, node.collection_rate || 0)}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
               </div>
             </div>
           ` : '—'}
@@ -969,11 +969,11 @@ function renderMainTableTotals(totals) {
       ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;color:#10b981;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
       ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;color:#06b6d4;">${fmtVal(totals.collected)}</td>` : ''}
       ${showRate ? `
-        <td data-col-id="collection_rate" data-priority="2" class="tree-col-num" style="text-align:center;">
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
-            <span class="exec-num" style="font-size:0.85rem;font-weight:700;">${fmtRate(totals.collection_rate)}</span>
-            <div style="width:50px;height:6px;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;">
-              <div style="width:${Math.min(100, totals.collection_rate || 0)}%;height:100%;background:#06b6d4;"></div>
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:12px 14px;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
+            <span class="exec-num" style="font-size:0.85rem;font-weight:700;width:38px;text-align:right;">${fmtRate(totals.collection_rate)}</span>
+            <div style="flex:1;height:8px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;">
+              <div style="width:${Math.min(100, totals.collection_rate || 0)}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
             </div>
           </div>
         </td>

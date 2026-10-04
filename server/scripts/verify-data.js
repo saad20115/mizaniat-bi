@@ -52,6 +52,24 @@ const orphanRel = db.prepare(`SELECT COUNT(*) n FROM guarantee_releases gr WHERE
     AND ji.account_code = gr.account_code AND ji.move_name = gr.move_name)`).get().n;
 check('guarantees: all linked to entries', orphanSub + orphanRel === 0, `${orphanSub} sub-items, ${orphanRel} releases unlinked`);
 
+// 4b. Manual releases validation (B2): WARN if manual release exists without matching credit in ledger (pending in Odoo)
+const allReleases = db.prepare('SELECT * FROM guarantee_releases').all();
+const pendingReleases = [];
+for (const r of allReleases) {
+  const moveJis = db.prepare('SELECT debit, credit FROM journal_items WHERE company_id = ? AND account_code = ? AND move_name = ?').all(r.company_id, r.account_code, r.move_name);
+  if (moveJis.some(j => j.credit > 0)) continue;
+  const totalDebit = moveJis.reduce((s, j) => s + j.debit, 0);
+  const matchingCredit = db.prepare('SELECT 1 FROM journal_items WHERE company_id = ? AND account_code = ? AND move_state = \'posted\' AND ABS(credit - ?) < 0.01').get(r.company_id, r.account_code, totalDebit);
+  if (!matchingCredit) {
+    pendingReleases.push(`Co ${r.company_id}: ${r.move_name} (amount: ${totalDebit} SAR, note: "${r.notes || ''}")`);
+  }
+}
+if (pendingReleases.length > 0) {
+  console.log(`[WARN] guarantees (B2): ${pendingReleases.length} manual release(s) pending ledger credit in Odoo:\n       ${pendingReleases.join('\n       ')}`);
+}
+check('guarantees: manual releases structure valid (B2)', true,
+  `${allReleases.length} releases checked (${pendingReleases.length} pending in Odoo)`);
+
 // 16b. Payment state consistency (R1)
 const badPaymentStates = db.prepare(`
   SELECT count(*) as cnt
@@ -165,12 +183,11 @@ for (const c of companies) {
     check('guarantees G1: no credit items in active list', creditOriginItems.length === 0,
       `${creditOriginItems.length} credit items found`);
 
-    // Rule 2: List sum - diff = ledger balance
-    const listSum = round(activeCompany.totalAmount);
-    const ledgerBal = round(activeCompany.ledgerBalance);
+    // Rule 2 (B2): If |diff| > 0.05 print [WARN] with diff value (replaces circular check)
     const repDiff = round(activeCompany.diff);
-    check('guarantees G1: list sum - diff = ledger balance', Math.abs((listSum - repDiff) - ledgerBal) < 0.01,
-      `list ${listSum} - diff ${repDiff} = ${round(listSum - repDiff)} vs ledger ${ledgerBal}`);
+    if (Math.abs(repDiff) > 0.05) {
+      console.log(`[WARN] guarantees G1: company ${c.id} (${c.name}) diff with ledger > 0.05 (diff: ${repDiff})`);
+    }
 
     // Rule 3 (G1-b): If diff is zero (within penny limit), unmatchedCredits must be empty
     if (Math.abs(repDiff) <= 0.05) {

@@ -68,13 +68,13 @@ function getPeriodParamsFromFilter(timeFilter) {
 
 export async function renderCustomersCollectionTab(body, container, timeFilter, selectedCos) {
   body.innerHTML = `
-    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;">
+    <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
       <div id="cust-loading" style="text-align:center;padding:80px 20px;color:rgba(255,255,255,0.5);font-size:1.1rem;">
         <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-left:8px;font-size:1.4rem;">⏳</span>
         جاري تحميل تقرير العملاء والتحصيل الموحّد...
       </div>
-      <div id="cust-main-content" style="display:none;flex-direction:column;gap:22px;"></div>
+      <div id="cust-main-content" style="display:none;flex-direction:column;gap:22px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
     </div>
   `;
 
@@ -122,69 +122,59 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
   const totalResidual = totals.total_residual || 0;
 
   contentEl.innerHTML = `
-    <!-- Top KPI Cards -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:16px;">
+    <!-- Top KPI Cards (5 Cards per Claude B6) -->
+    <div class="cust-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;width:100%;min-width:0;box-sizing:border-box;">
       
       <!-- 1. Billed -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:6px;">
+      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
         <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">إجمالي المفوتر</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#3b82f6;" class="exec-num">${(totals.total_billed || 0).toLocaleString('en-US')}</div>
+        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#3b82f6;" class="exec-num">${Math.round(totals.total_billed || 0).toLocaleString('en-US')}</div>
         <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">الفواتير الصادرة شاملة الضريبة</span>
       </div>
 
       <!-- 2. Returns -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:6px;">
+      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
         <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المرتجعات والإشعارات</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#f59e0b;" class="exec-num">${(totals.total_returns || 0).toLocaleString('en-US')}</div>
+        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#f59e0b;" class="exec-num">${Math.round(totals.total_returns || 0).toLocaleString('en-US')}</div>
         <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">${(data.returns_list || []).length} إشعار دائن ومرتجع</span>
       </div>
 
       <!-- 3. Net Billed -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #8b5cf6;display:flex;flex-direction:column;gap:6px;">
+      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #8b5cf6;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
         <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">الصافي بعد المرتجعات</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#a78bfa;" class="exec-num">${(totals.total_net || 0).toLocaleString('en-US')}</div>
+        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#a78bfa;" class="exec-num">${Math.round(totals.total_net || 0).toLocaleString('en-US')}</div>
         <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">المفوتر − المرتجعات</span>
       </div>
 
-      <!-- 4. Collected -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:6px;">
+      <!-- 4. Collected (with rate below) -->
+      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
         <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المحصّل الفعلي</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#10b981;" class="exec-num">${(totals.total_collected || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">الصافي − المتبقي</span>
-      </div>
-
-      <!-- 5. Remaining / Residual -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:6px;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المتبقي للتحصيل</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#ef4444;" class="exec-num">${(totals.total_residual || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">أرصدة الذمم المتبقية</span>
-      </div>
-
-      <!-- 6. Collection Rate -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #06b6d4;display:flex;flex-direction:column;gap:6px;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">نسبة التحصيل</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#06b6d4;" class="exec-num">${totals.collection_rate || 0}%</div>
-        <div style="width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin-top:2px;">
+        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#10b981;" class="exec-num">${Math.round(totals.total_collected || 0).toLocaleString('en-US')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;">
+          <span style="font-size:0.8rem;font-weight:700;color:#06b6d4;">نسبة التحصيل: ${totals.collection_rate || 0}%</span>
+        </div>
+        <div style="width:100%;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
           <div style="width:${Math.min(100, totals.collection_rate || 0)}%;height:100%;background:#06b6d4;"></div>
         </div>
       </div>
 
-      <!-- 7. Overdue +90 Days -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #f43f5e;display:flex;flex-direction:column;gap:6px;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">متأخرات حرجة (+90 يوم)</span>
-        <div style="font-size:1.75rem;font-weight:900;color:#f43f5e;" class="exec-num">${(totals.overdue_90 || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">
-          ${totalResidual > 0 ? ((totals.overdue_90 / totalResidual) * 100).toFixed(1) : 0}% من المتبقي
-        </span>
+      <!-- 5. Remaining (with overdue +90 below) -->
+      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
+        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المتبقي للتحصيل</span>
+        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#ef4444;" class="exec-num">${Math.round(totals.total_residual || 0).toLocaleString('en-US')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;">
+          <span style="font-size:0.78rem;font-weight:700;color:#f43f5e;">المتأخر (+90 يوم): ${Math.round(totals.overdue_90 || 0).toLocaleString('en-US')}</span>
+          <span style="font-size:0.75rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">${totalResidual > 0 ? ((totals.overdue_90 / totalResidual) * 100).toFixed(1) : 0}%</span>
+        </div>
       </div>
 
     </div>
 
     <!-- Collapsible 1: Aging Buckets (مطوية) -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
+    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;box-sizing:border-box;">
       <div id="cust-aging-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">⏳ توزيع أعمار الذمم (الشرائح السبع)</span>
+          <span style="font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">⏳ أعمار ذمم فواتير الفترة (الشرائح السبع) — حسب تاريخ استحقاق الفاتورة</span>
           <span id="cust-aging-badge" style="font-size:0.82rem;color:#3b82f6;background:rgba(59,130,246,0.12);padding:2px 10px;border-radius:6px;font-weight:700;">
             ${isAgingOpen ? 'إخفاء ▲' : 'عرض الشرائح ▾'}
           </span>
@@ -200,7 +190,7 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
     </div>
 
     <!-- Collapsible 2: Returns List (مطوية) -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;">
+    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;box-sizing:border-box;">
       <div id="cust-returns-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">↩️ قائمة المرتجعات والإشعارات الدائنة</span>
@@ -223,14 +213,14 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
             * المرتجعات تخصم مباشرة من المفوتر ولا تحتسب كتحصيل نقدي
           </span>
         </div>
-        <div id="cust-returns-table-wrapper" style="overflow-x:auto;max-height:360px;">
+        <div id="cust-returns-table-wrapper" data-scroll-x="true" style="overflow-x:auto;max-height:360px;width:100%;box-sizing:border-box;">
           ${renderReturnsTable(data.returns_list || [], returnsSearchQuery)}
         </div>
       </div>
     </div>
 
     <!-- Main Section: 4-Level Hierarchical TreeTable -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px;">
+    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       
       <!-- Table Header & Controls -->
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
@@ -258,7 +248,7 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
       </div>
 
       <!-- TreeTable Mount Point -->
-      <div id="cust-tree-container" style="overflow-x:auto;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
+      <div id="cust-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
     </div>
 
     <!-- Statement Slide-over / Modal Container -->
@@ -444,16 +434,50 @@ function renderReturnsTable(returnsList, query) {
 }
 
 const mainColumns = [
-  { id: 'name', label: 'البيان / الهيكل', minWidth: 'min(46vw, 240px)', align: 'right', priority: 1 },
-  { id: 'billed', label: 'المفوتر', align: 'left', minWidth: '115px', priority: 1 },
-  { id: 'returns', label: 'المرتجعات', align: 'left', minWidth: '105px', priority: 2 },
-  { id: 'net', label: 'الصافي', align: 'left', minWidth: '115px', priority: 1 },
-  { id: 'collected', label: 'المحصّل', align: 'left', minWidth: '115px', priority: 1 },
-  { id: 'residual', label: 'المتبقي', align: 'left', minWidth: '115px', color: '#ef4444', priority: 1 },
-  { id: 'collection_rate', label: '% التحصيل', align: 'center', minWidth: '100px', priority: 2 },
-  { id: 'avg_age', label: 'عمر الدين', align: 'center', minWidth: '85px', priority: 2 },
-  { id: 'actions', label: 'إجراءات', align: 'center', minWidth: '95px', priority: 1 }
+  { id: 'name', label: 'البيان / الهيكل', minWidth: '260px', align: 'right', priority: 1 },
+  { id: 'inv_count', label: 'الفواتير', align: 'center', width: '75px', minWidth: '70px', priority: 2 },
+  { id: 'billed', label: 'المفوتر', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
+  { id: 'returns', label: 'المرتجعات', align: 'left', width: '95px', minWidth: '90px', priority: 2 },
+  { id: 'net', label: 'الصافي', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
+  { id: 'collected', label: 'المحصّل', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
+  { id: 'residual', label: 'المتبقي', align: 'left', width: '110px', minWidth: '100px', color: '#ef4444', priority: 1 },
+  { id: 'collection_rate', label: '% التحصيل', align: 'center', width: '90px', minWidth: '85px', priority: 2 },
+  { id: 'overdue_90', label: 'متأخر +90', align: 'left', width: '110px', minWidth: '100px', color: '#ef4444', priority: 2 },
+  { id: 'avg_age', label: 'العمر (يوم)', title: 'متوسط عمر الدين المرجّح بالمبلغ — حسب تاريخ استحقاق الفاتورة', align: 'center', width: '85px', minWidth: '80px', priority: 2 },
+  { id: 'aging_visual', label: 'توزيع الأعمار', align: 'center', flex: true, minWidth: '160px', priority: 1 },
+  { id: 'actions', label: '', align: 'center', width: '44px', minWidth: '44px', maxWidth: '44px', priority: 1 }
 ];
+
+function renderAgingVisual(node) {
+  const res = (node.residual !== undefined ? node.residual : node.total_residual) || 0;
+  if (res <= 0) {
+    return `<div style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;background:rgba(16,185,129,0.12);color:#10b981;font-weight:600;">مسدد ✓</div>`;
+  }
+  let notDue = 0, b1_90 = 0, over90 = 0;
+  if (node.buckets) {
+    notDue = Math.max(0, node.buckets.not_due || 0);
+    b1_90 = Math.max(0, (node.buckets.b1_30 || 0) + (node.buckets.b31_60 || 0) + (node.buckets.b61_90 || 0));
+    over90 = Math.max(0, (node.buckets.b91_180 || 0) + (node.buckets.b181_365 || 0) + (node.buckets.over_365 || 0));
+  } else if (node.type === 'invoice') {
+    const age = node.avg_age || node.age_days || 0;
+    if (age <= 0) notDue = res;
+    else if (age <= 90) b1_90 = res;
+    else over90 = res;
+  }
+  const sum = notDue + b1_90 + over90;
+  if (sum <= 0) return '—';
+  const pNotDue = (notDue / sum * 100).toFixed(1);
+  const pB1_90 = (b1_90 / sum * 100).toFixed(1);
+  const pOver90 = (over90 / sum * 100).toFixed(1);
+  const tip = `غير مستحق: ${Math.round(notDue).toLocaleString('en-US')} (${pNotDue}%)\nمتأخر 1-90 يوم: ${Math.round(b1_90).toLocaleString('en-US')} (${pB1_90}%)\nمتأخر +90 يوم: ${Math.round(over90).toLocaleString('en-US')} (${pOver90}%)`;
+  return `
+    <div title="${escapeHtml(tip)}" style="display:flex;width:100%;height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;min-width:120px;cursor:help;">
+      ${notDue > 0 ? `<div style="width:${pNotDue}%;background:#10b981;height:100%;"></div>` : ''}
+      ${b1_90 > 0 ? `<div style="width:${pB1_90}%;background:#f59e0b;height:100%;"></div>` : ''}
+      ${over90 > 0 ? `<div style="width:${pOver90}%;background:#ef4444;height:100%;"></div>` : ''}
+    </div>
+  `;
+}
 
 function initTreeTable(container, data, periodParams) {
   const treeData = data.tree || [];
@@ -502,6 +526,8 @@ function initTreeTable(container, data, periodParams) {
             const collected = isRet ? 0 : (tot - resSigned);
             const residual = resSigned;
             const rate = (net > 0 && collected > 0) ? Math.round((collected / net) * 100) : 0;
+            const ageDays = inv.age_days || 0;
+            const overdue90 = (ageDays > 90 && residual > 0) ? residual : 0;
             return {
               id: inv.id,
               name: inv.invoice_name,
@@ -511,13 +537,15 @@ function initTreeTable(container, data, periodParams) {
               invoice_date: inv.invoice_date,
               due_date: inv.due_date,
               payment_state: inv.payment_state,
+              inv_count: 1,
               billed: Math.round(billed),
               returns: Math.round(returns),
               net: Math.round(net),
               collected: Math.round(collected),
               residual: Math.round(residual),
+              overdue_90: Math.round(overdue90),
               collection_rate: rate,
-              avg_age: inv.age_days || 0,
+              avg_age: ageDays,
               isReturn: isRet
             };
           });
@@ -551,22 +579,28 @@ function initTreeTable(container, data, periodParams) {
 
       const cursor = hasKids ? 'cursor:pointer;' : (isPartner ? 'cursor:pointer;' : '');
 
-      // Action button for customer
-      let actionCell = '—';
+      // Action button: compact icon only on partner row per T1
+      let actionCell = '';
       if (isPartner) {
         actionCell = `
-          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" 
-            style="background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;padding:3px 8px;font-size:0.75rem;font-weight:700;cursor:pointer;white-space:nowrap;">
-            📄 كشف حساب
+          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" title="كشف حساب عميل"
+            style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:0.9rem;cursor:pointer;padding:0;">
+            📄
           </button>
         `;
       } else if (isInvoice) {
         actionCell = `
-          <span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:${node.payment_state === 'paid' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'};color:${node.payment_state === 'paid' ? '#10b981' : '#ef4444'};">
-            ${node.payment_state === 'paid' ? 'مسدد' : 'متبقي'}
+          <span title="${node.payment_state === 'paid' ? 'مسدد' : 'متبقي'}" style="font-size:0.8rem;">
+            ${node.payment_state === 'paid' ? '✅' : '⏳'}
           </span>
         `;
       }
+
+      const invCountDisplay = node.inv_count !== undefined
+        ? Number(node.inv_count).toLocaleString('en-US')
+        : (isInvoice ? '1' : '—');
+
+      const overdueColor = (node.overdue_90 || 0) > 0 ? 'color:#ef4444;font-weight:700;' : '';
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
@@ -577,6 +611,7 @@ function initTreeTable(container, data, periodParams) {
             ${isInvoice ? `<span style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-right:6px;">(${escapeHtml(node.invoice_date || '')})</span>` : ''}
             ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
           </td>
+          <td class="tree-col-num" data-col-id="inv_count" data-priority="2" style="text-align:center;">${invCountDisplay}</td>
           <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;">${fmtVal(node.billed)}</td>
           <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;color:#f59e0b;">${fmtVal(node.returns)}</td>
           <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;font-weight:700;">${fmtVal(node.net)}</td>
@@ -592,6 +627,7 @@ function initTreeTable(container, data, periodParams) {
               </div>
             ` : '—'}
           </td>
+          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;${overdueColor}">${fmtVal(node.overdue_90)}</td>
           <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;">
             ${(node.avg_age || 0) > 0 ? `
               <span class="exec-num" style="font-size:0.8rem;padding:2px 6px;border-radius:4px;background:${node.avg_age > 90 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)'};color:${node.avg_age > 90 ? '#ef4444' : 'inherit'};">
@@ -599,24 +635,34 @@ function initTreeTable(container, data, periodParams) {
               </span>
             ` : '—'}
           </td>
-          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="text-align:center;">
+          <td class="tree-col-visual" data-col-id="aging_visual" data-priority="1" style="text-align:center;padding:8px 12px;">
+            ${renderAgingVisual(node)}
+          </td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:44px;min-width:44px;max-width:44px;padding:4px 2px;">
             ${actionCell}
           </td>
         </tr>
       `;
     },
     renderTotals: (totals) => {
+      const totInv = totals.inv_count !== undefined ? Number(totals.inv_count).toLocaleString('en-US') : '—';
+      const overdueColor = (totals.overdue_90 || 0) > 0 ? 'color:#ef4444;' : '';
       return `
         <tr style="background:rgba(59,130,246,0.12);font-weight:900;border-top:2px solid rgba(59,130,246,0.3);font-size:0.98rem;">
           <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
+          <td class="tree-col-num" data-col-id="inv_count" data-priority="2" style="text-align:center;padding:14px 8px;">${totInv}</td>
           <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_billed)}</td>
           <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;padding:14px 18px;color:#f59e0b;">${fmtVal(totals.total_returns)}</td>
           <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_net)}</td>
           <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;padding:14px 18px;color:#10b981;">${fmtVal(totals.total_collected)}</td>
           <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;padding:14px 18px;color:#ef4444;">${fmtVal(totals.total_residual)}</td>
           <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;padding:14px 18px;color:#06b6d4;">${totals.collection_rate || 0}%</td>
+          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;padding:14px 18px;${overdueColor}">${fmtVal(totals.overdue_90)}</td>
           <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;padding:14px 18px;">—</td>
-          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="text-align:center;padding:14px 18px;">—</td>
+          <td class="tree-col-visual" data-col-id="aging_visual" data-priority="1" style="text-align:center;padding:14px 12px;">
+            ${renderAgingVisual(totals)}
+          </td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;padding:14px 2px;width:44px;"></td>
         </tr>
       `;
     },

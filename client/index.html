@@ -19,6 +19,13 @@
           localStorage.removeItem('mizaniat_viewer_token');
           sessionStorage.removeItem('mizaniat_viewer_token');
         }
+        const theme = urlParams.get('theme') || localStorage.getItem('theme');
+        if (theme === 'light') {
+          document.documentElement.classList.add('light-theme');
+          document.addEventListener('DOMContentLoaded', () => {
+            if (document.body) document.body.classList.add('light-theme');
+          });
+        }
       } catch(e) {}
     })();
   </script>

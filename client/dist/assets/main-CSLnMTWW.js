@@ -1,5 +1,5 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/special-expenses-D_6zNMJh.js","assets/presentation-CnrDJZC_.js","assets/presentation-ZvsEv9Q5.css","assets/viewers-management-4ELhhZZP.js"])))=>i.map(i=>d[i]);
-import{s as _,a as b,b as h,f as v,g as Je,c as ge,d as ye,h as tt,E as at,_ as Ue,r as ht,e as xt}from"./presentation-CnrDJZC_.js";import{renderFilters as be,loadFilterOptions as $t}from"./filters-Db7TMvQ9.js";const Xe=[{id:"dashboard",icon:"📊",label:"لوحة التحكم",section:"رئيسي"},{id:"income-statement",icon:"📈",label:"قائمة الدخل",section:"التقارير المالية"},{id:"balance-sheet",icon:"⚖️",label:"الميزانية العمومية",section:"التقارير المالية"},{id:"cash-flow",icon:"💰",label:"التدفقات النقدية",section:"التقارير المالية"},{id:"special-expenses",icon:"💸",label:"مصروفات مخصصة",section:"التقارير المالية"},{id:"trial-balance",icon:"📝",label:"ميزان المراجعة",section:"التقارير المالية"},{id:"detailed-trial-balance",icon:"🔍",label:"ميزان تفصيلي",section:"التقارير المالية"},{id:"account-statement",icon:"📄",label:"كشف حساب",section:"التقارير المالية"},{id:"guarantees",icon:"🏦",label:"الضمانات البنكية",section:"التقارير المالية"},{id:"hajj-budget",icon:"🕋",label:"موازنات المشاريع",section:"التقارير المالية",url:"https://budget.jalbait.com"},{id:"pivot",icon:"🔄",label:"الجداول المحورية",section:"التحليل"},{id:"presentation",icon:"🎬",label:"عرض تقديمي",section:"التحليل"},{id:"tax-builder",icon:"🧾",label:"مصمم التقرير الضريبي",section:"التحليل"},{id:"journal-items",icon:"📋",label:"القيود المحاسبية",section:"التحليل"},{id:"data-preview",icon:"🗂️",label:"معاينة بيانات API",section:"التحليل"},{id:"sales-data-preview",icon:"🛒",label:"معاينة المبيعات API",section:"التحليل"},{id:"analytic-accounts",icon:"📂",label:"الحسابات التحليلية",section:"الإعدادات"},{id:"mapping",icon:"🔗",label:"توحيد الحسابات",section:"الإعدادات"},{id:"journal-mapping",icon:"🎯",label:"توحيد اليوميات",section:"الإعدادات"},{id:"viewers-management",icon:"👥",label:"إدارة المشاهدين",section:"الإعدادات"},{id:"settings",icon:"⚙️",label:"إعدادات النظام",section:"الإعدادات"},{id:"sales-settings",icon:"🛍️",label:"إعدادات نظام المبيعات",section:"الإعدادات"},{id:"api-manager",icon:"🔌",label:"إدارة الـ APIs",section:"الإعدادات"}];function st(){const e=document.getElementById("sidebar-nav"),t=document.getElementById("sidebar"),a=document.getElementById("main-content"),s=document.getElementById("sidebar-toggle"),n=_.get("currentPage"),r=window.isViewerMode&&window.isViewerMode();_.get("sidebarCollapsed")?(t.classList.add("collapsed"),a.classList.add("sidebar-collapsed"),s&&(s.querySelector("span").textContent="►")):(t.classList.remove("collapsed"),a.classList.remove("sidebar-collapsed"),s&&(s.querySelector("span").textContent="◄"));const o=r?Xe.filter(f=>f.id==="presentation"||f.id==="hajj-budget"):Xe;let i="",d="";for(const f of o)f.section!==d&&(d=f.section,i+=`<div class="nav-section-title">${d}</div>`),i+=`
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/special-expenses-B_ZqUwt4.js","assets/presentation-CJQSRRdC.js","assets/presentation-DwPPwsHo.css","assets/viewers-management-BbegqSZf.js"])))=>i.map(i=>d[i]);
+import{s as _,a as b,b as h,f as v,g as Je,c as ge,d as ye,h as tt,E as at,_ as Ue,r as ht,e as xt}from"./presentation-CJQSRRdC.js";import{renderFilters as be,loadFilterOptions as $t}from"./filters-Yhwfdg2b.js";const Xe=[{id:"dashboard",icon:"📊",label:"لوحة التحكم",section:"رئيسي"},{id:"income-statement",icon:"📈",label:"قائمة الدخل",section:"التقارير المالية"},{id:"balance-sheet",icon:"⚖️",label:"الميزانية العمومية",section:"التقارير المالية"},{id:"cash-flow",icon:"💰",label:"التدفقات النقدية",section:"التقارير المالية"},{id:"special-expenses",icon:"💸",label:"مصروفات مخصصة",section:"التقارير المالية"},{id:"trial-balance",icon:"📝",label:"ميزان المراجعة",section:"التقارير المالية"},{id:"detailed-trial-balance",icon:"🔍",label:"ميزان تفصيلي",section:"التقارير المالية"},{id:"account-statement",icon:"📄",label:"كشف حساب",section:"التقارير المالية"},{id:"guarantees",icon:"🏦",label:"الضمانات البنكية",section:"التقارير المالية"},{id:"hajj-budget",icon:"🕋",label:"موازنات المشاريع",section:"التقارير المالية",url:"https://budget.jalbait.com"},{id:"pivot",icon:"🔄",label:"الجداول المحورية",section:"التحليل"},{id:"presentation",icon:"🎬",label:"عرض تقديمي",section:"التحليل"},{id:"tax-builder",icon:"🧾",label:"مصمم التقرير الضريبي",section:"التحليل"},{id:"journal-items",icon:"📋",label:"القيود المحاسبية",section:"التحليل"},{id:"data-preview",icon:"🗂️",label:"معاينة بيانات API",section:"التحليل"},{id:"sales-data-preview",icon:"🛒",label:"معاينة المبيعات API",section:"التحليل"},{id:"analytic-accounts",icon:"📂",label:"الحسابات التحليلية",section:"الإعدادات"},{id:"mapping",icon:"🔗",label:"توحيد الحسابات",section:"الإعدادات"},{id:"journal-mapping",icon:"🎯",label:"توحيد اليوميات",section:"الإعدادات"},{id:"viewers-management",icon:"👥",label:"إدارة المشاهدين",section:"الإعدادات"},{id:"settings",icon:"⚙️",label:"إعدادات النظام",section:"الإعدادات"},{id:"sales-settings",icon:"🛍️",label:"إعدادات نظام المبيعات",section:"الإعدادات"},{id:"api-manager",icon:"🔌",label:"إدارة الـ APIs",section:"الإعدادات"}];function st(){const e=document.getElementById("sidebar-nav"),t=document.getElementById("sidebar"),a=document.getElementById("main-content"),s=document.getElementById("sidebar-toggle"),n=_.get("currentPage"),r=window.isViewerMode&&window.isViewerMode();_.get("sidebarCollapsed")?(t.classList.add("collapsed"),a.classList.add("sidebar-collapsed"),s&&(s.querySelector("span").textContent="►")):(t.classList.remove("collapsed"),a.classList.remove("sidebar-collapsed"),s&&(s.querySelector("span").textContent="◄"));const o=r?Xe.filter(f=>f.id==="presentation"||f.id==="hajj-budget"):Xe;let i="",d="";for(const f of o)f.section!==d&&(d=f.section,i+=`<div class="nav-section-title">${d}</div>`),i+=`
       <div class="nav-item ${n===f.id?"active":""}" data-page="${f.id}">
         <span class="nav-item-icon">${f.icon}</span>
         <span class="nav-item-label">${f.label}</span>
@@ -202,51 +202,53 @@ import{s as _,a as b,b as h,f as v,g as Je,c as ge,d as ye,h as tt,E as at,_ as 
         .dash-donuts-row, .dash-monthly-row { grid-template-columns: 1fr; }
       }
     </style>
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">لوحة التحكم</h1>
-        <p class="page-subtitle">نظرة عامة على الأداء المالي المجمع</p>
+    <div class="dashboard-page" style="width: 100%; min-width: 0; box-sizing: border-box;">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">لوحة التحكم</h1>
+          <p class="page-subtitle">نظرة عامة على الأداء المالي المجمع</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" id="btn-sync">🔄 مزامنة البيانات</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary" id="btn-sync">🔄 مزامنة البيانات</button>
+      
+      <div class="filters-bar" id="dashboard-filters"></div>
+      
+      <div class="kpi-grid" id="kpi-grid">
+        ${Array(7).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join("")}
       </div>
-    </div>
-    
-    <div class="filters-bar" id="dashboard-filters"></div>
-    
-    <div class="kpi-grid" id="kpi-grid">
-      ${Array(7).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join("")}
-    </div>
-    
-    <div id="dash-charts">
-      <div class="dash-donuts-row">
-        <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
-        <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
-      </div>
-      <div class="dash-monthly-row">
-        <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
-        <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+      
+      <div id="dash-charts">
+        <div class="dash-donuts-row">
+          <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
+          <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
+        </div>
+        <div class="dash-monthly-row">
+          <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+          <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+        </div>
       </div>
     </div>
   `;const t=e.querySelector("#dashboard-filters");be(t,()=>ze(e)),await ze(e),e.querySelector("#btn-sync").addEventListener("click",async()=>{try{b("جاري مزامنة البيانات...","info");const a=await h.syncAll();b("تمت المزامنة بنجاح","success"),await ze(e)}catch(a){b("فشلت المزامنة: "+a.message,"error")}})}async function ze(e){try{const t=_.getFilterParams(),a=await h.getDashboard(t);kt(e.querySelector("#kpi-grid"),a),St(e.querySelector("#dash-charts"),a)}catch(t){console.error("Dashboard error:",t),b("خطأ في تحميل البيانات","error")}}function kt(e,t){const a=t.totalRevenue>0?(t.netProfit/t.totalRevenue*100).toFixed(1):"0.0";e.innerHTML=`
     <div class="kpi-card blue fade-in">
       <div class="kpi-icon blue">📈</div>
       <div class="kpi-label">إجمالي الإيرادات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.totalRevenue,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.totalRevenue,0)}</div>
       <div class="kpi-change positive">SAR</div>
     </div>
     
     <div class="kpi-card red fade-in" style="animation-delay:0.05s">
       <div class="kpi-icon red">📉</div>
       <div class="kpi-label">إجمالي المصروفات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.totalExpenses,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.totalExpenses,0)}</div>
       <div class="kpi-change negative">SAR</div>
     </div>
     
     <div class="kpi-card emerald fade-in" style="animation-delay:0.1s">
       <div class="kpi-icon emerald">💵</div>
       <div class="kpi-label">صافي الربح</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.netProfit,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.netProfit,0)}</div>
       <div class="kpi-change ${t.netProfit>=0?"positive":"negative"}">
         ${t.netProfit>=0?"↑":"↓"} ${a}%
       </div>
@@ -255,28 +257,28 @@ import{s as _,a as b,b as h,f as v,g as Je,c as ge,d as ye,h as tt,E as at,_ as 
     <div class="kpi-card purple fade-in" style="animation-delay:0.15s">
       <div class="kpi-icon purple">🏢</div>
       <div class="kpi-label">إجمالي الأصول</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.totalAssets,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.totalAssets,0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card amber fade-in" style="animation-delay:0.2s">
       <div class="kpi-icon amber">📊</div>
       <div class="kpi-label">إجمالي الالتزامات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.totalLiabilities,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.totalLiabilities,0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card cyan fade-in" style="animation-delay:0.25s">
       <div class="kpi-icon cyan">💵</div>
       <div class="kpi-label">النقدية المتاحة</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.cashPosition,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.cashPosition,0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card teal fade-in" style="animation-delay:0.3s">
       <div class="kpi-icon teal">🏦</div>
       <div class="kpi-label">الضمانات البنكية</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${v(t.guarantees||0,2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.guarantees||0,0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">أصول محتجزة</div>
     </div>
   `}function St(e,t){const a=t.revenueByPeriod||[],s=t.expensesByPeriod||[],n=t.revenueByCompany||[],r=t.expensesByCompany||[],o=[...new Set([...a.map(p=>p.period),...s.map(p=>p.period)])].sort(),d=[...new Set(o.map(p=>p?p.split("-")[0]:""))].sort().pop()||"",l=d?a.filter(p=>p.period&&p.period.startsWith(d)):a,c=d?s.filter(p=>p.period&&p.period.startsWith(d)):s,m=Math.max(...l.map(p=>p.total),1),u=Math.max(...c.map(p=>p.total),1),y=["#3b82f6","#10b981","#06b6d4","#8b5cf6","#ec4899","#14b8a6"],g=["#ef4444","#f59e0b","#ec4899","#f97316","#e11d48","#dc2626"],f=n.reduce((p,$)=>p+$.total,0),w=r.reduce((p,$)=>p+$.total,0),E=l.reduce((p,$)=>p+$.total,0),x=c.reduce((p,$)=>p+$.total,0);e.innerHTML=`
@@ -2984,7 +2986,7 @@ import{s as _,a as b,b as h,f as v,g as Je,c as ge,d as ye,h as tt,E as at,_ as 
       <div id="builder-results" style="margin-top: 30px;">
         <!-- Results will appear here -->
       </div>
-    `;const i=document.getElementById("builder-co-select"),d=document.getElementById("builder-year-select"),l=document.getElementById("builder-period-select"),c=document.getElementById("builder-input-accs"),m=document.getElementById("builder-output-accs"),u=document.getElementById("builder-results");async function y(){try{const x=await h.getTaxReportConfig(a);r=x.options,o=x.config,g(document.getElementById("builder-input-accs"),r.vatAccounts,p=>p.account_name,p=>`${p.account_code} - ${p.account_name}`,o.inputAccounts),g(document.getElementById("builder-output-accs"),r.vatAccounts,p=>p.account_name,p=>`${p.account_code} - ${p.account_name}`,o.outputAccounts)}catch(x){console.error(x),alert("خطأ في تحميل الإعدادات: "+x.message)}}document.getElementById("btn-save-config").addEventListener("click",async()=>{const x={companyId:a,inputAccounts:f(document.getElementById("builder-input-accs")),outputAccounts:f(document.getElementById("builder-output-accs"))};try{(await h.saveTaxReportConfig(x)).success&&alert("تم حفظ الإعدادات بنجاح!")}catch(p){alert("خطأ أثناء الحفظ: "+p.message)}}),document.getElementById("btn-run-report").addEventListener("click",async()=>{u.innerHTML='<div class="bi-empty">جاري بناء التقرير...</div>';const x={companyId:a,year:d.value,period:l.value,inputAccounts:f(document.getElementById("builder-input-accs")),outputAccounts:f(document.getElementById("builder-output-accs"))};try{const p=await h.generateCustomTaxReport(x);E(p)}catch(p){u.innerHTML=`<div class="bi-empty" style="color:#ef4444;">خطأ: ${p.message}</div>`}});const w=x=>new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(x||0);i.addEventListener("change",()=>{a=i.value,y()}),d.addEventListener("change",()=>{s=d.value}),l.addEventListener("change",()=>{n=l.value}),document.getElementById("btn-load-config").addEventListener("click",y),y()}catch(t){console.error("Builder init error:",t),e.innerHTML=`<div class="bi-empty" style="color:#ef4444">خطأ في التهيئة: ${t.message}</div>`}}const Ie={dashboard:wt,"income-statement":_t,"balance-sheet":qt,"cash-flow":Lt,pivot:jt,"journal-items":Ct,mapping:Ht,"journal-mapping":ya,settings:Ft,"data-preview":Kt,"trial-balance":ta,"detailed-trial-balance":oa,"closing-entries":da,"analytic-accounts":pa,presentation:xt,"account-statement":va,guarantees:ht,"api-manager":$a,"sales-settings":wa,"sales-data-preview":Ma,"tax-builder":Aa};async function et(e){const t=document.getElementById("main-content");if(window.isViewerMode()&&e!=="presentation"){console.warn(`[RouteGuard] Viewer is restricted to presentation. Blocked: ${e}`),e="presentation",_.set("currentPage","presentation");const n=new URL(window.location);n.searchParams.get("page")!=="presentation"&&(n.searchParams.set("page","presentation"),window.history.replaceState({},"",n))}let s=Ie[e];if(e==="special-expenses"&&!s){const n=await Ue(()=>import("./special-expenses-D_6zNMJh.js"),__vite__mapDeps([0,1,2]));Ie["special-expenses"]=n.renderSpecialExpenses,s=n.renderSpecialExpenses}if(e==="viewers-management"&&!s){const n=await Ue(()=>import("./viewers-management-4ELhhZZP.js"),__vite__mapDeps([3,1,2]));Ie["viewers-management"]=n.renderViewersManagement,s=n.renderViewersManagement}if(s){t.innerHTML='<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;"><div class="spinner"></div></div>';try{await s(t)}catch(n){console.error(`Error rendering ${e}:`,n),t.innerHTML=`
+    `;const i=document.getElementById("builder-co-select"),d=document.getElementById("builder-year-select"),l=document.getElementById("builder-period-select"),c=document.getElementById("builder-input-accs"),m=document.getElementById("builder-output-accs"),u=document.getElementById("builder-results");async function y(){try{const x=await h.getTaxReportConfig(a);r=x.options,o=x.config,g(document.getElementById("builder-input-accs"),r.vatAccounts,p=>p.account_name,p=>`${p.account_code} - ${p.account_name}`,o.inputAccounts),g(document.getElementById("builder-output-accs"),r.vatAccounts,p=>p.account_name,p=>`${p.account_code} - ${p.account_name}`,o.outputAccounts)}catch(x){console.error(x),alert("خطأ في تحميل الإعدادات: "+x.message)}}document.getElementById("btn-save-config").addEventListener("click",async()=>{const x={companyId:a,inputAccounts:f(document.getElementById("builder-input-accs")),outputAccounts:f(document.getElementById("builder-output-accs"))};try{(await h.saveTaxReportConfig(x)).success&&alert("تم حفظ الإعدادات بنجاح!")}catch(p){alert("خطأ أثناء الحفظ: "+p.message)}}),document.getElementById("btn-run-report").addEventListener("click",async()=>{u.innerHTML='<div class="bi-empty">جاري بناء التقرير...</div>';const x={companyId:a,year:d.value,period:l.value,inputAccounts:f(document.getElementById("builder-input-accs")),outputAccounts:f(document.getElementById("builder-output-accs"))};try{const p=await h.generateCustomTaxReport(x);E(p)}catch(p){u.innerHTML=`<div class="bi-empty" style="color:#ef4444;">خطأ: ${p.message}</div>`}});const w=x=>new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(x||0);i.addEventListener("change",()=>{a=i.value,y()}),d.addEventListener("change",()=>{s=d.value}),l.addEventListener("change",()=>{n=l.value}),document.getElementById("btn-load-config").addEventListener("click",y),y()}catch(t){console.error("Builder init error:",t),e.innerHTML=`<div class="bi-empty" style="color:#ef4444">خطأ في التهيئة: ${t.message}</div>`}}const Ie={dashboard:wt,"income-statement":_t,"balance-sheet":qt,"cash-flow":Lt,pivot:jt,"journal-items":Ct,mapping:Ht,"journal-mapping":ya,settings:Ft,"data-preview":Kt,"trial-balance":ta,"detailed-trial-balance":oa,"closing-entries":da,"analytic-accounts":pa,presentation:xt,"account-statement":va,guarantees:ht,"api-manager":$a,"sales-settings":wa,"sales-data-preview":Ma,"tax-builder":Aa};async function et(e){const t=document.getElementById("main-content");if(window.isViewerMode()&&e!=="presentation"){console.warn(`[RouteGuard] Viewer is restricted to presentation. Blocked: ${e}`),e="presentation",_.set("currentPage","presentation");const n=new URL(window.location);n.searchParams.get("page")!=="presentation"&&(n.searchParams.set("page","presentation"),window.history.replaceState({},"",n))}let s=Ie[e];if(e==="special-expenses"&&!s){const n=await Ue(()=>import("./special-expenses-B_ZqUwt4.js"),__vite__mapDeps([0,1,2]));Ie["special-expenses"]=n.renderSpecialExpenses,s=n.renderSpecialExpenses}if(e==="viewers-management"&&!s){const n=await Ue(()=>import("./viewers-management-BbegqSZf.js"),__vite__mapDeps([3,1,2]));Ie["viewers-management"]=n.renderViewersManagement,s=n.renderViewersManagement}if(s){t.innerHTML='<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;"><div class="spinner"></div></div>';try{await s(t)}catch(n){console.error(`Error rendering ${e}:`,n),t.innerHTML=`
         <div style="text-align:center;padding:60px;">
           <div style="font-size:2rem;margin-bottom:16px;">⚠️</div>
           <h2 style="color:var(--text-white);margin-bottom:8px;">حدث خطأ</h2>

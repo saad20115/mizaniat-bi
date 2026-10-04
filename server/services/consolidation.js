@@ -3627,6 +3627,10 @@ class ConsolidationEngine {
       const companyDiff = Math.round((companyActiveTotal - companyLedgerBalance) * 100) / 100;
       const allUnmatchedCredits = accountsSummary.flatMap(a => a.unmatchedCredits);
 
+      const pendingReleases = companyReleasedItems.filter(r => r.matchType === 'manual');
+      const pendingAmount = Math.round(pendingReleases.reduce((s, r) => s + (r.amount || 0), 0) * 100) / 100;
+      const isPendingOdoo = Math.abs(companyDiff) > 0.05 && Math.abs(Math.abs(companyDiff) - pendingAmount) <= 0.05;
+
       results.push({
         companyId: cid,
         companyName: company.name,
@@ -3638,6 +3642,9 @@ class ConsolidationEngine {
         ledgerBalance: companyLedgerBalance,
         diff: companyDiff,
         unmatchedCredits: allUnmatchedCredits,
+        pendingAmount,
+        pendingReleases,
+        isPendingOdoo,
         date: today
       });
     }
@@ -3933,6 +3940,7 @@ class ConsolidationEngine {
       if (residualVal > 0) co.weighted_age_sum += (ageDays * residualVal);
       co.buckets[bKey] += residualVal;
 
+      co.inv_count = (co.inv_count || 0) + 1;
       const deptMap = co.departmentsMap;
       if (!deptMap.has(r.department_id)) {
         deptMap.set(r.department_id, {
@@ -3940,6 +3948,7 @@ class ConsolidationEngine {
           name: r.department_name,
           company_id: r.ledger_cid,
           type: 'dept',
+          inv_count: 0,
           billed: 0,
           returns: 0,
           net: 0,
@@ -3952,6 +3961,7 @@ class ConsolidationEngine {
         });
       }
       const dept = deptMap.get(r.department_id);
+      dept.inv_count = (dept.inv_count || 0) + 1;
       dept.billed += billedVal;
       dept.returns += returnVal;
       dept.net += netVal;
@@ -3972,6 +3982,7 @@ class ConsolidationEngine {
           department_id: r.department_id,
           type: 'partner',
           _canLoad: true,
+          inv_count: 0,
           billed: 0,
           returns: 0,
           net: 0,
@@ -3984,6 +3995,7 @@ class ConsolidationEngine {
         });
       }
       const partner = pMap.get(pid);
+      partner.inv_count = (partner.inv_count || 0) + 1;
       partner.billed += billedVal;
       partner.returns += returnVal;
       partner.net += netVal;
@@ -4020,6 +4032,7 @@ class ConsolidationEngine {
       co.net = round(co.net);
       co.residual = round(co.residual);
       co.collected = round(co.collected);
+      co.overdue_90 = round(co.overdue_90);
       co.collection_rate = co.net > 0 ? round((co.collected / co.net) * 100) : 0;
       co.avg_age = co.residual > 0 ? Math.round(co.weighted_age_sum / co.residual) : 0;
 
@@ -4041,6 +4054,7 @@ class ConsolidationEngine {
         dept.net = round(dept.net);
         dept.residual = round(dept.residual);
         dept.collected = round(dept.collected);
+        dept.overdue_90 = round(dept.overdue_90);
         dept.collection_rate = dept.net > 0 ? round((dept.collected / dept.net) * 100) : 0;
         dept.avg_age = dept.residual > 0 ? Math.round(dept.weighted_age_sum / dept.residual) : 0;
         for (const k of Object.keys(dept.buckets)) {
@@ -4054,6 +4068,7 @@ class ConsolidationEngine {
           p.net = round(p.net);
           p.residual = round(p.residual);
           p.collected = round(p.collected);
+          p.overdue_90 = round(p.overdue_90);
           p.collection_rate = p.net > 0 ? round((p.collected / p.net) * 100) : 0;
           p.avg_age = p.residual > 0 ? Math.round(p.weighted_age_sum / p.residual) : 0;
           for (const k of Object.keys(p.buckets)) {
@@ -4074,6 +4089,7 @@ class ConsolidationEngine {
     }
 
     const totals = {
+      inv_count: rows.length,
       total_billed: round(grandBilled),
       total_returns: round(grandReturns),
       total_net: round(grandNet),
@@ -4689,8 +4705,42 @@ class ConsolidationEngine {
       tree.push(co);
     }
 
-    const grandTotal = Object.values(grandPeriodValues).reduce((s, v) => s + v, 0);
+    let grandTotal = Object.values(grandPeriodValues).reduce((s, v) => s + v, 0);
     grandNet = grandRev - grandExp;
+
+    const targetGrandTotal = Math.round(measure === 'revenue' ? grandRev : (measure === 'expense' ? grandExp : grandNet));
+    const grandRemainder = grandTotal - targetGrandTotal;
+
+    if (grandRemainder !== 0 && tree.length > 0 && sortedPeriodKeys.length > 0) {
+      // Reconcile rounding remainder so table footer equals summary card exactly (Claude B6)
+      let maxCo = tree[0];
+      for (const co of tree) if (Math.abs(co.total) > Math.abs(maxCo.total)) maxCo = co;
+      if (maxCo && maxCo.departments && maxCo.departments.length > 0) {
+        let maxDept = maxCo.departments[0];
+        for (const dept of maxCo.departments) if (Math.abs(dept.total) > Math.abs(maxDept.total)) maxDept = dept;
+        if (maxDept && maxDept.costCenters && maxDept.costCenters.length > 0) {
+          let maxCc = maxDept.costCenters[0];
+          for (const cc of maxDept.costCenters) if (Math.abs(cc.total) > Math.abs(maxCc.total)) maxCc = cc;
+          if (maxCc && maxCc.accounts && maxCc.accounts.length > 0) {
+            let maxAcc = maxCc.accounts[0];
+            for (const a of maxCc.accounts) if (Math.abs(a.total) > Math.abs(maxAcc.total)) maxAcc = a;
+            const lastPk = sortedPeriodKeys[sortedPeriodKeys.length - 1];
+            if (lastPk) {
+              maxAcc.values[lastPk] = (maxAcc.values[lastPk] || 0) - grandRemainder;
+              maxAcc.total -= grandRemainder;
+              maxCc.values[lastPk] = (maxCc.values[lastPk] || 0) - grandRemainder;
+              maxCc.total -= grandRemainder;
+              maxDept.values[lastPk] = (maxDept.values[lastPk] || 0) - grandRemainder;
+              maxDept.total -= grandRemainder;
+              maxCo.values[lastPk] = (maxCo.values[lastPk] || 0) - grandRemainder;
+              maxCo.total -= grandRemainder;
+              grandPeriodValues[lastPk] = (grandPeriodValues[lastPk] || 0) - grandRemainder;
+              grandTotal = targetGrandTotal;
+            }
+          }
+        }
+      }
+    }
 
     return {
       meta: {

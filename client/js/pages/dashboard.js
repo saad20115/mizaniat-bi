@@ -192,30 +192,32 @@ export async function renderDashboard(container) {
         .dash-donuts-row, .dash-monthly-row { grid-template-columns: 1fr; }
       }
     </style>
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">لوحة التحكم</h1>
-        <p class="page-subtitle">نظرة عامة على الأداء المالي المجمع</p>
+    <div class="dashboard-page" style="width: 100%; min-width: 0; box-sizing: border-box;">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">لوحة التحكم</h1>
+          <p class="page-subtitle">نظرة عامة على الأداء المالي المجمع</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" id="btn-sync">🔄 مزامنة البيانات</button>
+        </div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary" id="btn-sync">🔄 مزامنة البيانات</button>
+      
+      <div class="filters-bar" id="dashboard-filters"></div>
+      
+      <div class="kpi-grid" id="kpi-grid">
+        ${Array(7).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join('')}
       </div>
-    </div>
-    
-    <div class="filters-bar" id="dashboard-filters"></div>
-    
-    <div class="kpi-grid" id="kpi-grid">
-      ${Array(7).fill('<div class="kpi-card"><div class="skeleton" style="height:80px;"></div></div>').join('')}
-    </div>
-    
-    <div id="dash-charts">
-      <div class="dash-donuts-row">
-        <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
-        <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
-      </div>
-      <div class="dash-monthly-row">
-        <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
-        <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+      
+      <div id="dash-charts">
+        <div class="dash-donuts-row">
+          <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
+          <div class="dash-donut-card"><div class="skeleton" style="height:240px;"></div></div>
+        </div>
+        <div class="dash-monthly-row">
+          <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+          <div class="dash-bar-card"><div class="skeleton" style="height:280px;"></div></div>
+        </div>
       </div>
     </div>
   `;
@@ -260,21 +262,21 @@ function renderKPIs(grid, data) {
     <div class="kpi-card blue fade-in">
       <div class="kpi-icon blue">📈</div>
       <div class="kpi-label">إجمالي الإيرادات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.totalRevenue, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.totalRevenue, 0)}</div>
       <div class="kpi-change positive">SAR</div>
     </div>
     
     <div class="kpi-card red fade-in" style="animation-delay:0.05s">
       <div class="kpi-icon red">📉</div>
       <div class="kpi-label">إجمالي المصروفات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.totalExpenses, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.totalExpenses, 0)}</div>
       <div class="kpi-change negative">SAR</div>
     </div>
     
     <div class="kpi-card emerald fade-in" style="animation-delay:0.1s">
       <div class="kpi-icon emerald">💵</div>
       <div class="kpi-label">صافي الربح</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.netProfit, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.netProfit, 0)}</div>
       <div class="kpi-change ${data.netProfit >= 0 ? 'positive' : 'negative'}">
         ${data.netProfit >= 0 ? '↑' : '↓'} ${profitRate}%
       </div>
@@ -283,28 +285,28 @@ function renderKPIs(grid, data) {
     <div class="kpi-card purple fade-in" style="animation-delay:0.15s">
       <div class="kpi-icon purple">🏢</div>
       <div class="kpi-label">إجمالي الأصول</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.totalAssets, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.totalAssets, 0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card amber fade-in" style="animation-delay:0.2s">
       <div class="kpi-icon amber">📊</div>
       <div class="kpi-label">إجمالي الالتزامات</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.totalLiabilities, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.totalLiabilities, 0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card cyan fade-in" style="animation-delay:0.25s">
       <div class="kpi-icon cyan">💵</div>
       <div class="kpi-label">النقدية المتاحة</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.cashPosition, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.cashPosition, 0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">SAR</div>
     </div>
     
     <div class="kpi-card teal fade-in" style="animation-delay:0.3s">
       <div class="kpi-icon teal">🏦</div>
       <div class="kpi-label">الضمانات البنكية</div>
-      <div class="kpi-value" style="font-size:1.2rem;">${formatNumber(data.guarantees || 0, 2)}</div>
+      <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${formatNumber(data.guarantees || 0, 0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">أصول محتجزة</div>
     </div>
   `;

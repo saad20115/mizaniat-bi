@@ -298,10 +298,14 @@ export class TreeTable {
           const val = node[col.id] !== undefined ? node[col.id] : '';
           const formatted = col.format ? col.format(val, node) : escapeHtml(val);
           const prio = col.priority || 1;
-          const wStyle = col.width ? `width:${col.width};` : 'width:120px;';
-          const minW = col.minWidth ? `min-width:${col.minWidth};` : 'min-width:110px;';
-          const maxW = col.maxWidth ? `max-width:${col.maxWidth};` : 'max-width:135px;';
-          return `<td data-col-id="${col.id}" data-priority="${prio}" class="tree-col-num" style="text-align:${col.align || 'left'};${wStyle}${minW}${maxW}">${formatted}</td>`;
+          const isAction = col.id === 'actions';
+          const isFlex = !!col.flex;
+          const wStyle = isAction ? 'width:44px;' : (isFlex ? 'width:auto;' : (col.width ? `width:${col.width};` : 'width:115px;'));
+          const minW = isAction ? 'min-width:44px;' : (isFlex ? 'min-width:160px;' : (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:105px;'));
+          const maxW = isAction ? 'max-width:44px;' : (isFlex ? '' : (col.maxWidth ? `max-width:${col.maxWidth};` : ''));
+          const colClass = isAction ? 'tree-col-action' : (isFlex ? 'tree-col-visual' : 'tree-col-num');
+          const padStyle = isAction ? 'padding:6px 2px;' : '';
+          return `<td data-col-id="${col.id}" data-priority="${prio}" class="${colClass}" style="text-align:${col.align || 'left'};${wStyle}${minW}${maxW}${padStyle}">${formatted}</td>`;
         }).join('')}
       </tr>
     `;
@@ -315,14 +319,18 @@ export class TreeTable {
         <tr style="background:var(--exec-sticky-bg);">
           ${this.columns.map((col, idx) => {
             const isFirst = idx === 0;
+            const isAction = col.id === 'actions';
+            const isFlex = !!col.flex;
             const prio = col.priority || 1;
-            const wStyle = col.width ? `width:${col.width};` : (isFirst ? '' : 'width:120px;');
-            const minW = col.minWidth ? `min-width:${col.minWidth};` : (isFirst ? 'min-width:220px;' : 'min-width:110px;');
-            const maxW = col.maxWidth ? `max-width:${col.maxWidth};` : (isFirst ? '' : 'max-width:135px;');
+            const wStyle = isFirst ? 'width:auto;' : (isAction ? 'width:44px;' : (isFlex ? 'width:auto;' : (col.width ? `width:${col.width};` : 'width:115px;')));
+            const minW = isFirst ? (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:260px;') : (isAction ? 'min-width:44px;' : (isFlex ? 'min-width:160px;' : (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:105px;')));
+            const maxW = isFirst ? '' : (isAction ? 'max-width:44px;' : (isFlex ? '' : (col.maxWidth ? `max-width:${col.maxWidth};` : '')));
             const align = col.align || (isFirst ? 'right' : 'left');
             const colColor = col.color ? `color:${col.color};` : '';
+            const padStyle = isAction ? 'padding:6px 2px;' : '';
+            const colClass = isFirst ? 'tree-col-name' : (isAction ? 'tree-col-action' : (isFlex ? 'tree-col-visual' : 'tree-col-num'));
             return `
-              <th data-col-id="${col.id}" data-priority="${prio}" class="${isFirst ? 'tree-col-name' : 'tree-col-num'}" style="text-align:${align};${wStyle}${minW}${maxW}${colColor}">
+              <th data-col-id="${col.id}" data-priority="${prio}" ${col.title ? `title="${escapeHtml(col.title)}"` : ''} class="${colClass}" style="text-align:${align};${wStyle}${minW}${maxW}${colColor}${padStyle}">
                 ${escapeHtml(col.label)}
               </th>
             `;
@@ -360,7 +368,7 @@ export class TreeTable {
     }
 
     this.container.innerHTML = `
-      <table class="${escapeHtml(this.tableClass)}">
+      <table class="${escapeHtml(this.tableClass)}" style="width:100% !important;min-width:100%;border-collapse:separate;border-spacing:0;table-layout:auto;">
         ${theadHtml}
         ${tbodyHtml}
         ${tfootHtml}

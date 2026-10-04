@@ -43,7 +43,7 @@ export async function renderPresentation(container) {
 
   container.innerHTML = `
     <style>
-      .bi-page{min-height:100vh;padding:0;direction:rtl;max-width:var(--content-max-width, 1440px);margin:0 auto;overflow-x:hidden;}
+      .bi-page{min-height:100vh;padding:0;direction:rtl;width:100%;min-width:0;box-sizing:border-box;}
       /* Top bar with slicers */
       .bi-topbar{display:flex;align-items:center;gap:16px;padding:14px var(--page-padding, 28px);background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
       .bi-topbar .slicer-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -62,7 +62,7 @@ export async function renderPresentation(container) {
       .bi-tab .tab-label-short{display:none;}
 
       /* Body */
-      .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:20px var(--page-padding, 28px);overflow-x:hidden;}
+      .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:20px var(--page-padding, 28px);width:100%;min-width:0;box-sizing:border-box;}
 
       /* KPI cards */
       .bi-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
@@ -148,6 +148,11 @@ export async function renderPresentation(container) {
       .mobile-sheet-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:1040;}
       .mobile-sheet-backdrop.active{display:block;}
       .mobile-sheet-header{display:none;}
+
+      @media(min-width:1280px){
+        .bi-tabs{width:100%;display:flex;padding:0 14px;box-sizing:border-box;}
+        .bi-tabs .bi-tab{flex:1 1 0;text-align:center;justify-content:center;white-space:nowrap;}
+      }
 
       @media(min-width:768px) and (max-width:1279.98px){
         .bi-topbar{padding:12px 16px;gap:12px;}
@@ -242,7 +247,7 @@ export async function renderPresentation(container) {
 
       <!-- Tab Bar -->
       <div class="bi-tabs" id="bi-tabs">
-        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" style="border-right:1px solid rgba(255,255,255,0.08);background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:800;">
+        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive">
           <span class="tab-label-full">🏢 لوحة الإدارة</span>
           <span class="tab-label-short">🏢 الإدارة</span>
         </div>

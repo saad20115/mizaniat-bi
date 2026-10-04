@@ -39,7 +39,7 @@ export async function renderGuaranteesComponent(container, options = {}) {
 
   container.innerHTML = `
     <style>
-      .gr-wrap { direction: rtl; font-family: inherit; color: var(--text-primary, #f8fafc); width: 100%; }
+      .gr-wrap { direction: rtl; font-family: inherit; color: var(--text-primary, #f8fafc); width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
       .gr-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
       .gr-title-group h1 { font-size: 1.45rem; font-weight: 800; margin: 0 0 4px 0; color: var(--text-primary, #f8fafc); display: flex; align-items: center; gap: 10px; }
       .gr-title-group p { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin: 0; }
@@ -55,12 +55,12 @@ export async function renderGuaranteesComponent(container, options = {}) {
       .gr-legend-item { display: flex; align-items: center; gap: 5px; }
       .gr-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
-      .gr-company { margin-bottom: 24px; border: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); border-radius: 14px; overflow: hidden; background: var(--bg-card, #1e293b); }
+      .gr-company { margin-bottom: 24px; border: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); border-radius: 14px; overflow: hidden; background: var(--bg-card, #1e293b); width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
       .gr-company-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); flex-wrap: wrap; gap: 12px; }
       .gr-company-name { font-size: 1.05rem; font-weight: 750; color: var(--text-primary, #f8fafc); display: flex; align-items: center; gap: 8px; }
       .gr-company-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; }
 
-      .gr-table-wrap { overflow-x: auto; max-width: 100%; }
+      .gr-table-wrap { overflow-x: auto; max-width: 100%; width: 100%; min-width: 0; box-sizing: border-box; }
       .gr-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: right; }
       .gr-table th { background: rgba(15, 23, 42, 0.6); color: var(--text-muted, #cbd5e1); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); white-space: nowrap; }
       .gr-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.04)); vertical-align: middle; }
@@ -233,11 +233,13 @@ async function loadGuaranteesData(container, options = {}) {
               <div>معلّق: <b style="color:#06b6d4;font-family:var(--font-en, 'Inter')">${fmt(coPending)}</b></div>
               ${isMatched
                 ? '<span class="gr-badge-success">✓ مطابقة تامة مع الأستاذ</span>'
-                : `<span class="gr-badge-danger">⚠️ فرق: ${fmt(coDiff)}</span>`}
+                : (co.isPendingOdoo
+                  ? `<span class="gr-badge-pending" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:4px 10px;border-radius:6px;font-size:0.85rem;font-weight:700;" title="${(co.pendingReleases || []).map(r => `${r.moveName}: ${r.releaseNotes || 'إفراج يدوي'}`).join(' | ')}">⏳ بانتظار تسجيل قيد الإفراج في أودو: ${fmt(co.pendingAmount || Math.abs(coDiff))}</span>`
+                  : `<span class="gr-badge-danger">⚠️ فرق: ${fmt(coDiff)}</span>`)}
             </div>
           </div>
 
-          ${!isMatched && co.unmatchedCredits && co.unmatchedCredits.length ? `
+          ${!isMatched && !co.isPendingOdoo && co.unmatchedCredits && co.unmatchedCredits.length ? `
             <div class="gr-unmatched-box">
               <b>⚠️ إفراجات بالأستاذ لم تُطابَق مع إصدار ولا بند فرعي:</b>
               <ul style="margin:6px 0 0 16px;padding:0;line-height:1.6">
@@ -248,19 +250,19 @@ async function loadGuaranteesData(container, options = {}) {
             </div>
           ` : ''}
 
-          <div class="gr-table-wrap">
-            <table class="gr-table">
+          <div class="gr-table-wrap tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
+            <table class="gr-table" style="width:100% !important;min-width:100%;">
               <thead>
                 <tr>
                   <th style="width:40px;text-align:center">#</th>
-                  <th>الحالة</th>
-                  <th>التاريخ</th>
-                  <th>رقم القيد</th>
-                  <th>الحساب</th>
-                  <th>البيان والملاحظات</th>
-                  <th>الطرف</th>
-                  <th style="text-align:left">المبلغ</th>
-                  ${!isViewer ? '<th style="text-align:center">الإجراءات</th>' : ''}
+                  <th style="width:110px">الحالة</th>
+                  <th style="width:95px">التاريخ</th>
+                  <th style="width:140px">رقم القيد</th>
+                  <th style="width:140px">الحساب</th>
+                  <th style="width:auto;min-width:200px">البيان والملاحظات</th>
+                  <th style="width:140px">الطرف</th>
+                  <th style="width:115px;text-align:left">المبلغ</th>
+                  ${!isViewer ? '<th style="width:75px;text-align:center">الإجراءات</th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -291,7 +293,7 @@ async function loadGuaranteesData(container, options = {}) {
               <td style="font-family:var(--font-en,'Inter');color:var(--text-muted,#94a3b8);white-space:nowrap">${item.date || ''}</td>
               <td style="font-family:var(--font-en,'Inter');color:#818cf8;white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
               <td style="font-size:0.8rem;color:var(--text-muted,#cbd5e1);white-space:nowrap" title="${escapeHtml(item.accountName || '')}">${escapeHtml(item.accountCode || '')}</td>
-              <td style="max-width:320px;">
+              <td style="width:auto;min-width:200px;">
                 <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                 ${item.releaseNotes ? `
                   <div style="font-size:0.73rem;color:#facc15;margin-top:2px;background:rgba(234,179,8,0.08);padding:2px 6px;border-radius:4px;display:inline-block">
@@ -339,7 +341,7 @@ async function loadGuaranteesData(container, options = {}) {
                 <td style="font-family:var(--font-en,'Inter');color:var(--text-muted,#94a3b8);white-space:nowrap">${item.date || ''}</td>
                 <td style="font-family:var(--font-en,'Inter');color:#818cf8;white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
                 <td style="font-size:0.8rem;color:var(--text-muted,#cbd5e1);white-space:nowrap">${escapeHtml(item.accountCode || '')}</td>
-                <td style="max-width:320px;">
+                <td style="width:auto;min-width:200px;">
                   <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                   ${item.releaseNotes ? `
                     <div style="font-size:0.73rem;color:#facc15;margin-top:2px;background:rgba(234,179,8,0.08);padding:2px 6px;border-radius:4px;display:inline-block">

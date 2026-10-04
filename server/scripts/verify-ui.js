@@ -11,7 +11,70 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { getDb } = require('../db/connection');
+
+// Rule 9 (B1): Isolated Test DB & Port — Live database data/mizaniat.db is NEVER touched by UI tests
+const PROD_DB_PATH = path.join(__dirname, '..', '..', 'data', 'mizaniat.db');
+const TEST_DB_PATH = path.join(__dirname, '..', '..', 'data', 'mizaniat_test_ui.db');
+const TEST_PORT = 3195;
+
+process.env.DB_PATH = TEST_DB_PATH;
+process.env.PORT = String(TEST_PORT);
+
+const { getDb, closeDb } = require('../db/connection');
+
+function prepareTestDb() {
+  console.log('  🔒 [Rule 9] Copying production DB to isolated test DB...');
+  if (fs.existsSync(PROD_DB_PATH)) {
+    fs.copyFileSync(PROD_DB_PATH, TEST_DB_PATH);
+    if (fs.existsSync(PROD_DB_PATH + '-wal')) {
+      fs.copyFileSync(PROD_DB_PATH + '-wal', TEST_DB_PATH + '-wal');
+    }
+    if (fs.existsSync(PROD_DB_PATH + '-shm')) {
+      fs.copyFileSync(PROD_DB_PATH + '-shm', TEST_DB_PATH + '-shm');
+    }
+  } else {
+    throw new Error(`Production database not found at ${PROD_DB_PATH}`);
+  }
+}
+
+function cleanupTestDb() {
+  console.log('  🧹 [Rule 9] Cleaning up isolated test DB...');
+  try { closeDb(); } catch (e) {}
+  try {
+    if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
+    if (fs.existsSync(TEST_DB_PATH + '-wal')) fs.unlinkSync(TEST_DB_PATH + '-wal');
+    if (fs.existsSync(TEST_DB_PATH + '-shm')) fs.unlinkSync(TEST_DB_PATH + '-shm');
+  } catch (e) {}
+}
+
+function killPort(port) {
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      execSync(`powershell -NoProfile -Command "$p = (Get-NetTCPConnection -LocalPort ${port} -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }"`, { stdio: 'ignore' });
+    } catch (e) {}
+  }
+}
+
+async function waitForServer(port, timeoutMs = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      await new Promise((resolve, reject) => {
+        const req = http.get(`http://localhost:${port}/api/companies`, res => {
+          if (res.statusCode < 500) resolve();
+          else reject(new Error('Status ' + res.statusCode));
+        });
+        req.on('error', reject);
+        req.setTimeout(500, () => { req.destroy(); reject(new Error('timeout')); });
+      });
+      return true;
+    } catch (e) {
+      await sleep(250);
+    }
+  }
+  throw new Error(`Test server failed to start on port ${port} within ${timeoutMs}ms`);
+}
 
 function findChromePath() {
   if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
@@ -33,7 +96,7 @@ function findChromePath() {
 
 const CHROME_PATH = findChromePath();
 const DEBUG_PORT = 9231;
-const APP_PORT = process.env.PORT || 3090;
+const APP_PORT = TEST_PORT;
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -129,11 +192,31 @@ async function runVerifyUI() {
   console.log('========================================');
   console.log(`Chrome binary: ${CHROME_PATH}`);
 
-  if (process.platform === 'win32') {
-    try {
-      const { execSync } = require('child_process');
-      execSync('powershell -NoProfile -Command "$p = (Get-NetTCPConnection -LocalPort 9231 -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
-    } catch (e) {}
+  // 1. Prepare isolated test database (Rule 9)
+  prepareTestDb();
+
+  // 2. Kill any processes on test port & debug port
+  killPort(TEST_PORT);
+  killPort(DEBUG_PORT);
+
+  // 3. Start isolated test server on TEST_PORT
+  let serverProcess;
+  try {
+    serverProcess = spawn(process.execPath, [path.join(__dirname, '..', 'index.js')], {
+      cwd: path.join(__dirname, '..', '..'),
+      env: {
+        ...process.env,
+        PORT: String(TEST_PORT),
+        DB_PATH: TEST_DB_PATH
+      },
+      stdio: 'ignore'
+    });
+    await waitForServer(TEST_PORT);
+    console.log(`  🚀 Isolated test server running on port ${TEST_PORT} with DB: mizaniat_test_ui.db`);
+  } catch (err) {
+    console.error('Failed to launch isolated test server:', err.message);
+    cleanupTestDb();
+    process.exit(1);
   }
 
   let chromeProcess;
@@ -398,50 +481,67 @@ async function runVerifyUI() {
     // Switch to ALL
     console.log('  Switching period to ALL...');
     await cdp.eval('document.querySelector("#yr-slicer .yr-all")?.click()');
-    await sleep(5000);
 
-    const ag2_all = await cdp.eval(`
-      (() => {
-        const toggle = document.querySelector('#exec-aging-toggle strong.exec-num');
-        const footer = document.querySelector('#exec-aging-container tr.exec-sticky-footer td:last-child');
-        const rows = document.querySelectorAll('#exec-aging-container tr[data-tree-row]').length;
-        const emptyMsg = document.querySelector('#exec-aging-container')?.textContent?.includes('لا توجد بيانات للعرض');
-        return {
-          headerVal: toggle ? parseInt(toggle.textContent.replace(/[^\\d]/g, ''), 10) : null,
-          footerVal: footer ? parseInt(footer.textContent.replace(/[^\\d]/g, ''), 10) : null,
-          rows,
-          emptyMsg: !!emptyMsg
-        };
-      })()
-    `);
-    assert(ag2_all.rows > 0 && !ag2_all.emptyMsg, 'AG2 ALL: Aging table populated and no empty message');
+    let ag2_all = null;
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      ag2_all = await cdp.eval(`
+        (() => {
+          const toggle = document.querySelector('#exec-aging-toggle strong.exec-num');
+          const footer = document.querySelector('#exec-aging-container tr.exec-sticky-footer td:last-child');
+          const rows = document.querySelectorAll('#exec-aging-container tr[data-tree-row]').length;
+          const emptyMsg = document.querySelector('#exec-aging-container')?.textContent?.includes('لا توجد بيانات للعرض');
+          return {
+            headerVal: toggle ? parseInt(toggle.textContent.replace(/[^\\d]/g, ''), 10) : null,
+            footerVal: footer ? parseInt(footer.textContent.replace(/[^\\d]/g, ''), 10) : null,
+            rows,
+            emptyMsg: !!emptyMsg
+          };
+        })()
+      `);
+      if (ag2_all && ag2_all.rows > 0 && ag2_all.headerVal != null && ag2_all.headerVal === ag2_all.footerVal) {
+        break;
+      }
+    }
+    assert(ag2_all && ag2_all.rows > 0 && !ag2_all.emptyMsg, 'AG2 ALL: Aging table populated and no empty message');
     assert(ag2_all.headerVal != null && ag2_all.headerVal === ag2_all.footerVal, `AG2 ALL: Header total matches table footer (${ag2_all.headerVal})`);
 
     // Switch to 2025
     console.log('  Switching period to 2025...');
     await cdp.eval('document.querySelector("#yr-slicer .yr-chip[data-year=\\"2025\\"]")?.click()');
-    await sleep(4000);
 
-    const ag2_2025 = await cdp.eval(`
-      (() => {
-        const toggle = document.querySelector('#exec-aging-toggle strong.exec-num');
-        const footer = document.querySelector('#exec-aging-container tr.exec-sticky-footer td:last-child');
-        const rows = document.querySelectorAll('#exec-aging-container tr[data-tree-row]').length;
-        const emptyMsg = document.querySelector('#exec-aging-container')?.textContent?.includes('لا توجد بيانات للعرض');
-        return {
-          headerVal: toggle ? parseInt(toggle.textContent.replace(/[^\\d]/g, ''), 10) : null,
-          footerVal: footer ? parseInt(footer.textContent.replace(/[^\\d]/g, ''), 10) : null,
-          rows,
-          emptyMsg: !!emptyMsg
-        };
-      })()
-    `);
-    assert(ag2_2025.rows > 0 && !ag2_2025.emptyMsg, 'AG2 2025: Aging table populated and no empty message');
+    let ag2_2025 = null;
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      ag2_2025 = await cdp.eval(`
+        (() => {
+          const toggle = document.querySelector('#exec-aging-toggle strong.exec-num');
+          const footer = document.querySelector('#exec-aging-container tr.exec-sticky-footer td:last-child');
+          const rows = document.querySelectorAll('#exec-aging-container tr[data-tree-row]').length;
+          const emptyMsg = document.querySelector('#exec-aging-container')?.textContent?.includes('لا توجد بيانات للعرض');
+          return {
+            headerVal: toggle ? parseInt(toggle.textContent.replace(/[^\\d]/g, ''), 10) : null,
+            footerVal: footer ? parseInt(footer.textContent.replace(/[^\\d]/g, ''), 10) : null,
+            rows,
+            emptyMsg: !!emptyMsg
+          };
+        })()
+      `);
+      if (ag2_2025 && ag2_2025.rows > 0 && ag2_2025.headerVal != null && ag2_2025.headerVal === ag2_2025.footerVal) {
+        break;
+      }
+    }
+    assert(ag2_2025 && ag2_2025.rows > 0 && !ag2_2025.emptyMsg, 'AG2 2025: Aging table populated and no empty message');
     assert(ag2_2025.headerVal != null && ag2_2025.headerVal === ag2_2025.footerVal, `AG2 2025: Header total matches table footer (${ag2_2025.headerVal})`);
 
     // (B) Main Table client rows preserved & mathematical sum == department
     console.log('  Checking Main TreeTable department client rows under 2025...');
-    const clientRows2025 = await cdp.eval('document.querySelectorAll("#exec-tree-table-container [data-path-key*=\\"/grp:clients/p:\\"]").length');
+    let clientRows2025 = 0;
+    for (let i = 0; i < 20; i++) {
+      await sleep(500);
+      clientRows2025 = await cdp.eval('document.querySelectorAll("#exec-tree-table-container [data-path-key*=\\"/grp:clients/p:\\"]").length');
+      if (clientRows2025 > 0) break;
+    }
     assert(clientRows2025 > 0, `Main TreeTable client rows automatically re-fetched and preserved for 2025: ${clientRows2025} clients`);
 
     // Verify client sum matches department row in 2025
@@ -1043,6 +1143,7 @@ async function runVerifyUI() {
       { name: 'Mobile-Standard (390x844)', width: 390, height: 844, isMobile: true },
       { name: 'Tablet-Portrait (768x1024)', width: 768, height: 1024, isMobile: false },
       { name: 'Laptop-Standard (1366x768)', width: 1366, height: 768, isMobile: false },
+      { name: 'Desktop-Mac (1440x900)', width: 1440, height: 900, isMobile: false },
       { name: 'Desktop-Wide (1920x1080)', width: 1920, height: 1080, isMobile: false }
     ];
 
@@ -1079,61 +1180,114 @@ async function runVerifyUI() {
           const t = document.querySelector('#bi-tabs .bi-tab[data-tab="${tab}"]');
           if (t) t.click();
         `);
-        await sleep(1500);
 
-        // 1. Check no horizontal scroll on page
-        const scrollCheck = await cdp.eval(`
-          (() => {
-            const docEl = document.documentElement;
-            const bodyEl = document.body;
-            const scrollW = Math.max(docEl.scrollWidth, bodyEl.scrollWidth);
-            const clientW = window.innerWidth;
-            return {
-              scrollW,
-              clientW,
-              hasOverflow: scrollW > clientW + 2
-            };
-          })()
-        `);
-        assert(!scrollCheck.hasOverflow, `[${res.name} - ${tab}] No horizontal page scroll (scrollW: ${scrollCheck.scrollW}px, innerW: ${scrollCheck.clientW}px)`);
+        // Wait for tab button to have active class and tab container DOM to be rendered
+        let tabReady = false;
+        let lastStatus = '';
+        for (let waitAttempts = 0; waitAttempts < 40; waitAttempts++) {
+          const checkReady = await cdp.eval(`
+            (() => {
+              const activeTabEl = document.querySelector('#bi-tabs .bi-tab.active');
+              const activeTabName = activeTabEl ? activeTabEl.getAttribute('data-tab') : null;
+              if (activeTabName !== '${tab}') {
+                const t = document.querySelector('#bi-tabs .bi-tab[data-tab="${tab}"]');
+                if (t) t.click();
+                return { ready: false, reason: 'activeTab is ' + activeTabName };
+              }
 
-        // 2. Check no elements overflowing outside [data-scroll-x]
+              // Check tab-specific DOM root
+              if ('${tab}' === 'executive') {
+                const ok = !!document.querySelector('#exec-root') && !!document.querySelector('#exec-chart-container svg');
+                return { ready: ok, reason: ok ? '' : 'exec DOM not ready' };
+              }
+              if ('${tab}' === 'customers') {
+                const mc = document.querySelector('#cust-main-content');
+                const ok = mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#cust-tree-container');
+                return { ready: ok, reason: ok ? '' : (mc ? 'display is ' + window.getComputedStyle(mc).display : 'no cust-main-content') };
+              }
+              if ('${tab}' === 'profitability') {
+                const mc = document.querySelector('#prof-main-content');
+                const ok = mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#prof-tree-container');
+                return { ready: ok, reason: ok ? '' : (mc ? 'display is ' + window.getComputedStyle(mc).display : 'no prof-main-content') };
+              }
+              if ('${tab}' === 'guarantees') {
+                const ok = !!document.querySelector('.gr-wrap') || !!document.querySelector('.gr-card');
+                return { ready: ok, reason: ok ? '' : 'no gr-wrap or gr-card' };
+              }
+              if ('${tab}' === 'vat') {
+                const mc = document.querySelector('#vat-main-content');
+                const ok = mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#vat-tree-container');
+                return { ready: ok, reason: ok ? '' : (mc ? 'display is ' + window.getComputedStyle(mc).display : 'no vat-main-content') };
+              }
+              return { ready: true, reason: '' };
+            })()
+          `);
+          if (checkReady && checkReady.ready) {
+            tabReady = true;
+            break;
+          }
+          lastStatus = checkReady ? checkReady.reason : 'null';
+          await sleep(250);
+        }
+        assert(tabReady, `[${res.name} - ${tab}] Tab correctly switched and tab-specific DOM is rendered`);
+
+        // 1. Geometric viewport overflow check (rect.left >= -2 && rect.right <= vw + 2)
         const overflowCheck = await cdp.eval(`
           (() => {
             const vw = window.innerWidth;
             const elements = Array.from(document.querySelectorAll('.bi-page *'));
             let maxRight = 0;
+            let minLeft = 0;
             let overflowingEl = null;
             for (const el of elements) {
-              if (el.closest('[data-scroll-x="true"]') || el.closest('.tree-table-wrap') || el.closest('.perf-table-wrap') || el.closest('.mobile-sheet-open') || el.closest('#sidebar') || el.closest('.sidebar-backdrop')) {
+              if (el.closest('[data-scroll-x="true"]') || el.closest('[data-scroll-x]') || el.closest('.tree-table-wrap') || el.closest('.perf-table-wrap') || el.closest('.mobile-sheet-open') || el.closest('#sidebar') || el.closest('.sidebar-backdrop') || el.closest('#vat-drawer') || el.closest('#cust-statement-modal') || el.closest('#exec-drawer') || el.closest('#exec-drawer-backdrop') || el.closest('.exec-drawer-backdrop') || el.closest('.drawer') || el.closest('.bi-tabs') || el.closest('#bi-tabs')) {
                 continue;
               }
               const rect = el.getBoundingClientRect();
-              if (rect.width > 0 && rect.right > vw + 2) {
-                if (rect.right > maxRight) {
-                  maxRight = rect.right;
-                  overflowingEl = el.tagName + (el.className ? '.' + el.className.split(' ').join('.') : '') + (el.id ? '#' + el.id : '');
+              if (rect.width > 0 && rect.height > 0) {
+                if (rect.right > vw + 2) {
+                  if (rect.right > maxRight) {
+                    maxRight = rect.right;
+                    overflowingEl = (el.tagName + (el.className ? '.' + el.className.split(' ').join('.') : '') + (el.id ? '#' + el.id : '')) + ' (right: ' + Math.round(rect.right) + ' > ' + vw + ')';
+                  }
+                }
+                if (rect.left < -2) {
+                  if (rect.left < minLeft) {
+                    minLeft = rect.left;
+                    overflowingEl = (el.tagName + (el.className ? '.' + el.className.split(' ').join('.') : '') + (el.id ? '#' + el.id : '')) + ' (left: ' + Math.round(rect.left) + ' < 0)';
+                  }
                 }
               }
             }
             return {
-              overflowing: maxRight > vw + 2,
+              overflowing: maxRight > vw + 2 || minLeft < -2,
               maxRight,
+              minLeft,
               overflowingEl
             };
           })()
         `);
-        assert(!overflowCheck.overflowing, `[${res.name} - ${tab}] No element overflows viewport (${overflowCheck.overflowingEl || 'none'})`);
+        assert(!overflowCheck.overflowing, `[${res.name} - ${tab}] No element geometrically overflows viewport (${overflowCheck.overflowingEl || 'none'})`);
+
+        // 2. Check horizontal scroll containers integrity
+        const scrollContainers = await cdp.eval(`
+          (() => {
+            const list = Array.from(document.querySelectorAll('[data-scroll-x="true"], .tree-table-wrap'))
+              .filter(c => c.offsetParent !== null && window.getComputedStyle(c).display !== 'none');
+            return list.map(c => ({
+              id: c.id || c.className,
+              clientWidth: c.clientWidth,
+              scrollWidth: c.scrollWidth
+            }));
+          })()
+        `);
+        if (scrollContainers && scrollContainers.length > 0) {
+          const allPositive = scrollContainers.every(c => c.clientWidth > 0);
+          assert(allPositive, `[${res.name} - ${tab}] All horizontal scroll containers have valid client width`);
+        }
 
         // 3. Tab-specific responsive checks:
         if (tab === 'executive') {
-          for (let waitAttempts = 0; waitAttempts < 10; waitAttempts++) {
-            const hasSvg = await cdp.eval('!!document.querySelector("#exec-chart-container svg")');
-            if (hasSvg) break;
-            await sleep(300);
-          }
-          await sleep(200);
-
           const chartChecks = await cdp.eval(`
             (() => {
               const container = document.querySelector('#exec-chart-container');
@@ -1156,14 +1310,12 @@ async function runVerifyUI() {
             })()
           `);
           if (chartChecks) {
-            console.log(`    [ChartDebug ${res.name}]: innerW=${chartChecks.windowInnerW}, containerW=${chartChecks.containerWidth}, svgH=${chartChecks.svgHeight}, attrH=${chartChecks.svgAttrH}, viewBox=${chartChecks.svgViewBox}`);
             assert(chartChecks.fillRatio >= 0.90, `[${res.name}] Executive chart fills >= 90% of container (ratio: ${(chartChecks.fillRatio * 100).toFixed(1)}%, container: ${chartChecks.containerWidth}px, svg: ${chartChecks.svgWidth}px)`);
             const expectedH = res.width < 768 ? 200 : (res.width < 1280 ? 240 : 300);
             assert(Math.abs(chartChecks.svgHeight - expectedH) <= 12, `[${res.name}] Executive chart height matches breakpoint specs (${chartChecks.svgHeight}px vs expected ~${expectedH}px)`);
           }
 
           if (res.width === 1920) {
-            // Gap check on desktop wide: columns are compact and distance between name column text and first number is <= 40px
             const gapCheck = await cdp.eval(`
               (() => {
                 const firstRow = document.querySelector('#exec-main-table tr[data-tree-row="true"]');
@@ -1187,8 +1339,70 @@ async function runVerifyUI() {
           }
         }
 
-        // 4. Capture screenshots for [390, 768, 1366, 1920]
-        if ([390, 768, 1366, 1920].includes(res.width)) {
+        // Tab Bar assertion at >= 1280px (T1)
+        if (res.width >= 1280) {
+          const tabBarCheck = await cdp.eval(`
+            (() => {
+              const bar = document.querySelector('.bi-tabs');
+              const tabs = Array.from(document.querySelectorAll('.bi-tab'));
+              if (!bar || tabs.length === 0) return null;
+              const barRect = bar.getBoundingClientRect();
+              const firstTabRect = tabs[0].getBoundingClientRect();
+              const lastTabRect = tabs[tabs.length - 1].getBoundingClientRect();
+              const leftEdgeDist = Math.abs(lastTabRect.left - barRect.left);
+              const rightEdgeDist = Math.abs(barRect.right - firstTabRect.right);
+              return {
+                barWidth: barRect.width,
+                firstTabRight: firstTabRect.right,
+                lastTabLeft: lastTabRect.left,
+                leftEdgeDist,
+                rightEdgeDist
+              };
+            })()
+          `);
+          if (tabBarCheck) {
+            assert(tabBarCheck.leftEdgeDist <= 28, `[${res.name}] Tab bar spans full width: last tab ends within 28px of bar edge (${tabBarCheck.leftEdgeDist.toFixed(1)}px <= 28px)`);
+            assert(tabBarCheck.rightEdgeDist >= 10, `[${res.name}] Tab bar first tab has padding from right edge (${tabBarCheck.rightEdgeDist.toFixed(1)}px >= 10px)`);
+          }
+        }
+
+        // TreeTable width check at [1366, 1440, 1920] (T1)
+        if ([1366, 1440, 1920].includes(res.width)) {
+          const tableWidthCheck = await cdp.eval(`
+            (() => {
+              let table = null;
+              if ('${tab}' === 'executive') table = document.querySelector('#exec-main-table');
+              else if ('${tab}' === 'customers') table = document.querySelector('#cust-tree-container table');
+              else if ('${tab}' === 'profitability') table = document.querySelector('#prof-tree-container table');
+              else if ('${tab}' === 'guarantees') table = document.querySelector('table.gr-table');
+              else if ('${tab}' === 'vat') table = document.querySelector('#vat-tree-container table');
+              if (!table) table = document.querySelector('.tree-table-wrap table, table.exec-table, table.gr-table');
+              if (!table) return null;
+              const container = table.closest('.tree-table-wrap') || table.parentElement;
+              if (!container) return null;
+              const tRect = table.getBoundingClientRect();
+              const cWidth = container.clientWidth;
+              const ratio = cWidth > 0 ? (tRect.width / cWidth) : 0;
+              const headerCells = Array.from(table.querySelectorAll('thead tr:first-child th'));
+              const colWidthSum = headerCells.reduce((sum, th) => sum + th.getBoundingClientRect().width, 0);
+              const colGap = Math.abs(tRect.width - colWidthSum);
+              return {
+                tableWidth: tRect.width,
+                containerWidth: cWidth,
+                ratio,
+                colWidthSum,
+                colGap
+              };
+            })()
+          `);
+          if (tableWidthCheck) {
+            assert(tableWidthCheck.ratio >= 0.98, `[${res.name} - ${tab}] Table fills container: table width ${tableWidthCheck.tableWidth.toFixed(1)}px >= 0.98 * container ${tableWidthCheck.containerWidth.toFixed(1)}px (ratio: ${(tableWidthCheck.ratio * 100).toFixed(1)}%)`);
+            assert(tableWidthCheck.colGap <= 6, `[${res.name} - ${tab}] Columns sum equals table width without trailing void (gap: ${tableWidthCheck.colGap.toFixed(1)}px <= 6px)`);
+          }
+        }
+
+        // 4. Capture Dark Mode screenshots for [390, 768, 1366, 1440, 1920]
+        if ([390, 768, 1366, 1440, 1920].includes(res.width)) {
           const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
           const filename = `${tab}_${res.width}x${res.height}_dark.png`;
           fs.writeFileSync(path.join(screenshotsDir, filename), Buffer.from(shot.data, 'base64'));
@@ -1196,27 +1410,102 @@ async function runVerifyUI() {
       }
     }
 
-    // Test Light Mode for 390 and 1920 on Executive tab
-    console.log('\n  >> Testing Light Mode Screenshots...');
-    for (const w of [390, 1920]) {
-      const h = w === 390 ? 844 : 1080;
+    // ──────────────────────────────────────────
+    // Test Light Mode for All 5 Tabs x 5 Resolutions
+    // ──────────────────────────────────────────
+    console.log('\n  >> Testing Light Mode Multi-Resolution Screenshots (All 5 Tabs x 5 Resolutions)...');
+    const lightResolutions = [
+      { name: 'Mobile-Standard (390x844)', width: 390, height: 844, isMobile: true },
+      { name: 'Tablet-Portrait (768x1024)', width: 768, height: 1024, isMobile: false },
+      { name: 'Laptop-Standard (1366x768)', width: 1366, height: 768, isMobile: false },
+      { name: 'Desktop-Mac (1440x900)', width: 1440, height: 900, isMobile: false },
+      { name: 'Desktop-Wide (1920x1080)', width: 1920, height: 1080, isMobile: false }
+    ];
+
+    for (const res of lightResolutions) {
+      console.log(`    >> Light Mode: ${res.name}`);
       await cdp.send('Emulation.setDeviceMetricsOverride', {
-        width: w,
-        height: h,
+        width: res.width,
+        height: res.height,
         deviceScaleFactor: 1,
-        mobile: w === 390
+        mobile: res.isMobile
       });
-      await cdp.send('Page.navigate', {
-        url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive&theme=light`
-      });
-      await sleep(2000);
-      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
-      fs.writeFileSync(path.join(screenshotsDir, `executive_${w}x${h}_light.png`), Buffer.from(shot.data, 'base64'));
+      await sleep(300);
+
+      // Force light theme
+      await cdp.eval(`
+        document.body.classList.add('light-theme');
+        document.documentElement.classList.add('light-theme');
+      `);
+
+      for (const tab of testTabs) {
+        // Switch tab
+        await cdp.eval(`
+          const t = document.querySelector('#bi-tabs .bi-tab[data-tab="${tab}"]');
+          if (t) t.click();
+        `);
+
+        // Wait for tab DOM to be rendered
+        for (let waitAttempts = 0; waitAttempts < 40; waitAttempts++) {
+          const checkReady = await cdp.eval(`
+            (() => {
+              const activeTabEl = document.querySelector('#bi-tabs .bi-tab.active');
+              const activeTabName = activeTabEl ? activeTabEl.getAttribute('data-tab') : null;
+              if (activeTabName !== '${tab}') {
+                const t = document.querySelector('#bi-tabs .bi-tab[data-tab="${tab}"]');
+                if (t) t.click();
+                return false;
+              }
+              if ('${tab}' === 'executive') return !!document.querySelector('#exec-root') && !!document.querySelector('#exec-chart-container svg');
+              if ('${tab}' === 'customers') {
+                const mc = document.querySelector('#cust-main-content');
+                return mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#cust-tree-container');
+              }
+              if ('${tab}' === 'profitability') {
+                const mc = document.querySelector('#prof-main-content');
+                return mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#prof-tree-container');
+              }
+              if ('${tab}' === 'guarantees') return !!document.querySelector('.gr-wrap') || !!document.querySelector('.gr-card');
+              if ('${tab}' === 'vat') {
+                const mc = document.querySelector('#vat-main-content');
+                return mc && window.getComputedStyle(mc).display !== 'none' && !!document.querySelector('#vat-tree-container');
+              }
+              return true;
+            })()
+          `);
+          if (checkReady) break;
+          await sleep(250);
+        }
+
+        const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+        const filename = `${tab}_${res.width}x${res.height}_light.png`;
+        fs.writeFileSync(path.join(screenshotsDir, filename), Buffer.from(shot.data, 'base64'));
+      }
     }
 
     // Clear emulation
     await cdp.send('Emulation.clearDeviceMetricsOverride');
     await sleep(400);
+
+    // ──────────────────────────────────────────
+    // TEST 7.6: Responsive Screenshots Validation (50 Screenshots)
+    // ──────────────────────────────────────────
+    console.log('\n--- 7.6. Responsive Screenshots Validation ---');
+    const allFiles = fs.readdirSync(screenshotsDir);
+    const darkShots = allFiles.filter(f => f.endsWith('_dark.png'));
+    const lightShots = allFiles.filter(f => f.endsWith('_light.png'));
+    console.log(`  📸 Dark Mode Screenshots: ${darkShots.length}/25`);
+    console.log(`  📸 Light Mode Screenshots: ${lightShots.length}/25`);
+    console.log(`  📸 Total Generated Screenshots: ${darkShots.length + lightShots.length}/50 in scratch/responsive/`);
+
+    assert(darkShots.length >= 25, `All 25 Dark Mode screenshots captured (found ${darkShots.length})`);
+    assert(lightShots.length >= 25, `All 25 Light Mode screenshots captured (found ${lightShots.length})`);
+    let validSizeCount = 0;
+    for (const f of [...darkShots, ...lightShots]) {
+      const sz = fs.statSync(path.join(screenshotsDir, f)).size;
+      if (sz > 5000) validSizeCount++;
+    }
+    assert(validSizeCount === (darkShots.length + lightShots.length), `All ${darkShots.length + lightShots.length} screenshots have valid non-trivial file size (> 5KB)`);
 
     // ──────────────────────────────────────────
     // TEST 8: Zero Console Errors
@@ -1244,6 +1533,17 @@ async function runVerifyUI() {
     console.error('❌ verify:ui execution error:', err);
     process.exit(1);
   } finally {
+    if (serverProcess) {
+      try {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
+          execSync(`taskkill /F /T /PID ${serverProcess.pid}`, { stdio: 'ignore' });
+        } else {
+          serverProcess.kill('SIGKILL');
+        }
+      } catch (e) {}
+    }
+    killPort(TEST_PORT);
     if (chromeProcess) {
       try {
         if (process.platform === 'win32') {
@@ -1255,6 +1555,7 @@ async function runVerifyUI() {
       } catch (e) {}
     }
     try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (e) {}
+    cleanupTestDb();
   }
 }
 
