@@ -302,14 +302,14 @@ function renderVatTreeTable(body, data) {
   const totals = data.totals || {};
 
   const columns = [
-    { key: 'name', label: 'البيان / الفترة', width: '28%' },
-    { key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '13%' },
-    { key: 'output_tax', label: 'ضريبة المخرجات', width: '13%' },
-    { key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '13%' },
-    { key: 'input_tax', label: 'ضريبة المدخلات', width: '13%' },
-    { key: 'net_tax_due', label: 'صافي الضريبة المستحقة', width: '13%' },
-    { key: 'settlements', label: 'التسويات والسداد', width: '12%' },
-    { key: 'actions', label: '', width: '5%' }
+    { id: 'name', key: 'name', label: 'البيان / الفترة', minWidth: 'min(46vw, 240px)', priority: 1 },
+    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', minWidth: '110px', priority: 2 },
+    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', minWidth: '115px', priority: 1 },
+    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', minWidth: '110px', priority: 2 },
+    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', minWidth: '115px', priority: 1 },
+    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة المستحقة', minWidth: '120px', priority: 1 },
+    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', minWidth: '110px', priority: 2 },
+    { id: 'actions', key: 'actions', label: '', minWidth: '80px', priority: 1 }
   ];
 
   currentTreeTable = createTreeTable(container, {
@@ -381,19 +381,19 @@ function renderVatTreeTable(body, data) {
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td style="padding:10px 14px;padding-right:${indent + 14}px;white-space:nowrap;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 14px;padding-right:${indent + 14}px;white-space:nowrap;">
             <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${toggleIcon}</span>
             <span style="margin-left:6px;">${icon}</span>
             <span style="${nameStyle}">${escapeHtml(node.name)}</span>
             ${badge}
           </td>
-          <td style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
-          <td style="padding:10px 14px;text-align:right;">${fmtVal(node.output_tax)}</td>
-          <td style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
-          <td style="padding:10px 14px;text-align:right;">${fmtVal(node.input_tax)}</td>
-          <td style="padding:10px 14px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
-          <td style="padding:10px 14px;text-align:right;">${fmtVal(node.settlements)}</td>
-          <td style="padding:10px 10px;text-align:center;">${actionBtn}</td>
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 14px;text-align:right;">${fmtVal(node.output_tax)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 14px;text-align:right;">${fmtVal(node.input_tax)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 14px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.settlements)}</td>
+          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="padding:10px 10px;text-align:center;">${actionBtn}</td>
         </tr>
       `;
     },
@@ -401,16 +401,16 @@ function renderVatTreeTable(body, data) {
       const netDue = (tot.output_tax || 0) - (tot.input_tax || 0);
       return `
         <tr class="exec-totals-row" style="background:rgba(255,255,255,0.06);font-weight:800;border-top:2px solid var(--exec-border, rgba(255,255,255,0.15));">
-          <td style="padding:12px 14px;font-size:0.92rem;color:var(--exec-text, #ffffff);">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:12px 14px;font-size:0.92rem;color:var(--exec-text, #ffffff);">
             المجموع الكلي العام
           </td>
-          <td style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
-          <td style="padding:12px 14px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
-          <td style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
-          <td style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
-          <td style="padding:12px 14px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
-          <td style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
-          <td></td>
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:12px 14px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
+          <td class="tree-col-num" data-col-id="actions" data-priority="1"></td>
         </tr>
       `;
     }

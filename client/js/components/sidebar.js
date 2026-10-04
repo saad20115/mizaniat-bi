@@ -119,4 +119,30 @@ export function renderSidebar() {
       toggle.querySelector('span').textContent = sidebar.classList.contains('collapsed') ? '►' : '◄';
     };
   }
+
+  // Mobile drawer handlers (RESP1)
+  const mobileBtn = document.getElementById('mobile-menu-btn');
+  const backdrop = document.getElementById('sidebar-backdrop');
+
+  if (mobileBtn) {
+    mobileBtn.onclick = () => {
+      const isOpen = sidebar.classList.toggle('mobile-open');
+      if (backdrop) backdrop.classList.toggle('active', isOpen);
+    };
+  }
+
+  if (backdrop) {
+    backdrop.onclick = () => {
+      sidebar.classList.remove('mobile-open');
+      backdrop.classList.remove('active');
+    };
+  }
+
+  // Close mobile drawer on navigation
+  nav.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => {
+      sidebar.classList.remove('mobile-open');
+      if (backdrop) backdrop.classList.remove('active');
+    });
+  });
 }

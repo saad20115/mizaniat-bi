@@ -27,6 +27,7 @@ function initializeSchema() {
       is_active INTEGER DEFAULT 1,
       color TEXT DEFAULT '#3b82f6',
       vat_period TEXT DEFAULT 'quarterly',
+      short_name TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (odoo_instance_id) REFERENCES odoo_instances(id),
       UNIQUE(odoo_instance_id, odoo_company_id)
@@ -485,6 +486,19 @@ function initializeSchema() {
 
   try {
     db.prepare(`UPDATE companies SET vat_period = 'monthly' WHERE id = 2 AND (vat_period IS NULL OR vat_period = 'quarterly')`).run();
+  } catch (e) {}
+
+  // RESP1 Short Names Migration
+  try {
+    db.prepare(`ALTER TABLE companies ADD COLUMN short_name TEXT`).run();
+    console.log('[DB] Added short_name column to companies');
+  } catch (e) { /* column already exists */ }
+
+  try {
+    db.prepare(`UPDATE companies SET short_name = 'مكتب سمير أبو غلية' WHERE id = 1 AND (short_name IS NULL OR short_name = '')`).run();
+    db.prepare(`UPDATE companies SET short_name = 'شركة سمير مهنية' WHERE id = 2 AND (short_name IS NULL OR short_name = '')`).run();
+    db.prepare(`UPDATE companies SET short_name = 'حريري مهنية' WHERE id = 3 AND (short_name IS NULL OR short_name = '')`).run();
+    db.prepare(`UPDATE companies SET short_name = 'شركة جمال حريري' WHERE id = 4 AND (short_name IS NULL OR short_name = '')`).run();
   } catch (e) {}
 
   for (const col of [

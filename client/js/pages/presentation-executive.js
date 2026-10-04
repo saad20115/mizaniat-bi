@@ -158,7 +158,7 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
   syncWholePageTheme(isLightMode);
 
   body.innerHTML = `
-    <div id="exec-root" class="${isLightMode ? 'exec-light' : 'exec-dark'}" style="direction:rtl;display:flex;flex-direction:column;gap:20px;font-family:var(--font-ar);transition:background 0.2s,color 0.2s;">
+    <div id="exec-root" class="${isLightMode ? 'exec-light' : 'exec-dark'}" style="direction:rtl;display:flex;flex-direction:column;gap:20px;font-family:var(--font-ar);transition:background 0.2s,color 0.2s;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
       
       <!-- Top Control Bar -->
       <div class="exec-topbar" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 20px;border-radius:14px;border:1px solid var(--exec-border);background:var(--exec-bg-card);">
@@ -261,7 +261,7 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
       </div>
 
       <!-- Main Content Container -->
-      <div id="exec-content" style="display:none;flex-direction:column;gap:24px;"></div>
+      <div id="exec-content" style="display:none;flex-direction:column;gap:24px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
 
       <!-- Side Drawer for Customer Invoices (P1 Lazy) -->
       <div id="exec-drawer-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:9998;transition:opacity 0.25s;"></div>
@@ -597,7 +597,7 @@ function renderExecutiveContent(container, data) {
 
     <!-- (2) Monthly Trend Chart -->
     ${showChart ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:18px;">
+      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:18px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text);">
             📈 حركة الإيرادات والمصروفات والتحصيل النقدي الشهري — ${currentTimeFilter?.periodLabel || ''}
@@ -612,7 +612,7 @@ function renderExecutiveContent(container, data) {
         </div>
 
         <!-- Chart Container -->
-        <div id="exec-chart-container" style="position:relative;height:320px;width:100%;">
+        <div id="exec-chart-container" style="position:relative;width:100%;min-width:0;max-width:100%;min-height:200px;box-sizing:border-box;">
           ${renderExecutiveChart(monthly)}
         </div>
       </div>
@@ -620,7 +620,7 @@ function renderExecutiveContent(container, data) {
 
     <!-- (3) Unified Hierarchical Table (X3: No inner height constraint) -->
     ${showTree ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <div>
             <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text);">
@@ -633,13 +633,13 @@ function renderExecutiveContent(container, data) {
           </div>
         </div>
 
-        <div id="exec-tree-table-container" style="overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;"></div>
+        <div id="exec-tree-table-container" data-scroll-x="true" style="overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
       </div>
     ` : ''}
 
     <!-- (4) Folded Aging Section (P1 Lazy & Small Fix: Integer round) -->
     ${showAging ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:16px;">
+      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
         <div id="exec-aging-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
           <div style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:1.15rem;font-weight:800;color:var(--exec-text);">⏳ أعمار ذمم فواتير الفترة (الشرائح السبع)</span>
@@ -650,7 +650,7 @@ function renderExecutiveContent(container, data) {
           </span>
         </div>
 
-        <div id="exec-aging-container" style="display:${isAgingOpen ? 'block' : 'none'};overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;margin-top:6px;"></div>
+        <div id="exec-aging-container" data-scroll-x="true" style="display:${isAgingOpen ? 'block' : 'none'};overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;margin-top:6px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
       </div>
     ` : ''}
   `;
@@ -669,20 +669,48 @@ function renderExecutiveContent(container, data) {
     }
   }
 
+  // Responsive Chart ResizeObserver (RESP1)
+  const chartBox = container.querySelector('#exec-chart-container');
+  if (chartBox && typeof ResizeObserver !== 'undefined') {
+    let lastW = chartBox.clientWidth;
+    const getTargetH = () => {
+      const winW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+      return winW < 768 ? 200 : (winW < 1280 ? 240 : 300);
+    };
+    let lastH = getTargetH();
+    const updateChart = (w) => {
+      const curW = w || chartBox.clientWidth;
+      const curH = getTargetH();
+      if (curW > 0 && (Math.abs(curW - lastW) > 8 || curH !== lastH)) {
+        lastW = curW;
+        lastH = curH;
+        if (currentExecutiveData?.monthly_series) {
+          chartBox.innerHTML = renderExecutiveChart(currentExecutiveData.monthly_series, curW);
+        }
+      }
+    };
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const curW = Math.round(entry.contentRect.width);
+        updateChart(curW);
+      }
+    });
+    ro.observe(chartBox);
+    window.addEventListener('resize', () => updateChart());
+  }
+
   bindExecutiveTableEvents(container);
 }
 
 /**
  * Render pure SVG interactive chart for monthly trend (RTL oriented, X5 & X6)
  */
-function renderExecutiveChart(rawSeries) {
+function renderExecutiveChart(rawSeries, explicitWidth) {
   if (!rawSeries || !rawSeries.length) {
     return `<div style="text-align:center;padding:80px;color:var(--exec-text-muted);">لا توجد حركات شهرية في هذه الفترة</div>`;
   }
 
   // Filter series according to X6 & YR1:
-  // 1. In multi-year mode: omit empty years (where revenue, expenses, and collected are all 0)
-  // 2. In single current year: omit future months (months after current month)
   const isMultiYear = currentTimeFilter?.selectedYear === 'ALL' || (currentTimeFilter?.selectedYears && currentTimeFilter.selectedYears.length > 1);
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -692,7 +720,6 @@ function renderExecutiveChart(rawSeries) {
     if (isMultiYear) {
       return (s.revenue || 0) > 0 || (s.expenses || 0) > 0 || (s.collected_cash || 0) > 0;
     }
-    // If current year, check if label represents future month
     if (currentTimeFilter?.selectedYear === String(currentYear)) {
       const match = s.label && s.label.match(/(\d+)/);
       if (match) {
@@ -705,14 +732,30 @@ function renderExecutiveChart(rawSeries) {
 
   if (!series.length) series = rawSeries;
 
-  const w = 1100;
-  const h = 300;
-  const padTop = 30;
-  const padBottom = 40;
-  const padRight = 115;
-  const padLeft = 40;
-  const chartW = w - padRight - padLeft;
-  const chartH = h - padTop - padBottom;
+  // Responsive dimensions (RESP1)
+  const windowWidth = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const isMobile = windowWidth < 768;
+  const isTablet = windowWidth >= 768 && windowWidth < 1280;
+
+  let w = explicitWidth || 1100;
+  if (!explicitWidth && typeof document !== 'undefined') {
+    const box = document.querySelector('#exec-chart-container');
+    if (box && box.clientWidth > 100) {
+      w = box.clientWidth;
+    } else {
+      w = isMobile ? Math.max(300, windowWidth - 24) : (isTablet ? Math.max(700, windowWidth - 100) : 1100);
+    }
+  }
+
+  // Height: 300 desktop, 240 tablet, 200 mobile (RESP1 spec)
+  const h = isMobile ? 200 : (isTablet ? 240 : 300);
+
+  const padTop = isMobile ? 18 : 26;
+  const padBottom = isMobile ? 28 : 36;
+  const padRight = isMobile ? 65 : (isTablet ? 90 : 110);
+  const padLeft = isMobile ? 16 : 30;
+  const chartW = Math.max(100, w - padRight - padLeft);
+  const chartH = Math.max(80, h - padTop - padBottom);
 
   const maxVal = Math.max(
     ...series.map(s => Math.max(s.revenue || 0, s.expenses || 0, s.collected_cash || 0)),
@@ -721,20 +764,43 @@ function renderExecutiveChart(rawSeries) {
 
   const count = series.length;
   const slotW = chartW / count;
-  const barW = Math.min(32, Math.max(12, slotW * 0.28));
+  const barW = Math.min(isMobile ? 16 : 32, Math.max(6, slotW * 0.28));
 
   // AA Contrast Colors for light/dark (X5)
   const textColor = isLightMode ? '#334155' : 'rgba(255, 255, 255, 0.85)';
   const gridStroke = isLightMode ? '#cbd5e1' : 'rgba(255, 255, 255, 0.1)';
 
-  // Build grid lines (L2: explicitly ltr to prevent RTL text-anchor reverse overlap into January bar)
+  // Short month names mapping
+  const SHORT_MONTHS = {
+    'يناير': 'ينا', 'فبراير': 'فبر', 'مارس': 'مار', 'أبريل': 'أبر',
+    'مايو': 'ماي', 'يونيو': 'يون', 'يوليو': 'يول', 'أغسطس': 'أغس',
+    'سبتمبر': 'سبت', 'أكتوبر': 'أكت', 'نوفمبر': 'نوف', 'ديسمبر': 'ديس'
+  };
+
+  function formatAxisNum(val) {
+    if (!isMobile) return val.toLocaleString('en-US');
+    if (val >= 1000000) return (val / 1000000).toFixed(1).replace('.0', '') + 'م';
+    if (val >= 1000) return (val / 1000).toFixed(0) + 'ك';
+    return String(val);
+  }
+
+  function formatMonthLabel(lbl) {
+    if (!isMobile) return lbl;
+    for (const [full, sh] of Object.entries(SHORT_MONTHS)) {
+      if (lbl.includes(full)) return lbl.replace(full, sh);
+    }
+    return lbl;
+  }
+
+  // Grid lines: 3 lines on mobile, 4 on tablet/desktop
+  const gridCount = isMobile ? 3 : 4;
   const gridLines = [];
-  for (let i = 0; i <= 4; i++) {
-    const y = padTop + (chartH / 4) * i;
-    const val = Math.round(maxVal - (maxVal / 4) * i);
+  for (let i = 0; i <= gridCount; i++) {
+    const y = padTop + (chartH / gridCount) * i;
+    const val = Math.round(maxVal - (maxVal / gridCount) * i);
     gridLines.push(`
       <line x1="${padLeft}" y1="${y}" x2="${w - padRight}" y2="${y}" stroke="${gridStroke}" stroke-dasharray="4" />
-      <text x="${w - padRight + 12}" y="${y + 4}" fill="${textColor}" text-anchor="start" direction="ltr" style="direction:ltr;unicode-bidi:isolate;" font-size="11" font-weight="700" font-family="var(--font-en)">${(val).toLocaleString('en-US')}</text>
+      <text x="${w - padRight + (isMobile ? 6 : 10)}" y="${y + 4}" fill="${textColor}" text-anchor="start" direction="ltr" style="direction:ltr;unicode-bidi:isolate;" font-size="${isMobile ? 10 : 11}" font-weight="700" font-family="var(--font-en)">${formatAxisNum(val)}</text>
     `);
   }
 
@@ -743,7 +809,6 @@ function renderExecutiveChart(rawSeries) {
   const linePoints = [];
 
   series.forEach((s, idx) => {
-    // RTL layout: first month at right
     const cx = w - padRight - (idx + 0.5) * slotW;
 
     const revH = Math.max(0, ((s.revenue || 0) / maxVal) * chartH);
@@ -762,20 +827,17 @@ function renderExecutiveChart(rawSeries) {
     const drillAttr = isDrillable ? `data-drill-year="${drillYear}" style="cursor:pointer;"` : '';
     const drillHint = isDrillable ? `\n(انقر للتفصيل الشهري لعام ${drillYear})` : '';
 
+    const displayLabel = formatMonthLabel(s.label || '');
+
     bars.push(`
       <g class="exec-chart-group" data-idx="${idx}" ${drillAttr}>
-        <!-- Revenue Bar -->
-        <rect x="${revX}" y="${revY}" width="${barW}" height="${revH}" fill="#3b82f6" rx="3" opacity="0.95">
+        <rect x="${revX}" y="${revY}" width="${barW}" height="${revH}" fill="#3b82f6" rx="2" opacity="0.95">
           <title>${s.label}\nالإيرادات: ${(s.revenue || 0).toLocaleString('en-US')} ريال${drillHint}</title>
         </rect>
-        
-        <!-- Expenses Bar -->
-        <rect x="${expX}" y="${expY}" width="${barW}" height="${expH}" fill="#f59e0b" rx="3" opacity="0.95">
+        <rect x="${expX}" y="${expY}" width="${barW}" height="${expH}" fill="#f59e0b" rx="2" opacity="0.95">
           <title>${s.label}\nالمصروفات: ${(s.expenses || 0).toLocaleString('en-US')} ريال${drillHint}</title>
         </rect>
-
-        <!-- X Label (X5: AA Contrast) -->
-        <text x="${cx}" y="${h - 12}" fill="${textColor}" font-size="12" font-weight="700" text-anchor="middle">${escapeHtml(s.label)}</text>
+        <text x="${cx}" y="${h - 8}" fill="${textColor}" font-size="${isMobile ? 10 : 11}" font-weight="700" text-anchor="middle">${escapeHtml(displayLabel)}</text>
       </g>
     `);
   });
@@ -783,12 +845,12 @@ function renderExecutiveChart(rawSeries) {
   const pathD = linePoints.length ? `M ${linePoints.join(' L ')}` : '';
 
   return `
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%;overflow:visible;">
+    <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="width:100%;height:${h}px;display:block;overflow:visible;">
       ${gridLines.join('')}
       ${bars.join('')}
-      <path d="${pathD}" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="${pathD}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
       ${linePoints.map((pt, i) => `
-        <circle cx="${pt.split(',')[0]}" cy="${pt.split(',')[1]}" r="4.5" fill="#10b981" stroke="var(--exec-bg-card)" stroke-width="2">
+        <circle cx="${pt.split(',')[0]}" cy="${pt.split(',')[1]}" r="${isMobile ? 3.5 : 4.5}" fill="#10b981" stroke="var(--exec-bg-card)" stroke-width="2">
           <title>${series[i]?.label}\nالتحصيل النقدي: ${(series[i]?.collected_cash || 0).toLocaleString('en-US')} ريال</title>
         </circle>
       `).join('')}
@@ -801,27 +863,27 @@ function renderExecutiveChart(rawSeries) {
  */
 // Aging table column definitions
 const agingColumns = [
-  { id: 'name', label: 'البيان', minWidth: '260px', align: 'right' },
-  { id: 'not_due', label: 'غير مستحق', align: 'left' },
-  { id: 'b1_30', label: '1-30 يوم', align: 'left' },
-  { id: 'b31_60', label: '31-60 يوم', align: 'left' },
-  { id: 'b61_90', label: '61-90 يوم', align: 'left' },
-  { id: 'b91_180', label: '91-180 يوم', align: 'left' },
-  { id: 'b181_365', label: '181-365 يوم', align: 'left' },
-  { id: 'over_365', label: '+365 يوم', align: 'left' },
-  { id: 'total_residual', label: 'إجمالي المتبقي', align: 'left', color: 'var(--exec-danger)' }
+  { id: 'name', label: 'البيان', minWidth: '220px', align: 'right', priority: 1 },
+  { id: 'not_due', label: 'غير مستحق', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
+  { id: 'b1_30', label: '1-30 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
+  { id: 'b31_60', label: '31-60 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
+  { id: 'b61_90', label: '61-90 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
+  { id: 'b91_180', label: '91-180 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 2 },
+  { id: 'b181_365', label: '181-365 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 2 },
+  { id: 'over_365', label: '+365 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
+  { id: 'total_residual', label: 'إجمالي المتبقي', align: 'left', minWidth: '110px', maxWidth: '130px', color: 'var(--exec-danger)', priority: 1 }
 ];
 
 function getMainTableColumns(prefs) {
   const cols = prefs.columns || defaultPreferences.columns;
-  const list = [{ id: 'name', label: 'البيان', minWidth: '280px', align: 'right' }];
-  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left' });
-  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left' });
-  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left' });
-  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center' });
-  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left' });
-  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'تحصيل الإيراد (%)', align: 'center', minWidth: '140px' });
-  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي من فواتير الفترة', align: 'left' });
+  const list = [{ id: 'name', label: 'البيان', minWidth: '220px', align: 'right', priority: 1 }];
+  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
+  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
+  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
+  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', minWidth: '85px', maxWidth: '100px', priority: 2 });
+  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
+  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'تحصيل الإيراد (%)', align: 'center', minWidth: '110px', maxWidth: '130px', priority: 2 });
+  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي من فواتير الفترة', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 });
   return list;
 }
 
@@ -840,8 +902,9 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
   const showRate = cols.includes('collection_rate');
   const showRes = cols.includes('residual');
 
-  const indent = depth * 22;
+  const indent = depth * 20;
   const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
+  const nodeName = node.name || node.code || '';
 
   let namePrefix = '';
   if (depth === 0) namePrefix = '🏢 ';
@@ -858,20 +921,20 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
 
   return `
     <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-      <td style="padding-right:${indent + 14}px;">
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding-right:${indent + 14}px;text-align:right;" title="${escapeHtml(nodeName)}">
         <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted);font-size:0.85rem;">${icon}</span>
         ${namePrefix}
-        <span style="${isClient ? 'color:var(--exec-accent);text-decoration:underline;' : ''}">${escapeHtml(node.name || node.code || '')}</span>
+        <span data-tree-name="true" style="${isClient ? 'color:var(--exec-accent);text-decoration:underline;' : ''}">${escapeHtml(nodeName)}</span>
         ${isClient && node.invoices ? `<span style="font-size:0.75rem;color:var(--exec-text-muted);margin-right:6px;">(${node.invoices.length} فواتير)</span>` : ''}
         ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
       </td>
-      ${showRev ? `<td style="text-align:left;">${fmtVal(node.revenue)}</td>` : ''}
-      ${showExp ? `<td style="text-align:left;">${fmtVal(node.expenses)}</td>` : ''}
-      ${showNet ? `<td style="text-align:left;">${fmtVal(node.net_profit)}</td>` : ''}
-      ${showMargin ? `<td style="text-align:center;">${fmtRate(node.margin, true, node.revenue)}</td>` : ''}
-      ${showCol ? `<td style="text-align:left;">${fmtVal(node.collected)}</td>` : ''}
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.revenue)}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.expenses)}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.net_profit)}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${fmtRate(node.margin, true, node.revenue)}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.collected)}</td>` : ''}
       ${showRate ? `
-        <td style="text-align:center;">
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-num" style="text-align:center;">
           ${node.collection_rate !== null && node.collection_rate !== undefined ? `
             <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
               <span class="exec-num" style="font-size:0.82rem;">${fmtRate(node.collection_rate)}</span>
@@ -882,7 +945,7 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
           ` : '—'}
         </td>
       ` : ''}
-      ${showRes ? `<td style="text-align:left;color:${(node.residual || 0) > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(node.residual)}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:${(node.residual || 0) > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(node.residual)}</td>` : ''}
     </tr>
   `;
 }
@@ -899,14 +962,14 @@ function renderMainTableTotals(totals) {
 
   return `
     <tr class="exec-sticky-footer">
-      <td style="color:#3b82f6;font-size:1.05rem;">الإجمالي للمجموعة</td>
-      ${showRev ? `<td style="text-align:left;color:#3b82f6;">${fmtVal(totals.revenue)}</td>` : ''}
-      ${showExp ? `<td style="text-align:left;color:#f59e0b;">${fmtVal(totals.expenses)}</td>` : ''}
-      ${showNet ? `<td style="text-align:left;color:#10b981;">${fmtVal(totals.net_profit)}</td>` : ''}
-      ${showMargin ? `<td style="text-align:center;color:#10b981;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
-      ${showCol ? `<td style="text-align:left;color:#06b6d4;">${fmtVal(totals.collected)}</td>` : ''}
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="color:#3b82f6;font-size:1.05rem;">الإجمالي للمجموعة</td>
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;color:#3b82f6;">${fmtVal(totals.revenue)}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;color:#f59e0b;">${fmtVal(totals.expenses)}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;color:#10b981;">${fmtVal(totals.net_profit)}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;color:#10b981;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;color:#06b6d4;">${fmtVal(totals.collected)}</td>` : ''}
       ${showRate ? `
-        <td style="text-align:center;">
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-num" style="text-align:center;">
           <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
             <span class="exec-num" style="font-size:0.85rem;font-weight:700;">${fmtRate(totals.collection_rate)}</span>
             <div style="width:50px;height:6px;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;">
@@ -915,7 +978,7 @@ function renderMainTableTotals(totals) {
           </div>
         </td>
       ` : ''}
-      ${showRes ? `<td style="text-align:left;color:var(--exec-danger);">${fmtVal(totals.residual)}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:var(--exec-danger);">${fmtVal(totals.residual)}</td>` : ''}
     </tr>
   `;
 }

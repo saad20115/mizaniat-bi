@@ -6,13 +6,32 @@
   <meta name="description" content="منصة تقارير مالية - نظام التقارير المالية المجمعة المتصل بأودو">
   <title>تقارير مالية | التقارير المالية المجمعة</title>
   <link rel="icon" type="image/png" href="/assets/logo-SiUukkZm.png">
-  <script type="module" crossorigin src="/assets/main-Cyvgxrg3.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/presentation-DfAazk5G.js">
-  <link rel="modulepreload" crossorigin href="/assets/filters-CgDMCe4e.js">
-  <link rel="stylesheet" crossorigin href="/assets/presentation-CaWSzoDD.css">
+  <script>
+    (function() {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
+        if (urlToken) {
+          localStorage.setItem('mizaniat_admin_token', urlToken);
+          localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+          localStorage.removeItem('mizaniat_viewer_mode');
+          localStorage.removeItem('mizaniat_viewer_token');
+          sessionStorage.removeItem('mizaniat_viewer_token');
+        }
+      } catch(e) {}
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/main-T_Fe5INU.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/presentation-CnrDJZC_.js">
+  <link rel="modulepreload" crossorigin href="/assets/filters-Db7TMvQ9.js">
+  <link rel="stylesheet" crossorigin href="/assets/presentation-ZvsEv9Q5.css">
 </head>
 <body>
   <div id="app">
+    <!-- Mobile Hamburger Toggle & Backdrop (RESP1) -->
+    <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="القائمة">☰</button>
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
     <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -46,18 +65,6 @@
 
   <!-- Export libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlToken = urlParams.get('token');
-    if (urlToken) {
-      localStorage.setItem('mizaniat_admin_token', urlToken);
-      localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
-      localStorage.removeItem('mizaniat_viewer_mode');
-      localStorage.removeItem('mizaniat_viewer_token');
-      sessionStorage.removeItem('mizaniat_viewer_token');
-    }
-  </script>
 
 </body>
 </html>

@@ -40,12 +40,19 @@ router.post('/companies', (req, res) => {
 
 router.put('/companies/:id', (req, res) => {
   const db = getDb();
-  const { name, currency, color, is_active, odoo_instance_id } = req.body;
+  const { name, currency, color, is_active, odoo_instance_id, vat_period, short_name } = req.body;
   db.prepare(`
-    UPDATE companies SET name = COALESCE(?, name), currency = COALESCE(?, currency),
-    color = COALESCE(?, color), is_active = COALESCE(?, is_active),
-    odoo_instance_id = COALESCE(?, odoo_instance_id) WHERE id = ?
-  `).run(name, currency, color, is_active, odoo_instance_id, req.params.id);
+    UPDATE companies SET
+      name = COALESCE(?, name),
+      currency = COALESCE(?, currency),
+      color = COALESCE(?, color),
+      is_active = COALESCE(?, is_active),
+      odoo_instance_id = COALESCE(?, odoo_instance_id),
+      vat_period = COALESCE(?, vat_period),
+      short_name = COALESCE(?, short_name)
+    WHERE id = ?
+  `).run(name, currency, color, is_active, odoo_instance_id, vat_period, short_name, req.params.id);
+  CacheService.flush();
   res.json({ success: true });
 });
 

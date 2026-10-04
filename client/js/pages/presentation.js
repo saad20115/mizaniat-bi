@@ -43,33 +43,34 @@ export async function renderPresentation(container) {
 
   container.innerHTML = `
     <style>
-      .bi-page{min-height:100vh;padding:0;direction:rtl}
+      .bi-page{min-height:100vh;padding:0;direction:rtl;max-width:var(--content-max-width, 1440px);margin:0 auto;overflow-x:hidden;}
       /* Top bar with slicers */
-      .bi-topbar{display:flex;align-items:center;gap:16px;padding:16px 28px;background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
+      .bi-topbar{display:flex;align-items:center;gap:16px;padding:14px var(--page-padding, 28px);background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;position:sticky;top:0;z-index:50;backdrop-filter:blur(12px)}
       .bi-topbar .slicer-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
       .bi-topbar .slicer-label{font-size:0.95rem;color:rgba(255,255,255,0.55);font-weight:700;white-space:nowrap}
-      .bi-chip{padding:9px 20px;border-radius:22px;font-size:0.95rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.55);font-weight:600;user-select:none;white-space:nowrap}
+      .bi-chip{padding:9px 20px;border-radius:22px;font-size:0.95rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.55);font-weight:600;user-select:none;white-space:nowrap;min-height:40px;display:inline-flex;align-items:center;justify-content:center;}
       .bi-chip.active{background:var(--chip-color, #3b82f6);border-color:var(--chip-color, #3b82f6);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.3)}
       .bi-chip:hover{background:rgba(255,255,255,0.07);transform:translateY(-1px);color:#fff}
-      .bi-date{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 14px;color:rgba(255,255,255,0.7);font-size:0.92rem;font-family:var(--font-en);outline:none;width:140px}
+      .bi-date{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 14px;color:rgba(255,255,255,0.7);font-size:0.92rem;font-family:var(--font-en);outline:none;width:140px;min-height:40px;}
       .bi-date:focus{border-color:rgba(59,130,246,0.5)}
 
       /* Tabs */
-      .bi-tabs{display:flex;gap:0;padding:0 28px;background:rgba(255,255,255,0.015);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto}
-      .bi-tab{padding:16px 26px;font-size:1.02rem;font-weight:700;color:rgba(255,255,255,0.35);cursor:pointer;border-bottom:3px solid transparent;transition:all 0.2s;white-space:nowrap}
+      .bi-tabs{display:flex;gap:0;padding:0 var(--page-padding, 28px);background:rgba(255,255,255,0.015);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;}
+      .bi-tab{padding:14px 22px;font-size:1rem;font-weight:700;color:rgba(255,255,255,0.45);cursor:pointer;border-bottom:3px solid transparent;transition:all 0.2s;white-space:nowrap;scroll-snap-align:start;min-height:40px;display:inline-flex;align-items:center;justify-content:center;}
       .bi-tab:hover{color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.02)}
       .bi-tab.active{color:#60a5fa;border-bottom-color:#3b82f6;background:rgba(59,130,246,0.05)}
+      .bi-tab .tab-label-short{display:none;}
 
       /* Body */
-      .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:24px 28px}
+      .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:20px var(--page-padding, 28px);overflow-x:hidden;}
 
       /* KPI cards */
-      .bi-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px}
-      .bi-kpi{background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:26px 20px;text-align:center;transition:transform 0.2s,box-shadow 0.2s}
+      .bi-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
+      .bi-kpi{background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:20px 16px;text-align:center;transition:transform 0.2s,box-shadow 0.2s;height:auto!important;}
       .bi-kpi:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,0.25)}
-      .bi-kpi-label{font-size:1rem;color:rgba(255,255,255,0.55);margin-bottom:12px;font-weight:700}
-      .bi-kpi-value{font-size:2.2rem;font-weight:800;font-family:var(--font-en);letter-spacing:-0.5px}
-      .bi-kpi-sub{font-size:0.92rem;color:rgba(255,255,255,0.45);margin-top:6px;font-family:var(--font-en);font-weight:500}
+      .bi-kpi-label{font-size:0.95rem;color:rgba(255,255,255,0.55);margin-bottom:8px;font-weight:700}
+      .bi-kpi-value{font-size:clamp(1.1rem, 4vw, 1.75rem)!important;font-weight:800;font-family:var(--font-en);letter-spacing:-0.5px;line-height:1.25;}
+      .bi-kpi-sub{font-size:0.88rem;color:rgba(255,255,255,0.45);margin-top:6px;font-family:var(--font-en);font-weight:500}
 
       /* Charts grid */
       .bi-charts{display:grid;grid-template-columns:1fr 1fr;gap:18px}
@@ -121,7 +122,7 @@ export async function renderPresentation(container) {
       .bi-full{grid-column:1/-1}
       .bi-actions{margin-right:auto;display:flex;gap:10px;align-items:center}
       .bi-empty{text-align:center;padding:80px 20px;color:rgba(255,255,255,0.3);font-size:1.15rem}
-      .bi-refresh-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:12px;font-size:0.88rem;cursor:pointer;transition:all 0.25s;border:1.5px solid rgba(16,185,129,0.35);background:rgba(16,185,129,0.08);color:#10b981;font-weight:700;white-space:nowrap;user-select:none}
+      .bi-refresh-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:12px;font-size:0.88rem;cursor:pointer;transition:all 0.25s;border:1.5px solid rgba(16,185,129,0.35);background:rgba(16,185,129,0.08);color:#10b981;font-weight:700;white-space:nowrap;user-select:none;min-height:40px;}
       .bi-refresh-btn:hover{background:rgba(16,185,129,0.18);transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,0.15)}
       .bi-refresh-btn:active{transform:scale(0.96)}
       .bi-refresh-btn.loading{pointer-events:none;opacity:0.6}
@@ -132,7 +133,7 @@ export async function renderPresentation(container) {
       .bi-last-updated .ts{color:rgba(255,255,255,0.65);font-family:var(--font-en);font-weight:600;direction:ltr}
 
       /* Collapsible advanced filter */
-      .bi-adv-toggle{display:flex;align-items:center;gap:8px;padding:10px 28px;background:rgba(255,255,255,0.015);cursor:pointer;user-select:none;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.2s}
+      .bi-adv-toggle{display:flex;align-items:center;gap:8px;padding:10px var(--page-padding, 28px);background:rgba(255,255,255,0.015);cursor:pointer;user-select:none;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.2s}
       .bi-adv-toggle:hover{background:rgba(255,255,255,0.03)}
       .bi-adv-toggle .arrow{transition:transform 0.25s;display:inline-block;font-size:0.7rem;color:rgba(255,255,255,0.4)}
       .bi-adv-toggle.open .arrow{transform:rotate(90deg)}
@@ -142,26 +143,69 @@ export async function renderPresentation(container) {
       .bi-single-chk{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:0.88rem;color:rgba(255,255,255,0.5);font-weight:600;white-space:nowrap}
       .bi-single-chk input{accent-color:#06b6d4;width:16px;height:16px;cursor:pointer}
 
-      @media(max-width:900px){.bi-charts{grid-template-columns:1fr}.bi-kpi-row{grid-template-columns:repeat(3,1fr)}}
-      @media(max-width:600px){.bi-kpi-row{grid-template-columns:repeat(2,1fr)}}
+      /* Mobile Filter Bar & Bottom Sheet (RESP1) */
+      .bi-mobile-filter-bar{display:none;}
+      .mobile-sheet-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:1040;}
+      .mobile-sheet-backdrop.active{display:block;}
+      .mobile-sheet-header{display:none;}
+
+      @media(min-width:768px) and (max-width:1279.98px){
+        .bi-topbar{padding:12px 16px;gap:12px;}
+        .bi-body{padding:16px;}
+        .bi-tabs{padding:0 16px;}
+        .bi-charts{grid-template-columns:1fr;}
+      }
+
+      @media(max-width:767.98px){
+        .bi-mobile-filter-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(180deg,rgba(15,23,42,0.98),rgba(15,23,42,0.92));border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:60;}
+        .bi-topbar{display:none;}
+        .bi-topbar.mobile-sheet-open{display:flex!important;position:fixed!important;top:auto!important;bottom:0!important;left:0!important;right:0!important;z-index:1050!important;background:#0f172a!important;border-top:1px solid rgba(255,255,255,0.15)!important;border-radius:20px 20px 0 0!important;padding:16px 16px 28px!important;flex-direction:column!important;align-items:stretch!important;gap:14px!important;max-height:85vh!important;overflow-y:auto!important;box-shadow:0 -10px 35px rgba(0,0,0,0.65)!important;}
+        .bi-topbar.mobile-sheet-open .mobile-sheet-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);}
+        .bi-topbar.mobile-sheet-open .slicer-divider{display:none;}
+        .bi-topbar.mobile-sheet-open .bi-actions{margin-right:0;margin-top:10px;flex-wrap:wrap;justify-content:stretch;}
+        .bi-topbar.mobile-sheet-open .bi-actions .btn{flex:1;text-align:center;justify-content:center;min-height:40px;}
+        .bi-tabs{padding:0 10px;}
+        .bi-tab{padding:10px 14px;font-size:0.88rem;}
+        .bi-tab .tab-label-full{display:none;}
+        .bi-tab .tab-label-short{display:inline;}
+        .bi-body{padding:12px;}
+        .bi-kpi-row{grid-template-columns:repeat(2,1fr)!important;gap:10px;}
+        .bi-kpi{padding:16px 12px;height:auto!important;}
+        .bi-kpi-value{font-size:clamp(1.1rem, 4vw, 1.75rem)!important;}
+        .bi-charts{grid-template-columns:1fr;}
+      }
     </style>
     <div class="bi-page">
-      <!-- Slicer Bar -->
-      <div class="bi-topbar">
+      <!-- Mobile Filter Bar (RESP1) -->
+      <div class="bi-mobile-filter-bar" id="mobile-filter-bar">
+        <button class="btn btn-primary" id="btn-open-filters" style="flex:1;min-height:40px;justify-content:center;gap:6px;font-size:0.88rem;background:rgba(59,130,246,0.18);border-color:rgba(59,130,246,0.35);color:#93c5fd;">
+          <span>🔍</span> <span id="mobile-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
+        </button>
+        <button class="bi-refresh-btn" id="btn-mobile-refresh" title="تحديث" style="min-height:40px;min-width:40px;padding:6px 12px;"><span class="spin-icon">🔄</span></button>
+        <button class="btn" id="btn-mobile-share" title="مشاركة" style="min-height:40px;min-width:40px;padding:6px 12px;background:rgba(139,92,246,0.12);color:#a78bfa;border-color:rgba(139,92,246,0.25);">🔗</button>
+      </div>
+      <div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop"></div>
+
+      <!-- Slicer Bar / Drawer -->
+      <div class="bi-topbar" id="bi-topbar">
+        <div class="mobile-sheet-header">
+          <span style="font-weight:700;font-size:1.05rem;color:var(--text-white);">🔍 خيارات التصفية والفلاتر</span>
+          <button class="btn" id="btn-close-filter-sheet" style="min-height:36px;min-width:36px;padding:4px 10px;font-size:0.95rem;">✕</button>
+        </div>
         <span class="slicer-label">🏢 الشركات</span>
         <div class="slicer-group" id="co-slicer">
           <div class="bi-chip active all-chip co-all" data-color="#8b5cf6" data-light-color="#7c3aed" style="--chip-color:#8b5cf6;--chip-color-light:#7c3aed;font-weight:800;">الكل</div>
-          ${companies.map((c, i) => `<div class="bi-chip active co-chip" data-id="${c.id}" data-color="${COLORS[i%COLORS.length]}" data-light-color="${LIGHT_COLORS[i%LIGHT_COLORS.length]}" style="--chip-color:${COLORS[i%COLORS.length]};--chip-color-light:${LIGHT_COLORS[i%LIGHT_COLORS.length]};">${c.name}</div>`).join('')}
+          ${companies.map((c, i) => `<div class="bi-chip active co-chip" data-id="${c.id}" data-color="${COLORS[i%COLORS.length]}" data-light-color="${LIGHT_COLORS[i%LIGHT_COLORS.length]}" style="--chip-color:${COLORS[i%COLORS.length]};--chip-color-light:${LIGHT_COLORS[i%LIGHT_COLORS.length]};" title="${c.name}">${c.short_name || c.name}</div>`).join('')}
         </div>
-        <div style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
+        <div class="slicer-divider" style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
         <span class="slicer-label">📅 السنوات</span>
         <div class="slicer-group" id="yr-slicer">
           <div class="bi-chip ${isAllYear?'active':''} yr-all" data-color="#ec4899" data-light-color="#db2777" style="--chip-color:#ec4899;--chip-color-light:#db2777;font-weight:800;font-family:var(--font-en);">الكل</div>
           ${fiscalYears.map((y, i) => `<div class="bi-chip ${!isAllYear && y===fy?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" data-light-color="${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]}" style="--chip-color:${YR_COLORS[i%YR_COLORS.length]};--chip-color-light:${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]};font-family:var(--font-en);" data-idx="${i}">${y}</div>`).join('')}
         </div>
-        <div style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
+        <div class="slicer-divider" style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 6px;flex-shrink:0;"></div>
         <span class="slicer-label">📆 الفترة</span>
-        <div style="display:inline-flex;align-items:center;gap:6px;">
+        <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
           <input type="date" id="date-from" class="bi-date" value="" placeholder="من">
           <span style="color:rgba(255,255,255,0.3);font-size:0.88rem;">→</span>
           <input type="date" id="date-to" class="bi-date" value="" placeholder="إلى">
@@ -198,11 +242,26 @@ export async function renderPresentation(container) {
 
       <!-- Tab Bar -->
       <div class="bi-tabs" id="bi-tabs">
-        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" style="border-right:1px solid rgba(255,255,255,0.08);background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:800;">🏢 لوحة الإدارة</div>
-        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">👥 العملاء والتحصيل</div>
-        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">📊 الأقسام والربحية</div>
-        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">🏦 الضمانات البنكية</div>
-        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">🧾 ضريبة القيمة المضافة</div>
+        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" style="border-right:1px solid rgba(255,255,255,0.08);background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:800;">
+          <span class="tab-label-full">🏢 لوحة الإدارة</span>
+          <span class="tab-label-short">🏢 الإدارة</span>
+        </div>
+        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">
+          <span class="tab-label-full">👥 العملاء والتحصيل</span>
+          <span class="tab-label-short">👥 العملاء</span>
+        </div>
+        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">
+          <span class="tab-label-full">📊 الأقسام والربحية</span>
+          <span class="tab-label-short">📊 الأقسام</span>
+        </div>
+        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">
+          <span class="tab-label-full">🏦 الضمانات البنكية</span>
+          <span class="tab-label-short">🏦 الضمانات</span>
+        </div>
+        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">
+          <span class="tab-label-full">🧾 ضريبة القيمة المضافة</span>
+          <span class="tab-label-short">🧾 الضريبة</span>
+        </div>
         <div class="bi-tab ${activeTab==='overview'?'active':''}" data-tab="overview" style="display:none;">📊 نظرة عامة</div>
         <div class="bi-tab ${activeTab==='collection'?'active':''}" data-tab="collection" style="display:none;">📥 التحصيل</div>
         <div class="bi-tab ${activeTab==='details'?'active':''}" data-tab="details" style="display:none;">📖 التفاصيل</div>
@@ -260,6 +319,36 @@ export async function renderPresentation(container) {
     if (coAll) setChipActive(coAll, [...allCo].every(c => c.classList.contains('active')));
     if (ccAll) setChipActive(ccAll, allCc.length === 0 || [...allCc].every(c => c.classList.contains('active')));
     if (grpAll) setChipActive(grpAll, allGrp.length === 0 || [...allGrp].every(c => c.classList.contains('active')));
+    updateMobileFilterSummary(container);
+  }
+
+  function updateMobileFilterSummary(container) {
+    const sumEl = container.querySelector('#mobile-filter-summary');
+    if (!sumEl) return;
+    const isAllCo = container.querySelector('.co-all')?.classList.contains('active');
+    const activeCos = [...container.querySelectorAll('.co-chip.active')];
+    let coText = 'كل الشركات';
+    if (!isAllCo) {
+      if (activeCos.length === 1) {
+        coText = activeCos[0].textContent.trim();
+      } else if (activeCos.length > 1) {
+        coText = `${activeCos.length} شركات`;
+      } else {
+        coText = 'لا شركة';
+      }
+    }
+
+    const isAllYr = container.querySelector('.yr-all')?.classList.contains('active');
+    const activeYrs = [...container.querySelectorAll('.yr-chip.active')].map(c => c.dataset.year);
+    let yrText = 'كل السنوات';
+    if (!isAllYr) {
+      if (activeYrs.length === 1) {
+        yrText = activeYrs[0];
+      } else if (activeYrs.length > 1) {
+        yrText = activeYrs.join('+');
+      }
+    }
+    sumEl.textContent = `الفلاتر (${yrText} · ${coText})`;
   }
 
   container.querySelectorAll('.co-chip').forEach(c => c.addEventListener('click', () => toggleChip(c)));
@@ -382,12 +471,41 @@ export async function renderPresentation(container) {
 
   syncAllChips();
 
+  // Mobile Filter Sheet Handlers (RESP1)
+  const topbar = container.querySelector('#bi-topbar');
+  const sheetBackdrop = container.querySelector('#mobile-sheet-backdrop');
+  const btnOpenFilters = container.querySelector('#btn-open-filters');
+  const btnCloseFilters = container.querySelector('#btn-close-filter-sheet');
+
+  function openFilterSheet() {
+    if (topbar) topbar.classList.add('mobile-sheet-open');
+    if (sheetBackdrop) sheetBackdrop.classList.add('active');
+  }
+  function closeFilterSheet() {
+    if (topbar) topbar.classList.remove('mobile-sheet-open');
+    if (sheetBackdrop) sheetBackdrop.classList.remove('active');
+  }
+
+  btnOpenFilters?.addEventListener('click', openFilterSheet);
+  btnCloseFilters?.addEventListener('click', closeFilterSheet);
+  sheetBackdrop?.addEventListener('click', closeFilterSheet);
+
+  container.querySelector('#btn-mobile-refresh')?.addEventListener('click', () => {
+    container.querySelector('#btn-refresh')?.click();
+  });
+  container.querySelector('#btn-mobile-share')?.addEventListener('click', () => {
+    container.querySelector('#btn-share')?.click();
+  });
+
   // Tab switching
   container.querySelectorAll('.bi-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       container.querySelectorAll('.bi-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       activeTab = tab.dataset.tab;
+      try {
+        tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      } catch(e) {}
       renderDashboard(container);
     });
   });

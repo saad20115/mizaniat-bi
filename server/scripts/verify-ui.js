@@ -166,6 +166,22 @@ async function runVerifyUI() {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
 
+    await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: `
+        try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const t = urlParams.get('token');
+          if (t) {
+            localStorage.setItem('mizaniat_admin_token', t);
+            localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+            localStorage.removeItem('mizaniat_viewer_mode');
+            localStorage.removeItem('mizaniat_viewer_token');
+            sessionStorage.removeItem('mizaniat_viewer_token');
+          }
+        } catch(e) {}
+      `
+    });
+
     let passedTests = 0;
     let failedTests = 0;
 
@@ -195,6 +211,15 @@ async function runVerifyUI() {
         chartRendered = true;
         break;
       }
+    }
+    if (!chartRendered) {
+      const debugInfo = await cdp.eval(`({
+        href: window.location.href,
+        hasContainer: !!document.querySelector('#exec-chart-container'),
+        mainContent: document.querySelector('#main-content')?.innerHTML?.slice(0, 300),
+        adminToken: localStorage.getItem('mizaniat_admin_token')
+      })`);
+      console.log('  [Debug Test 1 Failed]:', debugInfo);
     }
     assert(chartRendered, 'Executive chart container rendered');
 
@@ -669,7 +694,7 @@ async function runVerifyUI() {
     // KPI cards (5 cards)
     const kpiCount = await cdp.eval('document.querySelectorAll(".exec-kpi-card").length');
     const firstKpiVal = await cdp.eval('document.querySelector(".exec-kpi-card .exec-num")?.textContent');
-    assert(kpiCount >= 5 && firstKpiVal && firstKpiVal.length > 0, `D2: 5 KPI cards populated (Revenue: ${firstKpiVal.trim()})`);
+    assert(kpiCount >= 5 && firstKpiVal && firstKpiVal.length > 0, `D2: 5 KPI cards populated (Revenue: ${firstKpiVal ? firstKpiVal.trim() : 'none'})`);
 
     // TreeTable structure
     const initialRows = await cdp.eval('document.querySelectorAll("#prof-tree-container tr[data-tree-row=\\"true\\"]").length');
@@ -983,10 +1008,215 @@ async function runVerifyUI() {
     // VAT tab viewer mode check: strictly read-only
     console.log('  Testing D5 VAT Tab in Viewer Mode...');
     await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"vat\\"]")?.click()');
-    await sleep(3500);
+    let viewerVatRows = 0;
+    for (let attempts = 0; attempts < 10; attempts++) {
+      await sleep(500);
+      viewerVatRows = await cdp.eval('document.querySelectorAll("#vat-tree-container tr[data-tree-row=\\"true\\"]").length');
+      if (viewerVatRows > 0) break;
+    }
     const viewerVatVisible = await cdp.eval('document.querySelector("#vat-main-content")?.style.display !== "none"');
-    const viewerVatRows = await cdp.eval('document.querySelectorAll("#vat-tree-container tr[data-tree-row=\\"true\\"]").length');
     assert(viewerVatVisible && viewerVatRows > 0, `Viewer opened VAT tab successfully with ${viewerVatRows} rows`);
+    // ──────────────────────────────────────────
+    // TEST 7.5: RESP1 — Multi-Resolution Responsive & Layout Integrity Suite
+    // ──────────────────────────────────────────
+    console.log('\n--- 7.5. RESP1: Multi-Resolution Responsive & Layout Integrity Suite ---');
+    const screenshotsDir = path.join(__dirname, '..', '..', 'scratch', 'responsive');
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+
+    // Restore admin session
+    await cdp.eval(`
+      localStorage.setItem('mizaniat_admin_token', '${adminToken}');
+      localStorage.removeItem('mizaniat_viewer_mode');
+      localStorage.removeItem('mizaniat_viewer_token');
+      sessionStorage.removeItem('mizaniat_viewer_token');
+    `);
+
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive`
+    });
+    await sleep(2500);
+
+    const testResolutions = [
+      { name: 'Mobile-Small (360x800)', width: 360, height: 800, isMobile: true },
+      { name: 'Mobile-Standard (390x844)', width: 390, height: 844, isMobile: true },
+      { name: 'Tablet-Portrait (768x1024)', width: 768, height: 1024, isMobile: false },
+      { name: 'Laptop-Standard (1366x768)', width: 1366, height: 768, isMobile: false },
+      { name: 'Desktop-Wide (1920x1080)', width: 1920, height: 1080, isMobile: false }
+    ];
+
+    const testTabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat'];
+
+    for (const res of testResolutions) {
+      console.log(`\n  >> Testing Resolution: ${res.name} (width: ${res.width}px, height: ${res.height}px)`);
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: res.width,
+        height: res.height,
+        deviceScaleFactor: 1,
+        mobile: res.isMobile
+      });
+      await sleep(600);
+
+      // Verify mobile-specific UI controls if on mobile
+      if (res.isMobile) {
+        const mobileNavChecks = await cdp.eval(`
+          (() => {
+            const filterBar = document.querySelector('#mobile-filter-bar');
+            const filterBarVisible = filterBar && window.getComputedStyle(filterBar).display !== 'none';
+            const menuBtn = document.querySelector('#mobile-menu-btn');
+            const menuBtnVisible = menuBtn && window.getComputedStyle(menuBtn).display !== 'none';
+            return { filterBarVisible, menuBtnVisible };
+          })()
+        `);
+        assert(mobileNavChecks.filterBarVisible, `[${res.name}] Mobile filter bar is visible`);
+        assert(mobileNavChecks.menuBtnVisible, `[${res.name}] Mobile hamburger menu button (☰) is visible`);
+      }
+
+      for (const tab of testTabs) {
+        // Switch to tab
+        await cdp.eval(`
+          const t = document.querySelector('#bi-tabs .bi-tab[data-tab="${tab}"]');
+          if (t) t.click();
+        `);
+        await sleep(1500);
+
+        // 1. Check no horizontal scroll on page
+        const scrollCheck = await cdp.eval(`
+          (() => {
+            const docEl = document.documentElement;
+            const bodyEl = document.body;
+            const scrollW = Math.max(docEl.scrollWidth, bodyEl.scrollWidth);
+            const clientW = window.innerWidth;
+            return {
+              scrollW,
+              clientW,
+              hasOverflow: scrollW > clientW + 2
+            };
+          })()
+        `);
+        assert(!scrollCheck.hasOverflow, `[${res.name} - ${tab}] No horizontal page scroll (scrollW: ${scrollCheck.scrollW}px, innerW: ${scrollCheck.clientW}px)`);
+
+        // 2. Check no elements overflowing outside [data-scroll-x]
+        const overflowCheck = await cdp.eval(`
+          (() => {
+            const vw = window.innerWidth;
+            const elements = Array.from(document.querySelectorAll('.bi-page *'));
+            let maxRight = 0;
+            let overflowingEl = null;
+            for (const el of elements) {
+              if (el.closest('[data-scroll-x="true"]') || el.closest('.tree-table-wrap') || el.closest('.perf-table-wrap') || el.closest('.mobile-sheet-open') || el.closest('#sidebar') || el.closest('.sidebar-backdrop')) {
+                continue;
+              }
+              const rect = el.getBoundingClientRect();
+              if (rect.width > 0 && rect.right > vw + 2) {
+                if (rect.right > maxRight) {
+                  maxRight = rect.right;
+                  overflowingEl = el.tagName + (el.className ? '.' + el.className.split(' ').join('.') : '') + (el.id ? '#' + el.id : '');
+                }
+              }
+            }
+            return {
+              overflowing: maxRight > vw + 2,
+              maxRight,
+              overflowingEl
+            };
+          })()
+        `);
+        assert(!overflowCheck.overflowing, `[${res.name} - ${tab}] No element overflows viewport (${overflowCheck.overflowingEl || 'none'})`);
+
+        // 3. Tab-specific responsive checks:
+        if (tab === 'executive') {
+          for (let waitAttempts = 0; waitAttempts < 10; waitAttempts++) {
+            const hasSvg = await cdp.eval('!!document.querySelector("#exec-chart-container svg")');
+            if (hasSvg) break;
+            await sleep(300);
+          }
+          await sleep(200);
+
+          const chartChecks = await cdp.eval(`
+            (() => {
+              const container = document.querySelector('#exec-chart-container');
+              const svg = container ? container.querySelector('svg') : null;
+              if (!container || !svg) return null;
+              const cWidth = container.clientWidth;
+              const svgRect = svg.getBoundingClientRect();
+              const svgHeight = svgRect.height;
+              const ratio = cWidth > 0 ? (svgRect.width / cWidth) : 0;
+              return {
+                windowInnerW: window.innerWidth,
+                windowInnerH: window.innerHeight,
+                containerWidth: cWidth,
+                svgWidth: svgRect.width,
+                svgHeight: Math.round(svgHeight),
+                svgAttrH: svg.getAttribute('height'),
+                svgViewBox: svg.getAttribute('viewBox'),
+                fillRatio: ratio
+              };
+            })()
+          `);
+          if (chartChecks) {
+            console.log(`    [ChartDebug ${res.name}]: innerW=${chartChecks.windowInnerW}, containerW=${chartChecks.containerWidth}, svgH=${chartChecks.svgHeight}, attrH=${chartChecks.svgAttrH}, viewBox=${chartChecks.svgViewBox}`);
+            assert(chartChecks.fillRatio >= 0.90, `[${res.name}] Executive chart fills >= 90% of container (ratio: ${(chartChecks.fillRatio * 100).toFixed(1)}%, container: ${chartChecks.containerWidth}px, svg: ${chartChecks.svgWidth}px)`);
+            const expectedH = res.width < 768 ? 200 : (res.width < 1280 ? 240 : 300);
+            assert(Math.abs(chartChecks.svgHeight - expectedH) <= 12, `[${res.name}] Executive chart height matches breakpoint specs (${chartChecks.svgHeight}px vs expected ~${expectedH}px)`);
+          }
+
+          if (res.width === 1920) {
+            // Gap check on desktop wide: columns are compact and distance between name column text and first number is <= 40px
+            const gapCheck = await cdp.eval(`
+              (() => {
+                const firstRow = document.querySelector('#exec-main-table tr[data-tree-row="true"]');
+                if (!firstRow) return null;
+                const nameTd = firstRow.querySelector('.tree-col-name') || firstRow.querySelector('td:first-child');
+                const numTd = firstRow.querySelector('.tree-col-num') || firstRow.querySelector('td:nth-child(2)');
+                if (!nameTd || !numTd) return null;
+                const nameRect = nameTd.getBoundingClientRect();
+                const numRect = numTd.getBoundingClientRect();
+                const colDistance = Math.abs(nameRect.left - numRect.right);
+                return {
+                  colDistance,
+                  nameTdWidth: nameRect.width,
+                  numTdWidth: numRect.width
+                };
+              })()
+            `);
+            if (gapCheck) {
+              assert(gapCheck.colDistance <= 40, `[1920px Desktop] Distance between name column and first numeric column is compact (${gapCheck.colDistance.toFixed(1)}px <= 40px)`);
+            }
+          }
+        }
+
+        // 4. Capture screenshots for [390, 768, 1366, 1920]
+        if ([390, 768, 1366, 1920].includes(res.width)) {
+          const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+          const filename = `${tab}_${res.width}x${res.height}_dark.png`;
+          fs.writeFileSync(path.join(screenshotsDir, filename), Buffer.from(shot.data, 'base64'));
+        }
+      }
+    }
+
+    // Test Light Mode for 390 and 1920 on Executive tab
+    console.log('\n  >> Testing Light Mode Screenshots...');
+    for (const w of [390, 1920]) {
+      const h = w === 390 ? 844 : 1080;
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: w,
+        height: h,
+        deviceScaleFactor: 1,
+        mobile: w === 390
+      });
+      await cdp.send('Page.navigate', {
+        url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive&theme=light`
+      });
+      await sleep(2000);
+      const shot = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      fs.writeFileSync(path.join(screenshotsDir, `executive_${w}x${h}_light.png`), Buffer.from(shot.data, 'base64'));
+    }
+
+    // Clear emulation
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+    await sleep(400);
 
     // ──────────────────────────────────────────
     // TEST 8: Zero Console Errors

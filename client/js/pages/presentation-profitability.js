@@ -365,18 +365,19 @@ function initProfitabilityTreeTable(container, data) {
   const totals = data.totals || {};
 
   const columns = [
-    { id: 'name', label: 'البيان / الهيكل الهرمي', minWidth: '320px', align: 'right' },
-    ...periodCols.map(col => ({
+    { id: 'name', label: 'البيان / الهيكل الهرمي', minWidth: 'min(46vw, 240px)', align: 'right', priority: 1 },
+    ...periodCols.map((col, idx) => ({
       id: col.key,
       label: col.label,
       align: 'left',
-      minWidth: '120px'
+      minWidth: '115px',
+      priority: (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1
     })),
-    { id: 'total', label: 'الإجمالي', align: 'left', minWidth: '130px' }
+    { id: 'total', label: 'الإجمالي', align: 'left', minWidth: '120px', priority: 1 }
   ];
 
   if (currentMeasure === 'net') {
-    columns.push({ id: 'margin', label: 'هامش الربح', align: 'center', minWidth: '100px' });
+    columns.push({ id: 'margin', label: 'هامش الربح', align: 'center', minWidth: '95px', priority: 2 });
   }
 
   currentTreeTable = createTreeTable(container, {
@@ -421,20 +422,21 @@ function initProfitabilityTreeTable(container, data) {
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td style="padding-right:${indent + 14}px;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
             <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${icon}</span>
             ${namePrefix}
             <span style="${isCC ? 'color:#60a5fa;' : ''}">${escapeHtml(node.name || '')}</span>
             ${node.is_redistributable ? '<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:rgba(245,158,11,0.15);color:#f59e0b;margin-right:6px;">إداري 🔄</span>' : ''}
             ${isAcc && node.code ? `<span style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-right:6px;">(${escapeHtml(node.code)})</span>` : ''}
           </td>
-          ${periodCols.map(col => {
+          ${periodCols.map((col, idx) => {
             const val = node.values?.[col.key] || 0;
-            return `<td style="text-align:left;">${fmtVal(val)}</td>`;
+            const prio = (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1;
+            return `<td class="tree-col-num" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;">${fmtVal(val)}</td>`;
           }).join('')}
-          <td style="text-align:left;font-weight:700;">${fmtVal(node.total)}</td>
+          <td class="tree-col-num" data-col-id="total" data-priority="1" style="text-align:left;font-weight:700;">${fmtVal(node.total)}</td>
           ${currentMeasure === 'net' ? `
-            <td style="text-align:center;">
+            <td class="tree-col-num" data-col-id="margin" data-priority="2" style="text-align:center;">
               ${node.margin !== undefined ? fmtMargin(node.margin) : '—'}
             </td>
           ` : ''}
@@ -449,14 +451,15 @@ function initProfitabilityTreeTable(container, data) {
 
       return `
         <tr style="background:rgba(59,130,246,0.12);font-weight:900;border-top:2px solid rgba(59,130,246,0.3);font-size:0.98rem;">
-          <td style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
-          ${periodCols.map(col => {
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
+          ${periodCols.map((col, idx) => {
             const v = vals[col.key] || 0;
-            return `<td style="text-align:left;padding:14px 18px;">${fmtVal(v)}</td>`;
+            const prio = (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1;
+            return `<td class="tree-col-num" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;padding:14px 18px;">${fmtVal(v)}</td>`;
           }).join('')}
-          <td style="text-align:left;padding:14px 18px;">${fmtVal(totals.total)}</td>
+          <td class="tree-col-num" data-col-id="total" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total)}</td>
           ${currentMeasure === 'net' ? `
-            <td style="text-align:center;padding:14px 18px;">
+            <td class="tree-col-num" data-col-id="margin" data-priority="2" style="text-align:center;padding:14px 18px;">
               ${fmtMargin(overallMargin)}
             </td>
           ` : ''}

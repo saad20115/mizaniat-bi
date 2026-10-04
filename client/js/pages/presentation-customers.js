@@ -444,15 +444,15 @@ function renderReturnsTable(returnsList, query) {
 }
 
 const mainColumns = [
-  { id: 'name', label: 'البيان / الهيكل', minWidth: '280px', align: 'right' },
-  { id: 'billed', label: 'المفوتر', align: 'left', minWidth: '110px' },
-  { id: 'returns', label: 'المرتجعات', align: 'left', minWidth: '100px' },
-  { id: 'net', label: 'الصافي', align: 'left', minWidth: '110px' },
-  { id: 'collected', label: 'المحصّل', align: 'left', minWidth: '110px' },
-  { id: 'residual', label: 'المتبقي', align: 'left', minWidth: '110px', color: '#ef4444' },
-  { id: 'collection_rate', label: '% التحصيل', align: 'center', minWidth: '110px' },
-  { id: 'avg_age', label: 'عمر الدين', align: 'center', minWidth: '85px' },
-  { id: 'actions', label: 'إجراءات', align: 'center', minWidth: '95px' }
+  { id: 'name', label: 'البيان / الهيكل', minWidth: 'min(46vw, 240px)', align: 'right', priority: 1 },
+  { id: 'billed', label: 'المفوتر', align: 'left', minWidth: '115px', priority: 1 },
+  { id: 'returns', label: 'المرتجعات', align: 'left', minWidth: '105px', priority: 2 },
+  { id: 'net', label: 'الصافي', align: 'left', minWidth: '115px', priority: 1 },
+  { id: 'collected', label: 'المحصّل', align: 'left', minWidth: '115px', priority: 1 },
+  { id: 'residual', label: 'المتبقي', align: 'left', minWidth: '115px', color: '#ef4444', priority: 1 },
+  { id: 'collection_rate', label: '% التحصيل', align: 'center', minWidth: '100px', priority: 2 },
+  { id: 'avg_age', label: 'عمر الدين', align: 'center', minWidth: '85px', priority: 2 },
+  { id: 'actions', label: 'إجراءات', align: 'center', minWidth: '95px', priority: 1 }
 ];
 
 function initTreeTable(container, data, periodParams) {
@@ -570,19 +570,19 @@ function initTreeTable(container, data, periodParams) {
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td style="padding-right:${indent + 14}px;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
             <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${icon}</span>
             ${namePrefix}
             <span style="${isPartner ? 'color:#60a5fa;font-weight:700;' : ''}">${escapeHtml(node.name || '')}</span>
             ${isInvoice ? `<span style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-right:6px;">(${escapeHtml(node.invoice_date || '')})</span>` : ''}
             ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
           </td>
-          <td style="text-align:left;">${fmtVal(node.billed)}</td>
-          <td style="text-align:left;color:#f59e0b;">${fmtVal(node.returns)}</td>
-          <td style="text-align:left;font-weight:700;">${fmtVal(node.net)}</td>
-          <td style="text-align:left;color:#10b981;">${fmtVal(node.collected)}</td>
-          <td style="text-align:left;color:#ef4444;font-weight:700;">${fmtVal(node.residual)}</td>
-          <td style="text-align:center;">
+          <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;">${fmtVal(node.billed)}</td>
+          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;color:#f59e0b;">${fmtVal(node.returns)}</td>
+          <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;font-weight:700;">${fmtVal(node.net)}</td>
+          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;color:#10b981;">${fmtVal(node.collected)}</td>
+          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;color:#ef4444;font-weight:700;">${fmtVal(node.residual)}</td>
+          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;">
             ${node.collection_rate !== null && node.collection_rate !== undefined ? `
               <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
                 <span class="exec-num" style="font-size:0.82rem;font-weight:700;">${fmtRate(node.collection_rate)}</span>
@@ -592,14 +592,14 @@ function initTreeTable(container, data, periodParams) {
               </div>
             ` : '—'}
           </td>
-          <td style="text-align:center;">
+          <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;">
             ${(node.avg_age || 0) > 0 ? `
               <span class="exec-num" style="font-size:0.8rem;padding:2px 6px;border-radius:4px;background:${node.avg_age > 90 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)'};color:${node.avg_age > 90 ? '#ef4444' : 'inherit'};">
                 ${node.avg_age} يوم
               </span>
             ` : '—'}
           </td>
-          <td style="text-align:center;">
+          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="text-align:center;">
             ${actionCell}
           </td>
         </tr>
@@ -608,15 +608,15 @@ function initTreeTable(container, data, periodParams) {
     renderTotals: (totals) => {
       return `
         <tr style="background:rgba(59,130,246,0.12);font-weight:900;border-top:2px solid rgba(59,130,246,0.3);font-size:0.98rem;">
-          <td style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
-          <td style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_billed)}</td>
-          <td style="text-align:left;padding:14px 18px;color:#f59e0b;">${fmtVal(totals.total_returns)}</td>
-          <td style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_net)}</td>
-          <td style="text-align:left;padding:14px 18px;color:#10b981;">${fmtVal(totals.total_collected)}</td>
-          <td style="text-align:left;padding:14px 18px;color:#ef4444;">${fmtVal(totals.total_residual)}</td>
-          <td style="text-align:center;padding:14px 18px;color:#06b6d4;">${totals.collection_rate || 0}%</td>
-          <td style="text-align:center;padding:14px 18px;">—</td>
-          <td style="text-align:center;padding:14px 18px;">—</td>
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
+          <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_billed)}</td>
+          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;padding:14px 18px;color:#f59e0b;">${fmtVal(totals.total_returns)}</td>
+          <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_net)}</td>
+          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;padding:14px 18px;color:#10b981;">${fmtVal(totals.total_collected)}</td>
+          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;padding:14px 18px;color:#ef4444;">${fmtVal(totals.total_residual)}</td>
+          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;padding:14px 18px;color:#06b6d4;">${totals.collection_rate || 0}%</td>
+          <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;padding:14px 18px;">—</td>
+          <td class="tree-col-num" data-col-id="actions" data-priority="1" style="text-align:center;padding:14px 18px;">—</td>
         </tr>
       `;
     },

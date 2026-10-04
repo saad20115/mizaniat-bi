@@ -4736,7 +4736,7 @@ class ConsolidationEngine {
         : String(companyIds).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
       if (cids.length > 0) {
         targetCompanies = this.db.prepare(`
-          SELECT id, name, vat_period, color 
+          SELECT id, name, vat_period, color, short_name 
           FROM companies 
           WHERE id IN (${cids.map(() => '?').join(',')}) AND is_active = 1 
           ORDER BY id
@@ -4744,7 +4744,7 @@ class ConsolidationEngine {
       }
     }
     if (targetCompanies.length === 0) {
-      targetCompanies = this.db.prepare('SELECT id, name, vat_period, color FROM companies WHERE is_active = 1 ORDER BY id').all();
+      targetCompanies = this.db.prepare('SELECT id, name, vat_period, color, short_name FROM companies WHERE is_active = 1 ORDER BY id').all();
     }
 
     const coIds = targetCompanies.map(c => c.id);

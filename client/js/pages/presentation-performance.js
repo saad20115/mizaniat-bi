@@ -713,7 +713,7 @@ function renderFinancialPerformanceTable(container, matrixRes) {
 
   // Build Table HTML
   container.innerHTML = `
-    <div class="perf-table-wrap">
+    <div class="perf-table-wrap" data-scroll-x="true">
       <table class="perf-table" id="table-financial-perf">
         <thead>
           <tr>
@@ -949,7 +949,7 @@ function renderRevenueCollectionTable(container, revRes) {
   traverse(groupNode);
 
   container.innerHTML = `
-    <div class="perf-table-wrap">
+    <div class="perf-table-wrap" data-scroll-x="true">
       <table class="perf-table" id="table-revenue-collection">
         <thead>
           <tr>
@@ -1069,7 +1069,7 @@ function renderAgingTable(container, agRes) {
   traverse(groupNode);
 
   container.innerHTML = `
-    <div class="perf-table-wrap">
+    <div class="perf-table-wrap" data-scroll-x="true">
       <table class="perf-table" id="table-aging-perf">
         <thead>
           <tr>
