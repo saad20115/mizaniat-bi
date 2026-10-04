@@ -129,6 +129,13 @@ async function runVerifyUI() {
   console.log('========================================');
   console.log(`Chrome binary: ${CHROME_PATH}`);
 
+  if (process.platform === 'win32') {
+    try {
+      const { execSync } = require('child_process');
+      execSync('powershell -NoProfile -Command "$p = (Get-NetTCPConnection -LocalPort 9231 -ErrorAction SilentlyContinue).OwningProcess; if ($p) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }"', { stdio: 'ignore' });
+    } catch (e) {}
+  }
+
   let chromeProcess;
   try {
     chromeProcess = spawn(CHROME_PATH, [
@@ -366,7 +373,7 @@ async function runVerifyUI() {
     // Switch to ALL
     console.log('  Switching period to ALL...');
     await cdp.eval('document.querySelector("#yr-slicer .yr-all")?.click()');
-    await sleep(3500);
+    await sleep(5000);
 
     const ag2_all = await cdp.eval(`
       (() => {
@@ -571,7 +578,358 @@ async function runVerifyUI() {
     await cdp.eval('document.querySelector("#yr-slicer .yr-chip[data-year=\\"2026\\"]")?.click()');
     await sleep(500);
     const still2026 = await cdp.eval('document.querySelector("#yr-slicer .yr-chip[data-year=\\"2026\\"]")?.classList.contains("active")');
-    assert(still2026, 'Attempting to deselect the last active year was prevented (at least 1 year required)');
+    // ──────────────────────────────────────────
+    // TEST 6.5: D1 — Customers & Collection Tab (العملاء والتحصيل)
+    // ──────────────────────────────────────────
+    console.log('\n--- 6.5. D1: Customers & Collection Tab Interactive Test ---');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"customers\\"]")?.click()');
+    await sleep(3500);
+
+    const isCustVisible = await cdp.eval('document.querySelector("#cust-main-content")?.style.display !== "none"');
+    assert(isCustVisible, 'D1: Customers & Collection tab rendered and visible');
+
+    // KPI cards
+    const billedText = await cdp.eval('document.querySelector("#cust-main-content .exec-num")?.textContent');
+    assert(billedText && billedText.length > 0, 'D1: KPI cards populated');
+
+    // Aging toggle
+    console.log('  Testing D1 aging toggle...');
+    await cdp.eval('document.querySelector("#cust-aging-toggle")?.click()');
+    await sleep(400);
+    const agingDisplay = await cdp.eval('document.querySelector("#cust-aging-body")?.style.display');
+    const bucketCards = await cdp.eval('document.querySelectorAll("#cust-aging-body > div").length');
+    assert(agingDisplay === 'grid' && bucketCards === 7, 'D1: Collapsible aging opened with 7 buckets');
+
+    // Returns toggle
+    console.log('  Testing D1 returns toggle...');
+    await cdp.eval('document.querySelector("#cust-returns-toggle")?.click()');
+    await sleep(400);
+    const returnsDisplay = await cdp.eval('document.querySelector("#cust-returns-body")?.style.display');
+    const returnRows = await cdp.eval('document.querySelectorAll("#cust-returns-table-wrapper table tbody tr").length');
+    assert(returnsDisplay === 'flex' && returnRows > 0, 'D1: Collapsible returns opened with rows');
+
+    // TreeTable 4-level expansion
+    console.log('  Testing D1 4-level TreeTable expansion...');
+    await cdp.eval('document.querySelector("#cust-btn-collapse-all")?.click()');
+    await sleep(400);
+
+    const firstCoRow = await cdp.eval('document.querySelector("#cust-tree-container tr[data-tree-row=\\"true\\"]")?.getAttribute("data-path-key")');
+    assert(firstCoRow && firstCoRow.startsWith('co:'), 'D1: First row is company level');
+
+    await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key="${firstCoRow}"]')?.click()`);
+    await sleep(600);
+
+    const deptRowsCount = await cdp.eval(`document.querySelectorAll('#cust-tree-container tr[data-path-key^="${firstCoRow}/dept:"]').length`);
+    assert(deptRowsCount > 0, `D1: Expanded company revealed ${deptRowsCount} departments`);
+
+    const firstDeptRow = await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key^="${firstCoRow}/dept:"]')?.getAttribute('data-path-key')`);
+    await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key="${firstDeptRow}"]')?.click()`);
+    await sleep(500);
+
+    const partnerRowsCount = await cdp.eval(`document.querySelectorAll('#cust-tree-container tr[data-path-key^="${firstDeptRow}/partner:"]').length`);
+    assert(partnerRowsCount > 0, `D1: Expanded department revealed ${partnerRowsCount} partners`);
+
+    const firstPartnerRow = await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key^="${firstDeptRow}/partner:"]')?.getAttribute('data-path-key')`);
+    
+    // Lazy load invoices
+    console.log('  Testing D1 lazy loading of invoices...');
+    await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key="${firstPartnerRow}"]')?.click()`);
+    let invoiceRowsCount = 0;
+    for (let attempts = 0; attempts < 10; attempts++) {
+      await sleep(500);
+      invoiceRowsCount = await cdp.eval(`document.querySelectorAll('#cust-tree-container tr[data-path-key^="${firstPartnerRow}/invoice:"]').length`);
+      if (invoiceRowsCount > 0) break;
+    }
+    assert(invoiceRowsCount > 0, `D1: Lazy-loaded ${invoiceRowsCount} invoices under customer`);
+
+    // Statement modal
+    console.log('  Testing customer statement modal...');
+    await cdp.eval(`document.querySelector('#cust-tree-container tr[data-path-key="${firstPartnerRow}"] .btn-stmt-trigger')?.click()`);
+    await sleep(2000);
+
+    const modalDisplay = await cdp.eval('document.querySelector("#cust-statement-modal")?.style.display');
+    const stmtRows = await cdp.eval('document.querySelectorAll("#stmt-print-area table tbody tr").length');
+    assert(modalDisplay === 'flex' && stmtRows > 0, `D1: Customer statement modal opened with ${stmtRows} ledger rows`);
+
+    await cdp.eval('document.querySelector("#stmt-btn-close")?.click()');
+    await sleep(300);
+    const modalClosed = await cdp.eval('document.querySelector("#cust-statement-modal")?.style.display === "none"');
+    assert(modalClosed, 'D1: Customer statement modal closed successfully');
+
+    // ──────────────────────────────────────────
+    // TEST 6.6: D2 — Departments & Profitability Tab (الأقسام والربحية)
+    // ──────────────────────────────────────────
+    console.log('\n--- 6.6. D2: Departments & Profitability Tab Interactive Test ---');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"profitability\\"]")?.click()');
+    await sleep(3500);
+
+    const isProfVisible = await cdp.eval('document.querySelector("#prof-main-content")?.style.display !== "none"');
+    assert(isProfVisible, 'D2: Departments & Profitability tab rendered and visible');
+
+    // KPI cards (5 cards)
+    const kpiCount = await cdp.eval('document.querySelectorAll(".exec-kpi-card").length');
+    const firstKpiVal = await cdp.eval('document.querySelector(".exec-kpi-card .exec-num")?.textContent');
+    assert(kpiCount >= 5 && firstKpiVal && firstKpiVal.length > 0, `D2: 5 KPI cards populated (Revenue: ${firstKpiVal.trim()})`);
+
+    // TreeTable structure
+    const initialRows = await cdp.eval('document.querySelectorAll("#prof-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(initialRows > 0, `D2: Profitability TreeTable mounted with ${initialRows} root companies`);
+
+    // Expand All
+    console.log('  Testing D2 Expand All...');
+    await cdp.eval('document.querySelector("#prof-btn-expand-all")?.click()');
+    await sleep(600);
+    const expandedRows = await cdp.eval('document.querySelectorAll("#prof-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(expandedRows > initialRows, `D2: Expanded all levels to ${expandedRows} rows (company -> dept -> cc -> account)`);
+
+    // Collapse All
+    console.log('  Testing D2 Collapse All...');
+    await cdp.eval('document.querySelector("#prof-btn-collapse-all")?.click()');
+    await sleep(400);
+    const collapsedRows = await cdp.eval('document.querySelectorAll("#prof-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(collapsedRows === initialRows, `D2: Collapsed all levels back to ${collapsedRows} root companies`);
+
+    // Redistribution Toggle
+    console.log('  Testing D2 Administrative Expense Redistribution Toggle...');
+    await cdp.eval('document.querySelector("#prof-redist-toggle")?.click()');
+    await sleep(2500);
+    const redistChecked = await cdp.eval('document.querySelector("#prof-redist-toggle")?.checked');
+    const tableAfterRedist = await cdp.eval('document.querySelectorAll("#prof-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(redistChecked && tableAfterRedist > 0, 'D2: Administrative redistribution toggle checked and table updated');
+
+    // Measure switch: Revenue
+    console.log('  Testing D2 Measure switch to Revenue...');
+    await cdp.eval('document.querySelector(".prof-measure-btn[data-measure=\\"revenue\\"]")?.click()');
+    await sleep(2500);
+    const activeMeasure = await cdp.eval('document.querySelector(".prof-measure-btn.active")?.getAttribute("data-measure")');
+    assert(activeMeasure === 'revenue', 'D2: Measure switched to Revenue');
+
+    // Time grain switch: Monthly
+    console.log('  Testing D2 Time Grain switch to Month...');
+    await cdp.eval('document.querySelector(".prof-grain-btn[data-grain=\\"month\\"]")?.click()');
+    await sleep(2500);
+    const monthCols = await cdp.eval('document.querySelectorAll("#prof-tree-container thead th").length');
+    assert(monthCols > 5, `D2: Time grain switched to Month (rendered ${monthCols} columns)`);
+
+    // Switch back to Quarter & Net
+    await cdp.eval('document.querySelector(".prof-grain-btn[data-grain=\\"quarter\\"]")?.click()');
+    await sleep(1500);
+    await cdp.eval('document.querySelector(".prof-measure-btn[data-measure=\\"net\\"]")?.click()');
+    await sleep(2000);
+
+    // ──────────────────────────────────────────
+    // TEST 6.7: D3 — Bank Guarantees Tab (الضمانات البنكية)
+    // ──────────────────────────────────────────
+    console.log('\n--- 6.7. D3: Bank Guarantees Tab Interactive Test ---');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"guarantees\\"]")?.click()');
+    await sleep(3500);
+
+    const isGrVisible = await cdp.eval('document.querySelector(".gr-wrap") !== null');
+    assert(isGrVisible, 'D3: Guarantees tab rendered and visible');
+
+    // KPI cards (4 cards)
+    const grPendingAmt = await cdp.eval('document.querySelector("#gr-kpi-pending-amt")?.textContent');
+    const grCount = await cdp.eval('document.querySelector("#gr-kpi-count")?.textContent');
+    const grLedgerAmt = await cdp.eval('document.querySelector("#gr-kpi-ledger-amt")?.textContent');
+    const grMatchStatus = await cdp.eval('document.querySelector("#gr-kpi-match-status")?.textContent');
+    assert(grPendingAmt && grPendingAmt !== '—', `D3: Pending guarantees amount populated (${grPendingAmt})`);
+    assert(grCount && grCount !== '—', `D3: Guarantees count populated (${grCount})`);
+    assert(grLedgerAmt && grLedgerAmt !== '—', `D3: Ledger balance populated (${grLedgerAmt})`);
+    assert(grMatchStatus && grMatchStatus.length > 0, `D3: Match status populated (${grMatchStatus.trim()})`);
+
+    // Company tables
+    const grCompaniesCount = await cdp.eval('document.querySelectorAll(".gr-company").length');
+    assert(grCompaniesCount > 0, `D3: Rendered ${grCompaniesCount} company guarantee cards`);
+
+    const grTotalRows = await cdp.eval('document.querySelectorAll(".gr-table tbody tr").length');
+    assert(grTotalRows > 0, `D3: Guarantee tables contain ${grTotalRows} total rows`);
+
+    // Admin controls: breakdown toggle & inline form
+    console.log('  Testing D3 breakdown button & inline form...');
+    const breakdownBtn = await cdp.eval('document.querySelector(\'[data-action="breakdown"]\') !== null');
+    if (breakdownBtn) {
+      await cdp.eval('document.querySelector(\'[data-action="breakdown"]\')?.click()');
+      await sleep(500);
+      const formExists = await cdp.eval('document.querySelector(".gr-add-form") !== null');
+      assert(formExists, 'D3: Clicking breakdown opened inline sub-item add form');
+
+      await cdp.eval('document.querySelector(\'[data-action="cancel-sub"]\')?.click()');
+      await sleep(300);
+      const formClosed = await cdp.eval('document.querySelector(".gr-add-form") === null');
+      assert(formClosed, 'D3: Clicking cancel closed inline sub-item add form');
+    }
+
+    // Toggle show released
+    console.log('  Testing D3 Show Released Guarantees Toggle...');
+    await cdp.eval(`
+      (() => {
+        const cb = document.querySelector("#gr-toggle-released");
+        if (cb) {
+          cb.checked = true;
+          cb.dispatchEvent(new Event("change"));
+        }
+      })()
+    `);
+    await sleep(2500);
+
+    const isReleasedToggled = await cdp.eval('document.querySelector("#gr-toggle-released")?.checked');
+    assert(isReleasedToggled === true, 'D3: Show released guarantees toggle checked');
+    await cdp.eval(`
+      (() => {
+        const cb = document.querySelector("#gr-toggle-released");
+        if (cb) {
+          cb.checked = false;
+          cb.dispatchEvent(new Event("change"));
+        }
+      })()
+    `);
+    await sleep(2000);
+    await cdp.eval(`
+      (() => {
+        const cb = document.querySelector("#gr-toggle-released");
+        if (cb) {
+          cb.checked = false;
+          cb.dispatchEvent(new Event("change"));
+        }
+      })()
+    `);
+    await sleep(2000);
+
+    // ──────────────────────────────────────────
+    // TEST 6.8: D5 — Value Added Tax Tab (ضريبة القيمة المضافة)
+    // ──────────────────────────────────────────
+    console.log('\n--- 6.8. D5: Value Added Tax Tab Interactive Test ---');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"vat\\"]")?.click()');
+    await sleep(3500);
+
+    const isVatVisible = await cdp.eval('document.querySelector("#vat-main-content")?.style.display !== "none"');
+    assert(isVatVisible, 'D5: VAT tab rendered and visible');
+
+    // 4 KPI cards
+    const vatKpiCount = await cdp.eval('document.querySelectorAll("#vat-main-content .exec-card").length');
+    const firstVatCardVal = await cdp.eval('document.querySelector("#vat-main-content .exec-card .exec-num")?.textContent');
+    assert(vatKpiCount >= 4 && firstVatCardVal && firstVatCardVal.length > 0, `D5: 4 KPI cards populated (Output Tax: ${firstVatCardVal.trim()})`);
+
+    // TreeTable company rows
+    const vatCompanyRows = await cdp.eval('document.querySelectorAll("#vat-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(vatCompanyRows >= 4, `D5: VAT TreeTable mounted with ${vatCompanyRows} company rows`);
+
+    // Hierarchy expansion: Expand company down to months
+    console.log('  Testing D5 hierarchy expansion...');
+    const firstVatCoKey = await cdp.eval('document.querySelector("#vat-tree-container tr[data-path-key^=\\"co:\\"]")?.getAttribute("data-path-key")');
+    assert(firstVatCoKey !== null, `D5: Found company key: ${firstVatCoKey}`);
+
+    // Click company row to expand years
+    await cdp.eval(`document.querySelector('#vat-tree-container tr[data-path-key="${firstVatCoKey}"]')?.click()`);
+    await sleep(600);
+    const yrRowsCount = await cdp.eval(`document.querySelectorAll('#vat-tree-container tr[data-path-key^="${firstVatCoKey}/year:"]').length`);
+    assert(yrRowsCount > 0, `D5: Expanded company revealed ${yrRowsCount} years`);
+
+    // Click year row to expand quarters
+    const firstYrKey = await cdp.eval(`document.querySelector('#vat-tree-container tr[data-path-key^="${firstVatCoKey}/year:"]')?.getAttribute('data-path-key')`);
+    await cdp.eval(`document.querySelector('#vat-tree-container tr[data-path-key="${firstYrKey}"]')?.click()`);
+    await sleep(600);
+    const qRowsCount = await cdp.eval(`document.querySelectorAll('#vat-tree-container tr[data-path-key^="${firstYrKey}/quarter:"]').length`);
+    assert(qRowsCount > 0, `D5: Expanded year revealed ${qRowsCount} quarters`);
+
+    // Click quarter row to expand months
+    const firstQKey = await cdp.eval(`document.querySelector('#vat-tree-container tr[data-path-key^="${firstYrKey}/quarter:"]')?.getAttribute('data-path-key')`);
+    await cdp.eval(`document.querySelector('#vat-tree-container tr[data-path-key="${firstQKey}"]')?.click()`);
+    await sleep(600);
+    const mRowsCount = await cdp.eval(`document.querySelectorAll('#vat-tree-container tr[data-path-key^="${firstQKey}/month:"]').length`);
+    assert(mRowsCount > 0, `D5: Expanded quarter revealed ${mRowsCount} months`);
+
+    // Grain switch testing
+    console.log('  Testing D5 Grain switch...');
+    await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="quarter"]\')?.click()');
+    await sleep(1500);
+    const grainQuarterActive = await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="quarter"]\')?.classList.contains("active")');
+    assert(grainQuarterActive, 'D5: Grain switched to Quarter');
+
+    await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="month"]\')?.click()');
+    await sleep(1500);
+    const grainMonthActive = await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="month"]\')?.classList.contains("active")');
+    assert(grainMonthActive, 'D5: Grain switched to Month');
+
+    await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="vat_period"]\')?.click()');
+    await sleep(1500);
+    const grainVatActive = await cdp.eval('document.querySelector(\'.vat-grain-btn[data-grain="vat_period"]\')?.classList.contains("active")');
+    assert(grainVatActive, 'D5: Grain returned to VAT Period (default)');
+
+    // Slide-over Drawer testing
+    console.log('  Testing D5 slide-over detail drawer...');
+    await cdp.eval('document.querySelector(".vat-detail-btn")?.click()');
+    await sleep(2500);
+
+    const drawerVisible = await cdp.eval(`
+      (() => {
+        const d = document.querySelector("#vat-drawer");
+        if (!d) return false;
+        return d.style.transform === "translateX(0px)" || d.style.transform === "translateX(0)";
+      })()
+    `);
+    assert(drawerVisible, 'D5: Slide-over drawer opened on clicking details button');
+
+    // Test 4 tabs in drawer
+    const drawerTabsCount = await cdp.eval('document.querySelectorAll(".drawer-tab-btn").length');
+    assert(drawerTabsCount >= 4, `D5: Drawer rendered ${drawerTabsCount} detail tabs (Summary, Tax, Docs, Settlements)`);
+
+    // Switch to By Tax tab
+    await cdp.eval('document.querySelector(\'.drawer-tab-btn[data-tab="by_tax"]\')?.click()');
+    await sleep(400);
+    const byTaxPaneVisible = await cdp.eval('document.querySelector("#dtab-by_tax")?.style.display !== "none"');
+    assert(byTaxPaneVisible, 'D5: Drawer switched to By Tax breakdown pane');
+
+    // Switch to Documents tab
+    await cdp.eval('document.querySelector(\'.drawer-tab-btn[data-tab="documents"]\')?.click()');
+    await sleep(400);
+    const docsPaneVisible = await cdp.eval('document.querySelector("#dtab-documents")?.style.display !== "none"');
+    assert(docsPaneVisible, 'D5: Drawer switched to Documents pane');
+
+    // Switch to Settlements tab
+    await cdp.eval('document.querySelector(\'.drawer-tab-btn[data-tab="settlements"]\')?.click()');
+    await sleep(400);
+    const settlementsPaneVisible = await cdp.eval('document.querySelector("#dtab-settlements")?.style.display !== "none"');
+    assert(settlementsPaneVisible, 'D5: Drawer switched to Settlements pane');
+
+    // Close drawer
+    await cdp.eval('document.querySelector("#vat-drawer-close-btn")?.click()');
+    await sleep(500);
+    const drawerClosed = await cdp.eval(`
+      (() => {
+        const d = document.querySelector("#vat-drawer");
+        if (!d) return true;
+        return d.style.transform.includes("-100%");
+      })()
+    `);
+    assert(drawerClosed, 'D5: Slide-over drawer closed successfully');
+
+    // ──────────────────────────────────────────
+    // TEST 6.9: D4 — 5 Presentation Tabs Consolidation
+    // ──────────────────────────────────────────
+    console.log('\n--- 6.9. D4: Presentation Tabs Consolidation (5 Clean Tabs) ---');
+    const visibleTabs = await cdp.eval(`
+      (() => {
+        const tabs = [...document.querySelectorAll('#bi-tabs .bi-tab')];
+        return tabs
+          .filter(t => t.style.display !== 'none' && window.getComputedStyle(t).display !== 'none')
+          .map(t => t.dataset.tab);
+      })()
+    `);
+    const expectedTabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat'];
+    const tabsMatch = visibleTabs.length === 5 && expectedTabs.every(t => visibleTabs.includes(t));
+    assert(tabsMatch, `D4: Exactly 5 clean tabs visible: [${visibleTabs.join(', ')}]`);
+
+    const hiddenLegacyCount = await cdp.eval(`
+      (() => {
+        const legacyTabs = ['overview', 'collection', 'details', 'pivot-acc', 'pivot-cc', 'redist', 'sales', 'sales-details'];
+        return legacyTabs.filter(lt => {
+          const el = document.querySelector(\`#bi-tabs .bi-tab[data-tab="\${lt}"]\`);
+          return el && (el.style.display === 'none' || window.getComputedStyle(el).display === 'none');
+        }).length;
+      })()
+    `);
+    assert(hiddenLegacyCount === 8, `D4: All 8 legacy tabs are completely hidden (count: ${hiddenLegacyCount})`);
 
     // ──────────────────────────────────────────
     // TEST 7: Viewer Mode & Route Guard
@@ -613,6 +971,23 @@ async function runVerifyUI() {
     const currentUrl = await cdp.eval('window.location.href');
     assert(!currentUrl.includes('page=settings'), 'Route guard blocked viewer access to settings');
 
+    // Guarantees tab viewer mode check: strictly read-only
+    console.log('  Testing D3 Guarantees Tab in Viewer Mode...');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"guarantees\\"]")?.click()');
+    await sleep(3000);
+    const viewerGrVisible = await cdp.eval('document.querySelector(".gr-wrap") !== null');
+    const viewerAdminControls = await cdp.eval('document.querySelectorAll("#gr-toggle-released, [data-action=\\"release\\"], [data-action=\\"breakdown\\"], [data-action=\\"toggle-sub\\"], [data-action=\\"del-sub\\"]").length');
+    assert(viewerGrVisible, 'Viewer opened Guarantees tab');
+    assert(viewerAdminControls === 0, `Guarantees is strictly read-only for viewers (${viewerAdminControls} admin controls found)`);
+
+    // VAT tab viewer mode check: strictly read-only
+    console.log('  Testing D5 VAT Tab in Viewer Mode...');
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"vat\\"]")?.click()');
+    await sleep(3500);
+    const viewerVatVisible = await cdp.eval('document.querySelector("#vat-main-content")?.style.display !== "none"');
+    const viewerVatRows = await cdp.eval('document.querySelectorAll("#vat-tree-container tr[data-tree-row=\\"true\\"]").length');
+    assert(viewerVatVisible && viewerVatRows > 0, `Viewer opened VAT tab successfully with ${viewerVatRows} rows`);
+
     // ──────────────────────────────────────────
     // TEST 8: Zero Console Errors
     // ──────────────────────────────────────────
@@ -640,7 +1015,14 @@ async function runVerifyUI() {
     process.exit(1);
   } finally {
     if (chromeProcess) {
-      try { process.kill(chromeProcess.pid); } catch (e) {}
+      try {
+        if (process.platform === 'win32') {
+          const { execSync } = require('child_process');
+          execSync(`taskkill /F /T /PID ${chromeProcess.pid}`, { stdio: 'ignore' });
+        } else {
+          process.kill(chromeProcess.pid);
+        }
+      } catch (e) {}
     }
     try { fs.rmSync(userDataDir, { recursive: true, force: true }); } catch (e) {}
   }

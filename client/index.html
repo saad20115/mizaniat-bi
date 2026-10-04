@@ -50,6 +50,9 @@
     if (urlToken) {
       localStorage.setItem('mizaniat_admin_token', urlToken);
       localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+      localStorage.removeItem('mizaniat_viewer_mode');
+      localStorage.removeItem('mizaniat_viewer_token');
+      sessionStorage.removeItem('mizaniat_viewer_token');
     }
   </script>
 

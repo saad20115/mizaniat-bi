@@ -26,6 +26,7 @@ function initializeSchema() {
       currency TEXT DEFAULT 'SAR',
       is_active INTEGER DEFAULT 1,
       color TEXT DEFAULT '#3b82f6',
+      vat_period TEXT DEFAULT 'quarterly',
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (odoo_instance_id) REFERENCES odoo_instances(id),
       UNIQUE(odoo_instance_id, odoo_company_id)
@@ -210,6 +211,11 @@ function initializeSchema() {
       move_state TEXT DEFAULT 'posted',
       fiscal_year TEXT,
       period TEXT,
+      tax_id INTEGER,
+      tax_name TEXT,
+      tax_base_amount REAL DEFAULT 0,
+      tax_ids TEXT,
+      move_type TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (company_id) REFERENCES companies(id),
       FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id),
@@ -471,6 +477,33 @@ function initializeSchema() {
     console.log('[DB] Added journal_name column to analytic_group_mapping');
   } catch (e) { /* column already exists */ }
 
+  // D5 VAT Migrations
+  try {
+    db.prepare(`ALTER TABLE companies ADD COLUMN vat_period TEXT DEFAULT 'quarterly'`).run();
+    console.log('[DB] Added vat_period column to companies');
+  } catch (e) { /* column already exists */ }
+
+  try {
+    db.prepare(`UPDATE companies SET vat_period = 'monthly' WHERE id = 2 AND (vat_period IS NULL OR vat_period = 'quarterly')`).run();
+  } catch (e) {}
+
+  for (const col of [
+    { name: 'tax_id', type: 'INTEGER' },
+    { name: 'tax_name', type: 'TEXT' },
+    { name: 'tax_base_amount', type: 'REAL DEFAULT 0' },
+    { name: 'tax_ids', type: 'TEXT' },
+    { name: 'move_type', type: 'TEXT' }
+  ]) {
+    try {
+      db.prepare(`ALTER TABLE journal_items ADD COLUMN ${col.name} ${col.type}`).run();
+      console.log(`[DB] Added ${col.name} column to journal_items`);
+    } catch (e) { /* column already exists */ }
+  }
+
+  try {
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_journal_items_tax ON journal_items(company_id, tax_id)`).run();
+  } catch (e) {}
+
   // The legacy CLOSING journal_items cleanup was removed because it caused
   // a massive 4-minute full table scan on startup for large databases.
   // Legacy closing entries have already been purged in the initial migration.
@@ -515,7 +548,7 @@ function initializeSchema() {
       (3, '290011', 'equity'),
       (4, '201033', 'equity');
 
-    -- Account tags (e.g. tagging specific accounts with role/behavior tags like 'guarantee')
+    -- Account tags (e.g. tagging specific accounts with role/behavior tags like 'guarantee', 'vat_output', 'vat_input', 'vat_settlement')
     CREATE TABLE IF NOT EXISTS account_tags (
       company_id INTEGER,
       account_code TEXT,
@@ -525,7 +558,28 @@ function initializeSchema() {
 
     INSERT OR IGNORE INTO account_tags (company_id, account_code, tag) VALUES
       (2, '14110002', 'guarantee'),
-      (3, '0110012', 'guarantee');
+      (3, '0110012', 'guarantee'),
+      (1, '201017', 'vat_output'),
+      (1, '104041', 'vat_input'),
+      (1, '202003', 'vat_settlement'),
+      (2, '201017', 'vat_output'),
+      (2, '14110006', 'vat_input'),
+      (3, '201017', 'vat_output'),
+      (3, '104041', 'vat_input'),
+      (4, '201017', 'vat_output'),
+      (4, '111053', 'vat_input');
+
+    -- Odoo Taxes (for D5 VAT classification & rates)
+    CREATE TABLE IF NOT EXISTS odoo_taxes (
+      instance_id INTEGER NOT NULL,
+      tax_id INTEGER NOT NULL,
+      company_odoo_id INTEGER,
+      name TEXT NOT NULL,
+      amount REAL DEFAULT 0,
+      type_tax_use TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY(instance_id, tax_id)
+    );
 
     -- Performance indexes for sales_invoices
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_name ON sales_invoices(company_id, name);
@@ -596,11 +650,17 @@ function initializeSchema() {
   try {
     const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get();
     if (adminCount.count === 0) {
-      const { hashPassword } = require('../middleware/auth');
-      const passwordHash = hashPassword('123456');
-      db.prepare('INSERT INTO admin_users (email, password_hash, name) VALUES (?, ?, ?)')
-        .run('saadm7294@gmail.com', passwordHash, 'مدير النظام');
-      console.log('[DB] Default admin created: saadm7294@gmail.com');
+      const email = process.env.ADMIN_EMAIL;
+      const password = process.env.ADMIN_PASSWORD;
+      if (!email || !password) {
+        console.log('[DB] No admin user exists. Set ADMIN_EMAIL and ADMIN_PASSWORD in environment to create initial admin.');
+      } else {
+        const { hashPassword } = require('../middleware/auth');
+        const passwordHash = hashPassword(password);
+        db.prepare('INSERT INTO admin_users (email, password_hash, name) VALUES (?, ?, ?)')
+          .run(email, passwordHash, 'مدير النظام');
+        console.log(`[DB] Initial admin created: ${email}`);
+      }
     }
   } catch (e) {
     console.log('[DB] Admin seed:', e.message);

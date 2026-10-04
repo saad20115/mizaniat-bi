@@ -6,7 +6,7 @@ import html2canvas from 'html2canvas';
 // Page-level persistent state
 let currentTimeFilter = null;
 let currentSelectedCos = [];
-let selectedYear = '2026';
+let selectedYear = String(new Date().getFullYear());
 let perfMeasure = 'net'; // 'net' | 'revenue' | 'expense'
 let isAgingOpen = false;
 let isLightMode = false;

@@ -115,7 +115,7 @@ window.mizaniatLogout = function() {
 };
 
 // Check if viewer mode
-window.isViewerMode = () => localStorage.getItem('mizaniat_viewer_mode') === 'true';
+window.isViewerMode = () => !localStorage.getItem('mizaniat_admin_token') && localStorage.getItem('mizaniat_viewer_mode') === 'true';
 
 // Initialize app
 async function init() {

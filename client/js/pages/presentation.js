@@ -3,6 +3,10 @@ import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { showToast } from '../utils/ui.js';
 import { renderExecutiveDashboardTab } from './presentation-executive.js';
+import { renderCustomersCollectionTab } from './presentation-customers.js';
+import { renderDepartmentsProfitabilityTab } from './presentation-profitability.js';
+import { renderGuaranteesComponent } from './guarantees.js';
+import { renderVatTab } from './presentation-vat.js';
 import { renderPerformanceReceivablesTab } from './presentation-performance.js';
 import { renderReceivablesTab } from './presentation-receivables.js';
 import { renderMatrixTab } from './presentation-matrix.js';
@@ -30,9 +34,10 @@ export async function renderPresentation(container) {
   if (urlTab) activeTab = urlTab;
   const urlYear = urlParams.get('year');
   const companies = store.get('companies') || [];
-  const rawYears = store.get('filterOptions')?.fiscalYears || ['2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+  const currentYear = String(new Date().getFullYear());
+  const rawYears = store.get('filterOptions')?.fiscalYears || Array.from({ length: 7 }, (_, i) => String(Number(currentYear) - 6 + i));
   const fiscalYears = [...rawYears].sort((a, b) => Number(b) - Number(a));
-  const defaultYear = fiscalYears[0] || '2026';
+  const defaultYear = fiscalYears[0] || currentYear;
   const isAllYear = urlYear === 'ALL';
   const fy = isAllYear ? null : (urlYear || store.get('fiscalYear') || defaultYear);
 
@@ -194,15 +199,18 @@ export async function renderPresentation(container) {
       <!-- Tab Bar -->
       <div class="bi-tabs" id="bi-tabs">
         <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" style="border-right:1px solid rgba(255,255,255,0.08);background:rgba(59,130,246,0.15);color:#60a5fa;font-weight:800;">🏢 لوحة الإدارة</div>
-        <div class="bi-tab ${activeTab==='overview'?'active':''}" data-tab="overview">📊 نظرة عامة</div>
-        <div class="bi-tab ${activeTab==='collection'?'active':''}" data-tab="collection">📥 التحصيل</div>
-        <div class="bi-tab ${activeTab==='details'?'active':''}" data-tab="details">📖 التفاصيل</div>
-        <div class="bi-tab ${activeTab==='pivot-acc'?'active':''}" data-tab="pivot-acc">📊 تقاطعي - حسابات</div>
-        <div class="bi-tab ${activeTab==='pivot-cc'?'active':''}" data-tab="pivot-cc">📊 تقاطعي - مراكز</div>
-        <div class="bi-tab ${activeTab==='redist'?'active':''}" data-tab="redist">🔄 إعادة التوزيع</div>
+        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">👥 العملاء والتحصيل</div>
+        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">📊 الأقسام والربحية</div>
         <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">🏦 الضمانات البنكية</div>
-        <div class="bi-tab ${activeTab==='sales'?'active':''}" data-tab="sales">🛍️ المبيعات</div>
-        <div class="bi-tab ${activeTab==='sales-details'?'active':''}" data-tab="sales-details">🛒 تفاصيل المبيعات</div>
+        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">🧾 ضريبة القيمة المضافة</div>
+        <div class="bi-tab ${activeTab==='overview'?'active':''}" data-tab="overview" style="display:none;">📊 نظرة عامة</div>
+        <div class="bi-tab ${activeTab==='collection'?'active':''}" data-tab="collection" style="display:none;">📥 التحصيل</div>
+        <div class="bi-tab ${activeTab==='details'?'active':''}" data-tab="details" style="display:none;">📖 التفاصيل</div>
+        <div class="bi-tab ${activeTab==='pivot-acc'?'active':''}" data-tab="pivot-acc" style="display:none;">📊 تقاطعي - حسابات</div>
+        <div class="bi-tab ${activeTab==='pivot-cc'?'active':''}" data-tab="pivot-cc" style="display:none;">📊 تقاطعي - مراكز</div>
+        <div class="bi-tab ${activeTab==='redist'?'active':''}" data-tab="redist" style="display:none;">🔄 إعادة التوزيع</div>
+        <div class="bi-tab ${activeTab==='sales'?'active':''}" data-tab="sales" style="display:none;">🛍️ المبيعات</div>
+        <div class="bi-tab ${activeTab==='sales-details'?'active':''}" data-tab="sales-details" style="display:none;">🛒 تفاصيل المبيعات</div>
       </div>
 
       <!-- Dashboard Body -->
@@ -647,8 +655,8 @@ async function loadDashboard(container) {
   const tsEl = container.querySelector('#bi-last-updated-ts');
   if (tsEl) tsEl.textContent = fmtTimestamp(lastUpdatedTime);
 
-  // If executive tab is active, render immediately without awaiting legacy presentation data (P1)
-  if (activeTab === 'executive') {
+  // If executive, customers, profitability, guarantees, or vat tab is active, render immediately without awaiting legacy presentation data (D1, D2, D3, D5)
+  if (activeTab === 'executive' || activeTab === 'customers' || activeTab === 'profitability' || activeTab === 'guarantees' || activeTab === 'vat') {
     dashData = null; // Invalidate legacy data so it re-fetches cleanly if switched later
     renderDashboard(container);
     return;
@@ -677,9 +685,34 @@ function renderDashboard(container) {
   const body = container.querySelector('#bi-body');
   const timeFilter = getEffectiveTimeFilter(container);
   const selectedNumCos = [...container.querySelectorAll('.co-chip.active')].map(c => Number(c.dataset.id));
+  const selectedStrCos = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
 
   if (activeTab === 'executive') {
     renderExecutiveDashboardTab(body, container, timeFilter, selectedNumCos);
+    return;
+  }
+
+  if (activeTab === 'customers') {
+    renderCustomersCollectionTab(body, container, timeFilter, selectedNumCos);
+    return;
+  }
+
+  if (activeTab === 'profitability') {
+    renderDepartmentsProfitabilityTab(body, container, timeFilter, selectedNumCos);
+    return;
+  }
+
+  if (activeTab === 'guarantees') {
+    renderGuaranteesComponent(body, {
+      companyIds: selectedStrCos,
+      asOfDate: timeFilter.dateTo || new Date().toISOString().slice(0, 10),
+      isPresentation: true
+    });
+    return;
+  }
+
+  if (activeTab === 'vat') {
+    renderVatTab(body, container, timeFilter, selectedStrCos);
     return;
   }
 
@@ -1786,16 +1819,19 @@ function fillBalanceTable(tbl, d) {
 
 // ===== SHARING =====
 async function shareDashboard(container) {
-  if (!dashData) { showToast('لا توجد بيانات', 'error'); return; }
+  const selectedCos = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
+  const timeFilter = getEffectiveTimeFilter(container);
+  const selectedYrs = (timeFilter.selectedYears && timeFilter.selectedYears.length > 0) ? timeFilter.selectedYears : [timeFilter.selectedYear || '2026'];
+  if (!selectedCos.length) { showToast('اختر شركة واحدة على الأقل', 'error'); return; }
   try {
     const result = await api.createPresentationShare({
-      title: `${dashData.years.join('+')} — ${(dashData.yearlyData[dashData.years[0]]?.companies||[]).map(c=>c.companyName).join(' + ')}`,
-      companyId: dashData._selectedCos.join(','),
-      dateFrom: dashData.years.join(','),
-      dateTo: dashData._selectedYrs.join(','),
+      title: `${selectedYrs.join('+')} — شركات (${selectedCos.join(',')})`,
+      companyId: selectedCos.join(','),
+      dateFrom: selectedYrs.join(','),
+      dateTo: selectedYrs.join(','),
       speed: 0,
     });
-    const url = `${location.origin}/viewer.html?token=${result.token}`;
+    const url = `${location.origin}/view.html?token=${result.token}`;
     await navigator.clipboard?.writeText(url).catch(()=>{});
     showToast('✅ تم إنشاء الرابط ونسخه!', 'success');
   } catch(err){ showToast('خطأ في المشاركة','error'); }
@@ -1809,7 +1845,7 @@ async function openSharesModal(container) {
     const shares = await api.getPresentationShares();
     if (!shares.length) { list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">لا توجد روابط</p>'; return; }
     list.innerHTML = shares.map(s => {
-      const url = `${location.origin}/viewer.html?token=${s.token}`;
+      const url = `${location.origin}/view.html?token=${s.token}`;
       return `<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div><div style="color:var(--text-white);font-weight:600;font-size:0.85rem;">${s.title}</div><div style="color:var(--text-muted);font-size:0.72rem;margin-top:3px;">${s.created_at}</div></div>
@@ -2045,101 +2081,11 @@ function fillRedistTable(tbl, d, method) {
 
 // ===== TAB: GUARANTEES =====
 async function renderGuarantees(body, d, yrs, yd) {
-  const today = new Date().toISOString().slice(0, 10);
-  const selectedCos = d._selectedCos || [];
-  body.innerHTML = '<div class="bi-empty">⏳ جاري تحميل بيانات الضمانات...</div>';
-
-  try {
-    const data = await api.getGuaranteePendingList({ companyIds: selectedCos.join(',') });
-
-    if (!data || !data.length) {
-      body.innerHTML = '<div class="bi-empty">لا توجد ضمانات بنكية معلّقة</div>';
-      return;
-    }
-
-    let grandTotal = 0, totalItems = 0;
-    data.forEach(co => co.items.forEach(item => { grandTotal += item.amount; totalItems++; }));
-
-    let html = `
-      <div class="bi-kpi-row" style="margin-bottom:18px">
-        <div class="bi-kpi"><div class="bi-kpi-label">🏦 إجمالي الضمانات المعلّقة</div><div class="bi-kpi-value" style="color:#06b6d4;">${fmt(grandTotal)}</div></div>
-        <div class="bi-kpi"><div class="bi-kpi-label">📋 عدد الضمانات</div><div class="bi-kpi-value" style="color:#a78bfa;">${totalItems}</div></div>
-        <div class="bi-kpi"><div class="bi-kpi-label">📅 بتاريخ</div><div class="bi-kpi-value" style="color:#f59e0b;font-size:1.1rem;">${today}</div></div>
-        <div class="bi-kpi"><div class="bi-kpi-label">🏢 الشركات</div><div class="bi-kpi-value" style="color:#10b981;">${data.length}</div></div>
-      </div>
-    `;
-
-    data.forEach(co => {
-      const coTotal = co.items.reduce((s, i) => s + i.amount, 0);
-      const ledgerBal = co.ledgerBalance !== undefined ? co.ledgerBalance : coTotal;
-      const diff = Math.round((coTotal - ledgerBal) * 100) / 100;
-      const isMatched = Math.abs(diff) <= 0.05;
-
-      html += `
-        <div class="bi-card bi-full" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-            <div style="font-size:1.05rem;font-weight:700;color:var(--text-white);">🏢 ${co.companyName}</div>
-            <div style="display:flex;gap:16px;align-items:center;">
-              <div style="font-size:0.85rem;color:#94a3b8">رصيد الأستاذ: <b style="color:#e2e8f0;font-family:var(--font-en)">${fmt(ledgerBal)}</b></div>
-              <div style="font-family:var(--font-en);font-weight:700;color:#06b6d4;font-size:1.05rem">معلّق: ${fmt(coTotal)}</div>
-            </div>
-          </div>
-          <table class="bi-table" style="font-size:0.9rem" data-guarantee-tbl>
-            <thead>
-              <tr>
-                <th style="width:40px;text-align:center">#</th>
-                <th style="text-align:right">البيان</th>
-                <th style="text-align:right">الحساب</th>
-                <th class="sortable" data-col-idx="3" style="text-align:left">المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${co.items.map((item, i) => `
-                <tr>
-                  <td style="text-align:center;color:#475569;font-size:0.8rem">${i + 1}</td>
-                  <td style="color:var(--text-white)">${item.description}</td>
-                  <td style="color:#94a3b8;font-size:0.85rem">${item.account || item.accountName || ''}</td>
-                  <td class="n" style="color:#06b6d4;font-weight:700">${fmt(item.amount)}</td>
-                </tr>
-              `).join('')}
-              <tr style="background:rgba(139,92,246,0.06)">
-                <td colspan="3" style="text-align:center;font-weight:700;color:#c4b5fd">الإجمالي</td>
-                <td class="n" style="font-weight:800;color:#06b6d4;font-size:1rem">${fmt(coTotal)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div style="margin-top:12px;padding:9px 14px;border-radius:8px;font-size:0.85rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;${
-            isMatched
-              ? 'background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);'
-              : 'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);'
-          }">
-            <div style="color:#cbd5e1">
-              <span>رصيد الأستاذ العام: <b style="font-family:var(--font-en);color:#e2e8f0">${fmt(ledgerBal)}</b></span>
-              <span style="margin:0 8px;color:#64748b">|</span>
-              <span>مجموع القائمة النشطة: <b style="font-family:var(--font-en);color:#06b6d4">${fmt(coTotal)}</b></span>
-            </div>
-            ${isMatched
-              ? '<span style="color:#34d399;font-weight:700;display:flex;align-items:center;gap:6px">✓ مطابقة تامة مع رصيد الأستاذ</span>'
-              : `<span style="color:#f87171;font-weight:700;display:flex;align-items:center;gap:6px">⚠️ فرق يحتاج مراجعة: ${fmt(diff)}</span>`}
-          </div>
-          ${!isMatched && co.unmatchedCredits && co.unmatchedCredits.length ? `
-            <div style="margin-top:8px;padding:8px 12px;background:rgba(239,68,68,0.05);border-radius:6px;font-size:0.8rem;color:#fca5a5">
-              <b>إفراجات لم تُطابَق مع إصدار ولا بند فرعي:</b>
-              <ul style="margin:4px 0 0 16px;padding:0">
-                ${co.unmatchedCredits.map(c => `<li>${c.date} | ${c.moveName || ''} | ${fmt(c.amount)} | ${c.label || ''}</li>`).join('')}
-              </ul>
-            </div>
-          ` : ''}
-        </div>
-      `;
-    });
-
-    body.innerHTML = html;
-    body.querySelectorAll('[data-guarantee-tbl]').forEach(t => bindSortableHeaders(t));
-  } catch (err) {
-    console.error('Guarantees error:', err);
-    body.innerHTML = `<div class="bi-empty" style="color:#ef4444">❌ خطأ: ${err.message}</div>`;
-  }
+  await renderGuaranteesComponent(body, {
+    companyIds: d._selectedCos,
+    asOfDate: d.dateTo || new Date().toISOString().slice(0, 10),
+    isPresentation: true
+  });
 }
 
 // ===== SALES REPORT TAB =====

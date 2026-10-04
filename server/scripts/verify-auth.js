@@ -68,6 +68,7 @@ app.use('/api', (req, res, next) => {
     '/guarantee-details', '/guarantee-pending-list', '/guarantees',
     '/matrix', '/receivables', '/data-quality', '/performance-summary',
     '/executive', '/preferences',
+    '/vat',
     '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies'
   ];
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));
@@ -241,6 +242,7 @@ async function run() {
   await test('Viewer PUT /api/sales/companies/1 (edit sales company)', '/api/sales/companies/1', 'PUT', { 'x-viewer-token': viewerToken }, { name: 'Hack' }, [401, 403]);
   await test('Viewer DELETE /api/sales/companies/1 (delete sales company)', '/api/sales/companies/1', 'DELETE', { 'x-viewer-token': viewerToken }, null, [401, 403]);
   await test('Viewer POST /api/sales/sync/all (trigger sales sync)', '/api/sales/sync/all', 'POST', { 'x-viewer-token': viewerToken }, {}, [401, 403]);
+  await test('Viewer PUT /api/companies/1/vat-period (edit vat period -> forbidden)', '/api/companies/1/vat-period', 'PUT', { 'x-viewer-token': viewerToken }, { vat_period: 'monthly' }, [401, 403]);
 
   console.log('\n── S2 (SEC1): Viewer Allowed Read-Only Operations (Must be 200)');
   await test('Viewer GET /api/executive (executive summary)', '/api/executive?year=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
@@ -248,6 +250,8 @@ async function run() {
   await test('Viewer GET /api/executive/children (lazy children)', '/api/executive/children?companyId=1&departmentId=1&year=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/executive/invoices (lazy client invoices)', '/api/executive/invoices?companyId=1&partnerId=420&year=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/executive/aging (lazy aging)', '/api/executive/aging?companyIds=1,2,3,4&year=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
+  await test('Viewer GET /api/vat (vat summary read-only)', '/api/vat?years=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
+  await test('Viewer GET /api/vat-details (vat details read-only)', '/api/vat-details?companyId=2&period=2026-Q1', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/presentation/data (presentation data)', '/api/presentation/data?companyIds=1&years=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/guarantees (guarantees list)', '/api/guarantees', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/sales/invoices (sales invoices)', '/api/sales/invoices?limit=10', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);

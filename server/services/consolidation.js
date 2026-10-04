@@ -3385,6 +3385,7 @@ class ConsolidationEngine {
       if (!tagRows.length) continue;
 
       const companyActiveItems = [];
+      const companyReleasedItems = [];
       const accountsSummary = [];
 
       for (const { account_code } of tagRows) {
@@ -3525,6 +3526,70 @@ class ConsolidationEngine {
           });
         }
 
+        // C) Released debits and sub-items (for admin management visibility)
+        const releasedForAccount = [];
+        for (const debit of debits) {
+          if (parentMovesWithSubs.has(debit.move_name)) continue;
+          if (manualReleaseMap.has(debit.move_name)) {
+            const rel = manualReleaseMap.get(debit.move_name);
+            releasedForAccount.push({
+              id: `manual_rel_${debit.id}`,
+              itemId: debit.id,
+              companyId: cid,
+              accountCode: account_code,
+              accountName: debit.account_name,
+              moveName: debit.move_name,
+              date: debit.date,
+              description: debit.label || debit.account_name,
+              amount: debit.debit,
+              partner: debit.partner_name || '',
+              type: 'item',
+              isReleased: true,
+              matchType: 'manual',
+              releaseNotes: rel.notes || 'استثناء يدوي',
+              releasedDate: rel.released_date
+            });
+          } else if (debit.matched) {
+            releasedForAccount.push({
+              id: `auto_rel_${debit.id}`,
+              itemId: debit.id,
+              companyId: cid,
+              accountCode: account_code,
+              accountName: debit.account_name,
+              moveName: debit.move_name,
+              date: debit.date,
+              description: debit.label || debit.account_name,
+              amount: debit.debit,
+              partner: debit.partner_name || '',
+              type: 'item',
+              isReleased: true,
+              matchType: 'auto',
+              releaseNotes: `مفرج تلقائياً: مطابق مع ${debit.matchedBy?.move_name || ''}`,
+              releasedDate: debit.matchedBy?.date
+            });
+          }
+        }
+        for (const s of subItems.filter(x => x.is_released)) {
+          const parentItem = items.find(x => x.move_name === s.parent_move_name && x.debit > 0);
+          releasedForAccount.push({
+            id: `sub_rel_${s.id}`,
+            subItemId: s.id,
+            companyId: cid,
+            accountCode: account_code,
+            accountName: parentItem?.account_name || account_code,
+            moveName: s.parent_move_name,
+            date: parentItem?.date || today,
+            description: s.description,
+            amount: s.amount,
+            partner: parentItem?.partner_name || '',
+            type: 'sub',
+            isReleased: true,
+            matchType: 'sub',
+            releaseNotes: s.notes || '',
+            releasedDate: s.released_date
+          });
+        }
+
         // Sort active items by date
         activeForAccount.sort((a, b) => a.date.localeCompare(b.date));
 
@@ -3554,6 +3619,7 @@ class ConsolidationEngine {
         });
 
         companyActiveItems.push(...activeForAccount);
+        companyReleasedItems.push(...releasedForAccount);
       }
 
       const companyLedgerBalance = Math.round(accountsSummary.reduce((s, a) => s + a.ledgerBalance, 0) * 100) / 100;
@@ -3565,6 +3631,7 @@ class ConsolidationEngine {
         companyId: cid,
         companyName: company.name,
         items: companyActiveItems,
+        releasedItems: companyReleasedItems,
         accounts: accountsSummary,
         accountsSummary,
         totalAmount: companyActiveTotal,
@@ -3722,6 +3789,1484 @@ class ConsolidationEngine {
     }
 
     return results;
+  }
+
+  /**
+   * D1 — Customers & Collection (العملاء والتحصيل)
+   * Single source: sales_invoices + invoice_departments
+   * Hierarchy: Company -> Department -> Customer -> Invoice
+   * Columns: Billed | Returns | Net | Collected | Remaining | % Rate | Aging Days
+   */
+  getCustomersCollection({ companyIds, years, year, dateFrom, dateTo, asOfDate, includeInvoices = false }) {
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'cc_');
+    const refDate = period.refDate;
+
+    const round = (n) => Math.round((n || 0) * 100) / 100;
+    const bucketOf = (days) => {
+      if (days <= 0) return 'not_due';
+      if (days <= 30) return 'b1_30';
+      if (days <= 60) return 'b31_60';
+      if (days <= 90) return 'b61_90';
+      if (days <= 180) return 'b91_180';
+      if (days <= 365) return 'b181_365';
+      return 'over_365';
+    };
+
+    const coRows = this.db.prepare(`
+      SELECT c.id as ledger_cid, c.name as ledger_name, sc.id as sales_cid, sc.name as sales_name
+      FROM companies c
+      JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+      WHERE c.is_active = 1
+      ORDER BY c.id
+    `).all();
+
+    const ledgerToSales = new Map();
+    const salesToLedger = new Map();
+    for (const r of coRows) {
+      ledgerToSales.set(r.ledger_cid, r.sales_cid);
+      salesToLedger.set(r.sales_cid, r);
+    }
+
+    let targetSalesIds = coRows.map(r => r.sales_cid);
+    if (companyIds && companyIds.length > 0) {
+      const arr = Array.isArray(companyIds) ? companyIds.map(Number) : String(companyIds).split(',').map(Number);
+      targetSalesIds = [];
+      for (const id of arr) {
+        if (ledgerToSales.has(id)) targetSalesIds.push(ledgerToSales.get(id));
+        else if (salesToLedger.has(id)) targetSalesIds.push(id);
+      }
+      if (targetSalesIds.length === 0) targetSalesIds = [-1];
+    }
+
+    let invWhere = `WHERE si.company_id IN (${targetSalesIds.join(',')})`;
+    const invParams = { refDate };
+    if (period.sql !== '1=1') {
+      invWhere += ` AND ${period.sql}`;
+      Object.assign(invParams, period.params);
+    }
+
+    const rows = this.db.prepare(`
+      SELECT 
+        c.id as ledger_cid,
+        c.name as ledger_name,
+        id.department_id,
+        COALESCE(NULLIF(TRIM(ag.name), ''), 'غير مصنف') as department_name,
+        si.partner_id,
+        COALESCE(NULLIF(TRIM(si.partner_name), ''), 'بدون عميل') as partner_name,
+        si.id as invoice_id,
+        si.name as invoice_name,
+        si.date as invoice_date,
+        COALESCE(NULLIF(si.invoice_date_due, ''), si.date) as due_date,
+        si.amount_untaxed,
+        si.amount_total,
+        si.amount_residual_signed,
+        si.payment_state,
+        id.share,
+        CAST(julianday(@refDate) - julianday(COALESCE(NULLIF(si.invoice_date_due, ''), si.date)) AS INTEGER) as age_days
+      FROM sales_invoices si
+      JOIN sales_companies sc ON sc.id = si.company_id
+      JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+      JOIN invoice_departments id ON id.sales_invoice_id = si.id
+      LEFT JOIN analytic_groups ag ON ag.id = id.department_id
+      ${invWhere}
+      ORDER BY c.id, department_name, partner_name, si.date DESC
+    `).all(invParams);
+
+    const coMap = new Map();
+    const returnsList = [];
+
+    for (const r of rows) {
+      const share = r.share || 1;
+      const tot = (r.amount_total || 0) * share;
+      const res = (r.amount_residual_signed || 0) * share;
+      const isRet = r.amount_total < 0;
+      const billedVal = isRet ? 0 : tot;
+      const returnVal = isRet ? Math.abs(tot) : 0;
+      const netVal = tot;
+      const residualVal = res;
+      const collectedVal = netVal - residualVal;
+      const ageDays = r.age_days || 0;
+      const bKey = bucketOf(ageDays);
+
+      if (isRet) {
+        returnsList.push({
+          id: r.invoice_id,
+          invoice_name: r.invoice_name,
+          date: r.invoice_date,
+          due_date: r.due_date,
+          company_id: r.ledger_cid,
+          company_name: r.ledger_name,
+          department_id: r.department_id,
+          department_name: r.department_name,
+          partner_id: r.partner_id,
+          partner_name: r.partner_name,
+          amount_untaxed: Math.abs((r.amount_untaxed || 0) * share),
+          amount_total: Math.abs(tot),
+          residual: Math.abs(res),
+          payment_state: r.payment_state
+        });
+      }
+
+      if (!coMap.has(r.ledger_cid)) {
+        coMap.set(r.ledger_cid, {
+          id: r.ledger_cid,
+          name: r.ledger_name,
+          type: 'co',
+          billed: 0,
+          returns: 0,
+          net: 0,
+          collected: 0,
+          residual: 0,
+          overdue_90: 0,
+          weighted_age_sum: 0,
+          buckets: { not_due: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b181_365: 0, over_365: 0 },
+          departmentsMap: new Map()
+        });
+      }
+      const co = coMap.get(r.ledger_cid);
+      co.billed += billedVal;
+      co.returns += returnVal;
+      co.net += netVal;
+      co.residual += residualVal;
+      co.collected += collectedVal;
+      if (ageDays > 90 && residualVal > 0) co.overdue_90 += residualVal;
+      if (residualVal > 0) co.weighted_age_sum += (ageDays * residualVal);
+      co.buckets[bKey] += residualVal;
+
+      const deptMap = co.departmentsMap;
+      if (!deptMap.has(r.department_id)) {
+        deptMap.set(r.department_id, {
+          id: r.department_id,
+          name: r.department_name,
+          company_id: r.ledger_cid,
+          type: 'dept',
+          billed: 0,
+          returns: 0,
+          net: 0,
+          collected: 0,
+          residual: 0,
+          overdue_90: 0,
+          weighted_age_sum: 0,
+          buckets: { not_due: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b181_365: 0, over_365: 0 },
+          partnersMap: new Map()
+        });
+      }
+      const dept = deptMap.get(r.department_id);
+      dept.billed += billedVal;
+      dept.returns += returnVal;
+      dept.net += netVal;
+      dept.residual += residualVal;
+      dept.collected += collectedVal;
+      if (ageDays > 90 && residualVal > 0) dept.overdue_90 += residualVal;
+      if (residualVal > 0) dept.weighted_age_sum += (ageDays * residualVal);
+      dept.buckets[bKey] += residualVal;
+
+      const pMap = dept.partnersMap;
+      const pid = r.partner_id || 0;
+      if (!pMap.has(pid)) {
+        pMap.set(pid, {
+          id: pid,
+          name: r.partner_name,
+          partner_id: pid,
+          company_id: r.ledger_cid,
+          department_id: r.department_id,
+          type: 'partner',
+          _canLoad: true,
+          billed: 0,
+          returns: 0,
+          net: 0,
+          collected: 0,
+          residual: 0,
+          overdue_90: 0,
+          weighted_age_sum: 0,
+          buckets: { not_due: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b181_365: 0, over_365: 0 },
+          invoices: []
+        });
+      }
+      const partner = pMap.get(pid);
+      partner.billed += billedVal;
+      partner.returns += returnVal;
+      partner.net += netVal;
+      partner.residual += residualVal;
+      partner.collected += collectedVal;
+      if (ageDays > 90 && residualVal > 0) partner.overdue_90 += residualVal;
+      if (residualVal > 0) partner.weighted_age_sum += (ageDays * residualVal);
+      partner.buckets[bKey] += residualVal;
+
+      if (includeInvoices) {
+        partner.invoices.push({
+          id: r.invoice_id,
+          name: r.invoice_name,
+          invoice_date: r.invoice_date,
+          due_date: r.due_date,
+          amount_untaxed: (r.amount_untaxed || 0) * share,
+          amount_total: tot,
+          amount_residual_signed: res,
+          payment_state: r.payment_state,
+          age_days: ageDays,
+          isReturn: isRet,
+          bucket: bKey
+        });
+      }
+    }
+
+    let grandBilled = 0, grandReturns = 0, grandNet = 0, grandCollected = 0, grandResidual = 0, grandOverdue90 = 0;
+    const grandBuckets = { not_due: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b181_365: 0, over_365: 0 };
+
+    const tree = [];
+    for (const co of coMap.values()) {
+      co.billed = round(co.billed);
+      co.returns = round(co.returns);
+      co.net = round(co.net);
+      co.residual = round(co.residual);
+      co.collected = round(co.collected);
+      co.collection_rate = co.net > 0 ? round((co.collected / co.net) * 100) : 0;
+      co.avg_age = co.residual > 0 ? Math.round(co.weighted_age_sum / co.residual) : 0;
+
+      grandBilled += co.billed;
+      grandReturns += co.returns;
+      grandNet += co.net;
+      grandCollected += co.collected;
+      grandResidual += co.residual;
+      grandOverdue90 += co.overdue_90;
+      for (const k of Object.keys(grandBuckets)) {
+        co.buckets[k] = round(co.buckets[k]);
+        grandBuckets[k] += co.buckets[k];
+      }
+
+      const departments = [];
+      for (const dept of co.departmentsMap.values()) {
+        dept.billed = round(dept.billed);
+        dept.returns = round(dept.returns);
+        dept.net = round(dept.net);
+        dept.residual = round(dept.residual);
+        dept.collected = round(dept.collected);
+        dept.collection_rate = dept.net > 0 ? round((dept.collected / dept.net) * 100) : 0;
+        dept.avg_age = dept.residual > 0 ? Math.round(dept.weighted_age_sum / dept.residual) : 0;
+        for (const k of Object.keys(dept.buckets)) {
+          dept.buckets[k] = round(dept.buckets[k]);
+        }
+
+        const partners = [];
+        for (const p of dept.partnersMap.values()) {
+          p.billed = round(p.billed);
+          p.returns = round(p.returns);
+          p.net = round(p.net);
+          p.residual = round(p.residual);
+          p.collected = round(p.collected);
+          p.collection_rate = p.net > 0 ? round((p.collected / p.net) * 100) : 0;
+          p.avg_age = p.residual > 0 ? Math.round(p.weighted_age_sum / p.residual) : 0;
+          for (const k of Object.keys(p.buckets)) {
+            p.buckets[k] = round(p.buckets[k]);
+          }
+          delete p.weighted_age_sum;
+          partners.push(p);
+        }
+        delete dept.partnersMap;
+        delete dept.weighted_age_sum;
+        dept.partners = partners;
+        departments.push(dept);
+      }
+      delete co.departmentsMap;
+      delete co.weighted_age_sum;
+      co.departments = departments;
+      tree.push(co);
+    }
+
+    const totals = {
+      total_billed: round(grandBilled),
+      total_returns: round(grandReturns),
+      total_net: round(grandNet),
+      total_collected: round(grandCollected),
+      total_residual: round(grandResidual),
+      overdue_90: round(grandOverdue90),
+      collection_rate: grandNet > 0 ? round((grandCollected / grandNet) * 100) : 0,
+      buckets: Object.fromEntries(Object.entries(grandBuckets).map(([k, v]) => [k, round(v)]))
+    };
+
+    return {
+      meta: {
+        period_label: period.label,
+        years: period.yearsList,
+        refDate: period.refDate
+      },
+      totals,
+      tree,
+      returns_list: returnsList
+    };
+  }
+
+  /**
+   * D1 — Customer Account Statement (كشف حساب العميل)
+   * Sequential transaction ledger with running balance
+   */
+  getCustomerStatement({ companyId, partnerId, departmentId, years, year, dateFrom, dateTo, asOfDate }) {
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'stmt_');
+    const refDate = period.refDate;
+    const cid = Number(companyId);
+    const pid = Number(partnerId);
+    const did = departmentId !== undefined && departmentId !== 'null' && departmentId !== '' ? Number(departmentId) : null;
+
+    const coRow = this.db.prepare(`
+      SELECT c.id as ledger_cid, c.name as ledger_name, sc.id as sales_cid, sc.name as sales_name
+      FROM companies c
+      JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+      WHERE c.id = ?
+    `).get(cid);
+    const salesCid = coRow?.sales_cid;
+
+    let invWhere = `WHERE si.company_id = @salesCid AND si.partner_id = @pid`;
+    const invParams = { salesCid, pid, refDate };
+    if (did !== null && !isNaN(did)) {
+      invWhere += ` AND id.department_id = @did`;
+      invParams.did = did;
+    }
+    if (period.sql !== '1=1') {
+      invWhere += ` AND ${period.sql}`;
+      Object.assign(invParams, period.params);
+    }
+
+    const joinClause = (did !== null && !isNaN(did))
+      ? 'JOIN invoice_departments id ON id.sales_invoice_id = si.id'
+      : '';
+
+    const rows = this.db.prepare(`
+      SELECT DISTINCT
+        si.id,
+        si.name as doc_number,
+        si.date as doc_date,
+        COALESCE(NULLIF(si.invoice_date_due, ''), si.date) as due_date,
+        si.partner_id,
+        COALESCE(NULLIF(TRIM(si.partner_name), ''), 'بدون عميل') as partner_name,
+        si.amount_untaxed,
+        si.amount_total,
+        si.amount_residual_signed,
+        si.payment_state,
+        CAST(julianday(@refDate) - julianday(COALESCE(NULLIF(si.invoice_date_due, ''), si.date)) AS INTEGER) as age_days
+      FROM sales_invoices si
+      ${joinClause}
+      ${invWhere}
+      ORDER BY si.date ASC, si.id ASC
+    `).all(invParams);
+
+    let runningBalance = 0;
+    let totalBilled = 0;
+    let totalReturns = 0;
+    let totalPaid = 0;
+
+    const items = rows.map(r => {
+      const isReturn = r.amount_total < 0;
+      const debit = isReturn ? 0 : r.amount_total;
+      const credit = isReturn ? Math.abs(r.amount_total) : (r.amount_total - r.amount_residual_signed);
+      const paid = isReturn ? 0 : (r.amount_total - r.amount_residual_signed);
+
+      if (isReturn) {
+        totalReturns += Math.abs(r.amount_total);
+      } else {
+        totalBilled += r.amount_total;
+      }
+      totalPaid += paid;
+      runningBalance += r.amount_residual_signed;
+
+      return {
+        id: r.id,
+        doc_number: r.doc_number,
+        date: r.doc_date,
+        due_date: r.due_date,
+        type: isReturn ? 'return' : 'invoice',
+        type_label: isReturn ? 'إشعار دائن (مرتجع)' : 'فاتورة مبيعات',
+        debit: Math.round(debit * 100) / 100,
+        credit: Math.round(credit * 100) / 100,
+        paid: Math.round(paid * 100) / 100,
+        residual: Math.round(r.amount_residual_signed * 100) / 100,
+        running_balance: Math.round(runningBalance * 100) / 100,
+        payment_state: r.payment_state,
+        age_days: r.age_days
+      };
+    });
+
+    return {
+      partner: {
+        id: pid,
+        name: rows[0]?.partner_name || 'العميل'
+      },
+      company: {
+        id: cid,
+        name: coRow?.ledger_name || `شركة ${cid}`
+      },
+      period_label: period.label,
+      summary: {
+        total_billed: Math.round(totalBilled * 100) / 100,
+        total_returns: Math.round(totalReturns * 100) / 100,
+        net_billed: Math.round((totalBilled - totalReturns) * 100) / 100,
+        total_paid: Math.round(totalPaid * 100) / 100,
+        total_residual: Math.round(runningBalance * 100) / 100,
+        doc_count: rows.length,
+        invoices_count: rows.filter(r => r.amount_total >= 0).length,
+        returns_count: rows.filter(r => r.amount_total < 0).length
+      },
+      items
+    };
+  }
+
+  /**
+   * Helper: query expenses with admin cost redistribution
+   * Used by External API & Departments Profitability
+   */
+  getAdminExpenseRedistribution({ companyId, dateFrom, dateTo, includeMonthly, ccFilter }) {
+    const cid = Number(companyId);
+    const company = this.db.prepare('SELECT id, name FROM companies WHERE id = ?').get(cid);
+    if (!company) return [];
+
+    const p = { companyId: cid, dateFrom, dateTo };
+
+    // 1. Load group mappings and redistributable flags
+    const groupMap = {};
+    const redistSet = new Set();
+    const mappings = this.db.prepare(`
+      SELECT m.analytic_account, m.redistributable, g.id as group_id, g.name as group_name
+      FROM analytic_group_mapping m
+      JOIN analytic_groups g ON g.id = m.group_id
+      WHERE m.company_id = ?
+    `).all(cid);
+    for (const m of mappings) {
+      groupMap[m.analytic_account] = { id: m.group_id, name: m.group_name };
+      if (m.redistributable) redistSet.add(m.analytic_account);
+    }
+
+    // 2. Query expenses per cost center (aggregated)
+    const ccExpenseRows = this.db.prepare(`
+      SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cost_center,
+        COALESCE(SUM(debit - credit), 0) as expenses
+      FROM journal_items
+      WHERE company_id = @companyId AND date >= @dateFrom AND date <= @dateTo
+        AND move_state = 'posted'
+        AND account_type IN ('expense','expense_direct','expense_depreciation')
+      GROUP BY cost_center
+    `).all(p);
+
+    // 3. Query revenue per cost center
+    const ccRevenueRows = this.db.prepare(`
+      SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cost_center,
+        COALESCE(SUM(credit - debit), 0) as revenue
+      FROM journal_items
+      WHERE company_id = @companyId AND date >= @dateFrom AND date <= @dateTo
+        AND move_state = 'posted'
+        AND account_type IN ('income','income_other')
+      GROUP BY cost_center
+    `).all(p);
+
+    const ccExpMap = {}; ccExpenseRows.forEach(r => { ccExpMap[r.cost_center] = r.expenses; });
+    const ccRevMap = {}; ccRevenueRows.forEach(r => { ccRevMap[r.cost_center] = r.revenue; });
+
+    // 4. Calculate admin total expenses and target CC revenue totals
+    let adminTotalExp = 0;
+    const allCCs = new Set([...Object.keys(ccExpMap), ...Object.keys(ccRevMap)]);
+    const targetCCs = [];
+    allCCs.forEach(cc => {
+      if (redistSet.has(cc)) {
+        adminTotalExp += ccExpMap[cc] || 0;
+      } else {
+        targetCCs.push(cc);
+      }
+    });
+
+    let totalTargetRevenue = 0;
+    targetCCs.forEach(cc => { totalTargetRevenue += ccRevMap[cc] || 0; });
+
+    const ccAllocation = {};
+    let allocSum = 0;
+    const allocEntries = targetCCs.map(cc => {
+      const rev = ccRevMap[cc] || 0;
+      const ratio = totalTargetRevenue > 0 ? rev / totalTargetRevenue : (targetCCs.length > 0 ? 1 / targetCCs.length : 0);
+      const alloc = adminTotalExp > 0 ? Math.round(adminTotalExp * ratio) : 0;
+      allocSum += alloc;
+      return { cc, alloc, rev };
+    });
+
+    if (adminTotalExp > 0 && allocEntries.length > 0) {
+      const rem = Math.round(adminTotalExp) - allocSum;
+      if (rem !== 0) {
+        let maxIdx = 0, maxRev = -1;
+        allocEntries.forEach((e, i) => { if (e.rev > maxRev) { maxRev = e.rev; maxIdx = i; } });
+        allocEntries[maxIdx].alloc += rem;
+      }
+    }
+    allocEntries.forEach(e => { ccAllocation[e.cc] = e.alloc; });
+
+    let sql;
+    if (includeMonthly) {
+      sql = `
+        SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cost_center,
+          account_code, account_name, account_type,
+          CAST(strftime('%m', date) AS INTEGER) as month,
+          CAST(strftime('%Y', date) AS INTEGER) as year,
+          COALESCE(SUM(debit - credit), 0) as expenses
+        FROM journal_items
+        WHERE company_id = @companyId AND date >= @dateFrom AND date <= @dateTo
+          AND move_state = 'posted'
+          AND account_type IN ('expense','expense_direct','expense_depreciation')
+        GROUP BY cost_center, account_code, account_name, account_type, year, month
+        ORDER BY cost_center, account_code, year, month
+      `;
+    } else {
+      sql = `
+        SELECT COALESCE(NULLIF(analytic_account,''),'بدون مركز') as cost_center,
+          account_code, account_name, account_type,
+          COALESCE(SUM(debit - credit), 0) as expenses
+        FROM journal_items
+        WHERE company_id = @companyId AND date >= @dateFrom AND date <= @dateTo
+          AND move_state = 'posted'
+          AND account_type IN ('expense','expense_direct','expense_depreciation')
+        GROUP BY cost_center, account_code
+        ORDER BY cost_center, account_code
+      `;
+    }
+
+    const rows = this.db.prepare(sql).all(p);
+    const results = [];
+    const ccExpenseDetail = {};
+    for (const row of rows) {
+      if (redistSet.has(row.cost_center)) continue;
+      if (ccFilter && !ccFilter.includes(row.cost_center)) continue;
+      if (!ccExpenseDetail[row.cost_center]) ccExpenseDetail[row.cost_center] = [];
+      ccExpenseDetail[row.cost_center].push(row);
+    }
+
+    for (const [cc, ccRows] of Object.entries(ccExpenseDetail)) {
+      const group = groupMap[cc] || null;
+      const ccOrigExp = ccExpMap[cc] || 0;
+      const ccAllocated = ccAllocation[cc] || 0;
+      const ccTotalExp = ccOrigExp + ccAllocated;
+      const ccRev = ccRevMap[cc] || 0;
+
+      for (const row of ccRows) {
+        const entry = {
+          companyId: company.id,
+          companyName: company.name,
+          costCenter: row.cost_center,
+          groupId: group?.id || null,
+          groupName: group?.name || null,
+          accountCode: row.account_code,
+          accountName: row.account_name,
+          originalExpenses: row.expenses,
+          allocatedAdmin: ccAllocated,
+          totalExpenses: ccTotalExp,
+          revenue: ccRev,
+          dateFrom,
+          dateTo,
+        };
+        if (includeMonthly) { entry.month = row.month; entry.year = row.year; }
+        results.push(entry);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Stage D2: Departments & Profitability (الأقسام والربحية)
+   * 4-level TreeTable: Company -> Department -> Cost Center -> Account
+   * Single measure: revenue | expense | net
+   * Administrative Expense Redistribution toggle switch
+   */
+  getDepartmentsProfitability({
+    companyIds,
+    years,
+    year,
+    dateFrom,
+    dateTo,
+    measure = 'net',
+    timeGrain = 'quarter',
+    redistributeAdmin = false
+  } = {}) {
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, defaultToCurrentYear: true }, 'fd.date', 'd2_');
+
+    let targetLedgerIds;
+    if (companyIds) {
+      targetLedgerIds = (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')).map(Number).filter(Boolean);
+    } else {
+      targetLedgerIds = this.db.prepare('SELECT id FROM companies WHERE is_active = 1 ORDER BY id').all().map(r => r.id);
+    }
+    if (targetLedgerIds.length === 0) targetLedgerIds = [-1];
+
+    const allowedGrains = {
+      year: { col: 'fd.year', fmt: k => String(k) },
+      quarter: { 
+        col: 'fd.quarter', 
+        fmt: k => {
+          const parts = String(k).split('-Q');
+          const qNames = { '1': 'الربع الأول', '2': 'الربع الثاني', '3': 'الربع الثالث', '4': 'الربع الرابع' };
+          return parts.length === 2 ? `${qNames[parts[1]] || ('Q' + parts[1])} ${parts[0]}` : k;
+        }
+      },
+      month: { 
+        col: 'fd.month', 
+        fmt: k => {
+          const months = {
+            '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+            '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+            '09': 'سبتمبر', '10': 'أكتوبر', '11': 'نوفمبر', '12': 'ديسمبر'
+          };
+          const parts = String(k).split('-');
+          return parts.length === 2 ? `${months[parts[1]] || parts[1]} ${parts[0]}` : k;
+        }
+      }
+    };
+
+    const grainDef = allowedGrains[timeGrain] || allowedGrains.quarter;
+    const inCoClause = `fd.company_id IN (${targetLedgerIds.join(',')})`;
+
+    // 1. Query redistributable mappings
+    const redistRows = this.db.prepare(`
+      SELECT company_id, analytic_account, redistributable
+      FROM analytic_group_mapping
+      WHERE redistributable = 1
+    `).all();
+    const redistSet = new Set(redistRows.map(r => `${r.company_id}_${(r.analytic_account || '').trim()}`));
+
+    // 2. Fetch aggregated rows from fact_daily
+    const rows = this.db.prepare(`
+      SELECT 
+        fd.company_id,
+        COALESCE(c.name, 'شركة ' || fd.company_id) as company_name,
+        fd.department_id,
+        COALESCE(ag.name, 'غير مصنّف') as department_name,
+        COALESCE(NULLIF(TRIM(fd.analytic_account), ''), 'بدون مركز') as cost_center,
+        fd.account_code,
+        COALESCE(ca.name, fd.account_code) as account_name,
+        ${grainDef.col} as period_key,
+        COALESCE(SUM(fd.revenue), 0) as revenue,
+        COALESCE(SUM(fd.expense), 0) as expense
+      FROM fact_daily fd
+      LEFT JOIN companies c ON c.id = fd.company_id
+      LEFT JOIN analytic_groups ag ON ag.id = fd.department_id
+      LEFT JOIN company_accounts ca ON ca.company_id = fd.company_id AND ca.code = fd.account_code
+      WHERE ${inCoClause} AND ${period.sql}
+      GROUP BY fd.company_id, fd.department_id, cost_center, fd.account_code, period_key
+      ORDER BY fd.company_id, fd.department_id, cost_center, fd.account_code, period_key
+    `).all(period.params);
+
+    // Discover all unique periods
+    const periodKeysSet = new Set();
+    for (const r of rows) if (r.period_key) periodKeysSet.add(r.period_key);
+    const sortedPeriodKeys = Array.from(periodKeysSet).sort();
+    const columns = sortedPeriodKeys.map(k => ({ key: k, label: grainDef.fmt(k) }));
+
+    // 3. Build Cost Center level revenue/expenses per period for redistribution calculation
+    // 3. Build 4-level Tree: Company -> Department -> Cost Center -> Account
+    const treeMap = new Map();
+    let grandRev = 0, grandExp = 0, grandNet = 0, grandAdminRedist = 0;
+    const grandPeriodValues = Object.fromEntries(sortedPeriodKeys.map(k => [k, 0]));
+
+    for (const r of rows) {
+      const cid = r.company_id;
+      const did = r.department_id || 0;
+      const cc = r.cost_center;
+      const acc = r.account_code;
+      const pk = r.period_key;
+      const isRedist = redistSet.has(`${cid}_${cc}`);
+
+      if (isRedist) grandAdminRedist += r.expense;
+
+      if (!treeMap.has(cid)) {
+        treeMap.set(cid, {
+          id: cid,
+          name: r.company_name,
+          type: 'co',
+          revenue: 0,
+          expenses: 0,
+          net: 0,
+          allocated_admin: 0,
+          values: Object.fromEntries(sortedPeriodKeys.map(k => [k, 0])),
+          deptsMap: new Map()
+        });
+      }
+      const co = treeMap.get(cid);
+
+      const deptsMap = co.deptsMap;
+      if (!deptsMap.has(did)) {
+        deptsMap.set(did, {
+          id: did,
+          name: r.department_name,
+          company_id: cid,
+          type: 'dept',
+          revenue: 0,
+          expenses: 0,
+          net: 0,
+          allocated_admin: 0,
+          values: Object.fromEntries(sortedPeriodKeys.map(k => [k, 0])),
+          ccsMap: new Map()
+        });
+      }
+      const dept = deptsMap.get(did);
+
+      const ccsMap = dept.ccsMap;
+      if (!ccsMap.has(cc)) {
+        ccsMap.set(cc, {
+          id: cc,
+          name: cc,
+          company_id: cid,
+          department_id: did,
+          type: 'cc',
+          is_redistributable: isRedist,
+          revenue: 0,
+          expenses: 0,
+          net: 0,
+          allocated_admin: 0,
+          values: Object.fromEntries(sortedPeriodKeys.map(k => [k, 0])),
+          accountsMap: new Map()
+        });
+      }
+      const ccNode = ccsMap.get(cc);
+
+      const accountsMap = ccNode.accountsMap;
+      if (!accountsMap.has(acc)) {
+        accountsMap.set(acc, {
+          id: acc,
+          code: acc,
+          name: r.account_name,
+          company_id: cid,
+          department_id: did,
+          cost_center: cc,
+          type: 'account',
+          revenue: 0,
+          expenses: 0,
+          net: 0,
+          values: Object.fromEntries(sortedPeriodKeys.map(k => [k, 0])),
+          rev_by_period: {},
+          exp_by_period: {}
+        });
+      }
+      const accNode = accountsMap.get(acc);
+
+      accNode.revenue += r.revenue;
+      accNode.expenses += r.expense;
+      accNode.net += (r.revenue - r.expense);
+      accNode.rev_by_period[pk] = (accNode.rev_by_period[pk] || 0) + r.revenue;
+      accNode.exp_by_period[pk] = (accNode.exp_by_period[pk] || 0) + r.expense;
+
+      ccNode.revenue += r.revenue;
+      ccNode.expenses += r.expense;
+      dept.revenue += r.revenue;
+      dept.expenses += r.expense;
+      co.revenue += r.revenue;
+      co.expenses += r.expense;
+
+      grandRev += r.revenue;
+      grandExp += r.expense;
+    }
+
+    // Finalize Tree and apply redistribution
+    const tree = [];
+    for (const co of treeMap.values()) {
+      // Calculate redistribution allocations per period for this company
+      const ccAllocations = {};
+      if (redistributeAdmin) {
+        for (const pk of sortedPeriodKeys) {
+          let adminExp = 0;
+          for (const dept of co.deptsMap.values()) {
+            for (const cc of dept.ccsMap.values()) {
+              if (cc.is_redistributable) {
+                for (const a of cc.accountsMap.values()) {
+                  adminExp += Math.round(a.exp_by_period[pk] || 0);
+                }
+              }
+            }
+          }
+
+          if (adminExp <= 0) continue;
+
+          const targetCCs = [];
+          for (const dept of co.deptsMap.values()) {
+            for (const cc of dept.ccsMap.values()) {
+              if (!cc.is_redistributable) {
+                let rev = 0, exp = 0;
+                for (const a of cc.accountsMap.values()) {
+                  rev += Math.round(a.rev_by_period[pk] || 0);
+                  exp += Math.round(a.exp_by_period[pk] || 0);
+                }
+                targetCCs.push({ key: `${dept.id}_${cc.name}`, rev, exp });
+              }
+            }
+          }
+
+          if (targetCCs.length === 0) continue;
+
+          let totalBase = targetCCs.reduce((s, c) => s + c.rev, 0);
+          const useExpBase = totalBase === 0;
+          if (useExpBase) totalBase = targetCCs.reduce((s, c) => s + c.exp, 0);
+
+          let sumAlloc = 0;
+          const allocEntries = targetCCs.map(c => {
+            const base = useExpBase ? c.exp : c.rev;
+            const ratio = totalBase > 0 ? (base / totalBase) : (1 / targetCCs.length);
+            const alloc = Math.round(adminExp * ratio);
+            sumAlloc += alloc;
+            return { key: c.key, alloc, base };
+          });
+
+          const remainder = adminExp - sumAlloc;
+          if (remainder !== 0) {
+            let maxIdx = 0, maxBase = -1;
+            allocEntries.forEach((e, i) => {
+              if (e.base > maxBase) { maxBase = e.base; maxIdx = i; }
+            });
+            allocEntries[maxIdx].alloc += remainder;
+          }
+
+          for (const e of allocEntries) {
+            ccAllocations[`${co.id}_${pk}_${e.key}`] = e.alloc;
+          }
+        }
+      }
+
+      co.departments = [];
+      for (const dept of co.deptsMap.values()) {
+        dept.costCenters = [];
+        for (const cc of dept.ccsMap.values()) {
+          cc.accounts = Array.from(cc.accountsMap.values());
+          delete cc.accountsMap;
+
+          // Compute account period values
+          for (const a of cc.accounts) {
+            for (const pk of sortedPeriodKeys) {
+              const rev = a.rev_by_period[pk] || 0;
+              const exp = a.exp_by_period[pk] || 0;
+              const val = measure === 'revenue' ? rev : (measure === 'expense' ? exp : (rev - exp));
+              a.values[pk] = Math.round(val);
+            }
+            a.total = Object.values(a.values).reduce((s, v) => s + v, 0);
+          }
+
+          // Apply CC period values & redistribution
+          for (const pk of sortedPeriodKeys) {
+            const alloc = (redistributeAdmin && !cc.is_redistributable) ? (ccAllocations[`${co.id}_${pk}_${dept.id}_${cc.name}`] || 0) : 0;
+            cc.allocated_admin += alloc;
+
+            if (redistributeAdmin) {
+              if (cc.is_redistributable) {
+                if (measure === 'expense') cc.values[pk] = 0;
+                else if (measure === 'revenue') cc.values[pk] = cc.accounts.reduce((s, a) => s + (a.values[pk] || 0), 0);
+                else cc.values[pk] = Math.round(cc.accounts.reduce((s, a) => s + (a.rev_by_period?.[pk] || 0), 0));
+              } else {
+                const baseVal = cc.accounts.reduce((s, a) => s + (a.values[pk] || 0), 0);
+                if (measure === 'expense') cc.values[pk] = baseVal + alloc;
+                else if (measure === 'net') cc.values[pk] = baseVal - alloc;
+                else cc.values[pk] = baseVal;
+              }
+            } else {
+              cc.values[pk] = cc.accounts.reduce((s, a) => s + (a.values[pk] || 0), 0);
+            }
+            dept.values[pk] = (dept.values[pk] || 0) + cc.values[pk];
+          }
+
+          cc.total = Object.values(cc.values).reduce((s, v) => s + v, 0);
+          cc.net = cc.revenue - (cc.expenses + cc.allocated_admin);
+          cc.margin = cc.revenue > 0 ? Math.round((cc.net / cc.revenue) * 1000) / 10 : 0;
+          dept.costCenters.push(cc);
+        }
+
+        for (const pk of sortedPeriodKeys) {
+          co.values[pk] = (co.values[pk] || 0) + dept.values[pk];
+        }
+        dept.total = Object.values(dept.values).reduce((s, v) => s + v, 0);
+        dept.allocated_admin = dept.costCenters.reduce((s, c) => s + c.allocated_admin, 0);
+        dept.net = dept.revenue - (dept.expenses + dept.allocated_admin);
+        dept.margin = dept.revenue > 0 ? Math.round((dept.net / dept.revenue) * 1000) / 10 : 0;
+        delete dept.ccsMap;
+        co.departments.push(dept);
+      }
+
+      for (const pk of sortedPeriodKeys) {
+        grandPeriodValues[pk] = (grandPeriodValues[pk] || 0) + co.values[pk];
+      }
+      co.total = Object.values(co.values).reduce((s, v) => s + v, 0);
+      co.allocated_admin = co.departments.reduce((s, d) => s + d.allocated_admin, 0);
+      co.net = co.revenue - (co.expenses + co.allocated_admin);
+      co.margin = co.revenue > 0 ? Math.round((co.net / co.revenue) * 1000) / 10 : 0;
+      delete co.deptsMap;
+      tree.push(co);
+    }
+
+    const grandTotal = Object.values(grandPeriodValues).reduce((s, v) => s + v, 0);
+    grandNet = grandRev - grandExp;
+
+    return {
+      meta: {
+        period_label: period.label,
+        years: period.yearsList,
+        measure,
+        timeGrain,
+        redistributeAdmin
+      },
+      summary: {
+        total_revenue: Math.round(grandRev),
+        total_expenses: Math.round(grandExp),
+        net_profit: Math.round(grandNet),
+        profit_margin: grandRev > 0 ? Math.round((grandNet / grandRev) * 1000) / 10 : 0,
+        admin_expenses_redistributed: Math.round(grandAdminRedist)
+      },
+      columns,
+      tree,
+      totals: {
+        values: grandPeriodValues,
+        total: grandTotal,
+        revenue: Math.round(grandRev),
+        expenses: Math.round(grandExp),
+        net: Math.round(grandNet)
+      }
+    };
+  }
+
+  /**
+   * VAT Consolidated Report Engine (D5)
+   * Calculates taxable sales/purchases, output/input VAT, net VAT due, and settlements.
+   * Derives data strictly from journal item lines tagged vat_output, vat_input, and vat_settlement.
+   * Tree hierarchy: Company -> Year -> Quarter -> Month
+   * Default view grain: 'vat_period' (Monthly for company 2, Quarterly for others)
+   */
+  getVatReport({ companyIds, years, dateFrom, dateTo, grain = 'vat_period' } = {}) {
+    const period = this._periodFilter({ years, dateFrom, dateTo }, 'ji.date', 'vat_');
+
+    let targetCompanies = [];
+    if (companyIds) {
+      const cids = Array.isArray(companyIds)
+        ? companyIds.map(Number).filter(n => !isNaN(n))
+        : String(companyIds).split(',').map(s => Number(s.trim())).filter(n => !isNaN(n));
+      if (cids.length > 0) {
+        targetCompanies = this.db.prepare(`
+          SELECT id, name, vat_period, color 
+          FROM companies 
+          WHERE id IN (${cids.map(() => '?').join(',')}) AND is_active = 1 
+          ORDER BY id
+        `).all(...cids);
+      }
+    }
+    if (targetCompanies.length === 0) {
+      targetCompanies = this.db.prepare('SELECT id, name, vat_period, color FROM companies WHERE is_active = 1 ORDER BY id').all();
+    }
+
+    const coIds = targetCompanies.map(c => c.id);
+    if (coIds.length === 0) {
+      return {
+        cards: { taxable_sales: 0, output_tax: 0, taxable_purchases: 0, input_tax: 0, net_tax_due: 0, settlements: 0, ledger_balance: 0, last_completed_period: '' },
+        tree: [],
+        totals: { taxable_sales: 0, output_tax: 0, output_invoices: 0, output_refunds: 0, taxable_purchases: 0, input_tax: 0, input_bills: 0, input_refunds: 0, net_tax_due: 0, settlements: 0, ledger_balance: 0, reconciliation_diff: 0 },
+        meta: { period_label: period.label, years: period.yearsList, grain }
+      };
+    }
+
+    const ARABIC_MONTHS = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+    const ARABIC_QUARTERS = { '1': 'الربع الأول', '2': 'الربع الثاني', '3': 'الربع الثالث', '4': 'الربع الرابع' };
+
+    const inCoClause = `ji.company_id IN (${coIds.join(',')})`;
+
+    // Tax lines aggregation by company and month
+    const taxLinesSql = `
+      SELECT 
+        ji.company_id,
+        strftime('%Y-%m', ji.date) as month,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND (ji.credit >= ji.debit) THEN ji.tax_base_amount 
+                       WHEN at.tag = 'vat_output' AND (ji.debit > ji.credit) THEN -ji.tax_base_amount 
+                       ELSE 0 END), 2) as taxable_sales,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND ji.credit > 0 THEN ji.credit ELSE 0 END), 2) as output_invoices,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND ji.debit > 0 THEN ji.debit ELSE 0 END), 2) as output_refunds,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN ji.credit - ji.debit ELSE 0 END), 2) as output_tax,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND (ji.debit >= ji.credit) THEN ji.tax_base_amount 
+                       WHEN at.tag = 'vat_input' AND (ji.credit > ji.debit) THEN -ji.tax_base_amount 
+                       ELSE 0 END), 2) as taxable_purchases,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND ji.debit > 0 THEN ji.debit ELSE 0 END), 2) as input_bills,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND ji.credit > 0 THEN ji.credit ELSE 0 END), 2) as input_refunds,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' THEN ji.debit - ji.credit ELSE 0 END), 2) as input_tax
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ${inCoClause}
+        AND ji.tax_id IS NOT NULL
+        AND at.tag IN ('vat_output', 'vat_input')
+        AND ${period.sql}
+      GROUP BY ji.company_id, strftime('%Y-%m', ji.date)
+    `;
+    const taxLinesRows = this.db.prepare(taxLinesSql).all(period.params);
+
+    // Settlements aggregation by company and month
+    const settlementsSql = `
+      SELECT 
+        ji.company_id,
+        strftime('%Y-%m', ji.date) as month,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN ji.debit - ji.credit 
+                       WHEN at.tag = 'vat_input' THEN ji.credit - ji.debit 
+                       WHEN at.tag = 'vat_settlement' THEN ji.debit - ji.credit 
+                       ELSE 0 END), 2) as settlements
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ${inCoClause}
+        AND ji.tax_id IS NULL
+        AND at.tag IN ('vat_output', 'vat_input', 'vat_settlement')
+        AND ${period.sql}
+      GROUP BY ji.company_id, strftime('%Y-%m', ji.date)
+    `;
+    const settlementRows = this.db.prepare(settlementsSql).all(period.params);
+
+    // Cumulative ledger balance by company up to refDate/dateTo
+    const ledgerSql = `
+      SELECT 
+        ji.company_id,
+        ROUND(SUM(CASE WHEN at.tag IN ('vat_output', 'vat_settlement') THEN ji.credit - ji.debit 
+                       WHEN at.tag = 'vat_input' THEN -(ji.debit - ji.credit)
+                       ELSE 0 END), 2) as balance
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ${inCoClause}
+        AND at.tag IN ('vat_output', 'vat_input', 'vat_settlement')
+        ${period.dateTo ? 'AND ji.date <= @ledger_dt' : ''}
+      GROUP BY ji.company_id
+    `;
+    const ledgerParams = period.dateTo ? { ledger_dt: period.dateTo } : {};
+    const ledgerRows = this.db.prepare(ledgerSql).all(ledgerParams);
+    const ledgerBalanceByCo = {};
+    for (const r of ledgerRows) {
+      ledgerBalanceByCo[r.company_id] = r.balance || 0;
+    }
+
+    // Build map: [company_id][month] -> data
+    const monthDataMap = {};
+    for (const r of taxLinesRows) {
+      if (!monthDataMap[r.company_id]) monthDataMap[r.company_id] = {};
+      monthDataMap[r.company_id][r.month] = {
+        taxable_sales: r.taxable_sales || 0,
+        output_invoices: r.output_invoices || 0,
+        output_refunds: r.output_refunds || 0,
+        output_tax: r.output_tax || 0,
+        taxable_purchases: r.taxable_purchases || 0,
+        input_bills: r.input_bills || 0,
+        input_refunds: r.input_refunds || 0,
+        input_tax: r.input_tax || 0,
+        settlements: 0
+      };
+    }
+    for (const r of settlementRows) {
+      if (!monthDataMap[r.company_id]) monthDataMap[r.company_id] = {};
+      if (!monthDataMap[r.company_id][r.month]) {
+        monthDataMap[r.company_id][r.month] = {
+          taxable_sales: 0, output_invoices: 0, output_refunds: 0, output_tax: 0,
+          taxable_purchases: 0, input_bills: 0, input_refunds: 0, input_tax: 0,
+          settlements: 0
+        };
+      }
+      monthDataMap[r.company_id][r.month].settlements = r.settlements || 0;
+    }
+
+    // Construct hierarchy: Company -> Year -> Quarter -> Month
+    const tree = [];
+    const grandTotals = {
+      taxable_sales: 0, output_tax: 0, output_invoices: 0, output_refunds: 0,
+      taxable_purchases: 0, input_tax: 0, input_bills: 0, input_refunds: 0,
+      net_tax_due: 0, settlements: 0, ledger_balance: 0, reconciliation_diff: 0
+    };
+
+    for (const co of targetCompanies) {
+      const coMap = monthDataMap[co.id] || {};
+      const sortedMonths = Object.keys(coMap).sort().reverse();
+      
+      const yearsMap = {};
+
+      for (const mStr of sortedMonths) {
+        const [yStr, mNumStr] = mStr.split('-');
+        const mNum = parseInt(mNumStr, 10);
+        const qNum = Math.ceil(mNum / 3);
+        const qKey = `${yStr}-Q${qNum}`;
+
+        if (!yearsMap[yStr]) {
+          yearsMap[yStr] = {
+            id: `co_${co.id}_${yStr}`,
+            type: 'year',
+            company_id: co.id,
+            period_key: yStr,
+            name: yStr,
+            year: yStr,
+            taxable_sales: 0, output_tax: 0, output_invoices: 0, output_refunds: 0,
+            taxable_purchases: 0, input_tax: 0, input_bills: 0, input_refunds: 0,
+            net_tax_due: 0, settlements: 0,
+            quartersMap: {}
+          };
+        }
+
+        const yNode = yearsMap[yStr];
+        if (!yNode.quartersMap[qKey]) {
+          yNode.quartersMap[qKey] = {
+            id: `co_${co.id}_${qKey}`,
+            type: 'quarter',
+            company_id: co.id,
+            period_key: qKey,
+            name: `${ARABIC_QUARTERS[qNum]} ${yStr}`,
+            quarter_number: qNum,
+            year: yStr,
+            taxable_sales: 0, output_tax: 0, output_invoices: 0, output_refunds: 0,
+            taxable_purchases: 0, input_tax: 0, input_bills: 0, input_refunds: 0,
+            net_tax_due: 0, settlements: 0,
+            months: []
+          };
+        }
+
+        const qNode = yNode.quartersMap[qKey];
+        const mData = coMap[mStr];
+        const mNet = Math.round((mData.output_tax - mData.input_tax) * 100) / 100;
+        
+        const mNode = {
+          id: `co_${co.id}_${mStr}`,
+          type: 'month',
+          company_id: co.id,
+          period_key: mStr,
+          name: `${ARABIC_MONTHS[mNum]} ${yStr}`,
+          month_number: mNum,
+          quarter_number: qNum,
+          year: yStr,
+          taxable_sales: mData.taxable_sales,
+          output_tax: mData.output_tax,
+          output_invoices: mData.output_invoices,
+          output_refunds: mData.output_refunds,
+          taxable_purchases: mData.taxable_purchases,
+          input_tax: mData.input_tax,
+          input_bills: mData.input_bills,
+          input_refunds: mData.input_refunds,
+          net_tax_due: mNet,
+          settlements: mData.settlements,
+          reconciliation_diff: 0
+        };
+
+        qNode.months.push(mNode);
+
+        qNode.taxable_sales = Math.round((qNode.taxable_sales + mData.taxable_sales) * 100) / 100;
+        qNode.output_tax = Math.round((qNode.output_tax + mData.output_tax) * 100) / 100;
+        qNode.output_invoices = Math.round((qNode.output_invoices + mData.output_invoices) * 100) / 100;
+        qNode.output_refunds = Math.round((qNode.output_refunds + mData.output_refunds) * 100) / 100;
+        qNode.taxable_purchases = Math.round((qNode.taxable_purchases + mData.taxable_purchases) * 100) / 100;
+        qNode.input_tax = Math.round((qNode.input_tax + mData.input_tax) * 100) / 100;
+        qNode.input_bills = Math.round((qNode.input_bills + mData.input_bills) * 100) / 100;
+        qNode.input_refunds = Math.round((qNode.input_refunds + mData.input_refunds) * 100) / 100;
+        qNode.settlements = Math.round((qNode.settlements + mData.settlements) * 100) / 100;
+        qNode.net_tax_due = Math.round((qNode.output_tax - qNode.input_tax) * 100) / 100;
+
+        yNode.taxable_sales = Math.round((yNode.taxable_sales + mData.taxable_sales) * 100) / 100;
+        yNode.output_tax = Math.round((yNode.output_tax + mData.output_tax) * 100) / 100;
+        yNode.output_invoices = Math.round((yNode.output_invoices + mData.output_invoices) * 100) / 100;
+        yNode.output_refunds = Math.round((yNode.output_refunds + mData.output_refunds) * 100) / 100;
+        yNode.taxable_purchases = Math.round((yNode.taxable_purchases + mData.taxable_purchases) * 100) / 100;
+        yNode.input_tax = Math.round((yNode.input_tax + mData.input_tax) * 100) / 100;
+        yNode.input_bills = Math.round((yNode.input_bills + mData.input_bills) * 100) / 100;
+        yNode.input_refunds = Math.round((yNode.input_refunds + mData.input_refunds) * 100) / 100;
+        yNode.settlements = Math.round((yNode.settlements + mData.settlements) * 100) / 100;
+        yNode.net_tax_due = Math.round((yNode.output_tax - yNode.input_tax) * 100) / 100;
+      }
+
+      const coNode = {
+        id: `co_${co.id}`,
+        type: 'company',
+        company_id: co.id,
+        name: co.name,
+        vat_period: co.vat_period || 'quarterly',
+        color: co.color || '#3b82f6',
+        taxable_sales: 0, output_tax: 0, output_invoices: 0, output_refunds: 0,
+        taxable_purchases: 0, input_tax: 0, input_bills: 0, input_refunds: 0,
+        net_tax_due: 0, settlements: 0,
+        ledger_balance: ledgerBalanceByCo[co.id] || 0,
+        reconciliation_diff: 0,
+        children: []
+      };
+
+      const sortedYears = Object.keys(yearsMap).sort().reverse();
+      for (const yStr of sortedYears) {
+        const yNode = yearsMap[yStr];
+        const quarters = Object.values(yNode.quartersMap).sort((a, b) => b.quarter_number - a.quarter_number);
+        for (const q of quarters) {
+          q.months.sort((a, b) => b.month_number - a.month_number);
+          q.children = q.months;
+        }
+        yNode.children = quarters;
+        delete yNode.quartersMap;
+
+        coNode.children.push(yNode);
+
+        coNode.taxable_sales = Math.round((coNode.taxable_sales + yNode.taxable_sales) * 100) / 100;
+        coNode.output_tax = Math.round((coNode.output_tax + yNode.output_tax) * 100) / 100;
+        coNode.output_invoices = Math.round((coNode.output_invoices + yNode.output_invoices) * 100) / 100;
+        coNode.output_refunds = Math.round((coNode.output_refunds + yNode.output_refunds) * 100) / 100;
+        coNode.taxable_purchases = Math.round((coNode.taxable_purchases + yNode.taxable_purchases) * 100) / 100;
+        coNode.input_tax = Math.round((coNode.input_tax + yNode.input_tax) * 100) / 100;
+        coNode.input_bills = Math.round((coNode.input_bills + yNode.input_bills) * 100) / 100;
+        coNode.input_refunds = Math.round((coNode.input_refunds + yNode.input_refunds) * 100) / 100;
+        coNode.settlements = Math.round((coNode.settlements + yNode.settlements) * 100) / 100;
+        coNode.net_tax_due = Math.round((coNode.output_tax - coNode.input_tax) * 100) / 100;
+      }
+
+      tree.push(coNode);
+
+      grandTotals.taxable_sales = Math.round((grandTotals.taxable_sales + coNode.taxable_sales) * 100) / 100;
+      grandTotals.output_tax = Math.round((grandTotals.output_tax + coNode.output_tax) * 100) / 100;
+      grandTotals.output_invoices = Math.round((grandTotals.output_invoices + coNode.output_invoices) * 100) / 100;
+      grandTotals.output_refunds = Math.round((grandTotals.output_refunds + coNode.output_refunds) * 100) / 100;
+      grandTotals.taxable_purchases = Math.round((grandTotals.taxable_purchases + coNode.taxable_purchases) * 100) / 100;
+      grandTotals.input_tax = Math.round((grandTotals.input_tax + coNode.input_tax) * 100) / 100;
+      grandTotals.input_bills = Math.round((grandTotals.input_bills + coNode.input_bills) * 100) / 100;
+      grandTotals.input_refunds = Math.round((grandTotals.input_refunds + coNode.input_refunds) * 100) / 100;
+      grandTotals.settlements = Math.round((grandTotals.settlements + coNode.settlements) * 100) / 100;
+      grandTotals.net_tax_due = Math.round((grandTotals.output_tax - grandTotals.input_tax) * 100) / 100;
+      grandTotals.ledger_balance = Math.round((grandTotals.ledger_balance + coNode.ledger_balance) * 100) / 100;
+    }
+
+    // Last completed filing period description for single company card
+    let lastCompletedDesc = '';
+    if (targetCompanies.length === 1) {
+      const singleCo = targetCompanies[0];
+      const now = new Date();
+      if (singleCo.vat_period === 'monthly') {
+        const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const prevY = prevMonthDate.getFullYear();
+        const prevM = prevMonthDate.getMonth() + 1;
+        const prevMKey = `${prevY}-${String(prevM).padStart(2, '0')}`;
+        const prevData = monthDataMap[singleCo.id]?.[prevMKey];
+        const prevDue = prevData ? Math.round((prevData.output_tax - prevData.input_tax) * 100) / 100 : null;
+        lastCompletedDesc = `${ARABIC_MONTHS[prevM]} ${prevY}` + (prevDue !== null ? ` (مستحق: ${prevDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س)` : '');
+      } else {
+        const curQ = Math.floor(now.getMonth() / 3) + 1;
+        let prevQ = curQ - 1;
+        let prevQYear = now.getFullYear();
+        if (prevQ < 1) { prevQ = 4; prevQYear--; }
+        const prevQKey = `${prevQYear}-Q${prevQ}`;
+        const yNode = tree[0]?.children?.find(y => y.year == prevQYear);
+        const qNode = yNode?.children?.find(q => q.period_key == prevQKey);
+        const prevDue = qNode ? qNode.net_tax_due : null;
+        lastCompletedDesc = `${ARABIC_QUARTERS[prevQ]} ${prevQYear}` + (prevDue !== null ? ` (مستحق: ${prevDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س)` : '');
+      }
+    }
+
+    return {
+      cards: {
+        taxable_sales: grandTotals.taxable_sales,
+        output_tax: grandTotals.output_tax,
+        taxable_purchases: grandTotals.taxable_purchases,
+        input_tax: grandTotals.input_tax,
+        net_tax_due: grandTotals.net_tax_due,
+        settlements: grandTotals.settlements,
+        ledger_balance: grandTotals.ledger_balance,
+        last_completed_period: lastCompletedDesc
+      },
+      tree,
+      totals: grandTotals,
+      meta: {
+        period_label: period.label,
+        years: period.yearsList,
+        grain,
+        companies_count: targetCompanies.length
+      }
+    };
+  }
+
+  /**
+   * VAT Period Details (D5 Slide-over)
+   * Fetches tax summary, breakdown by tax type (including zero/exempt), document lines, and settlements.
+   */
+  getVatDetails({ companyId, period, dateFrom, dateTo } = {}) {
+    if (!companyId) throw new Error('companyId is required');
+
+    let df = dateFrom;
+    let dt = dateTo;
+
+    if (!df || !dt) {
+      if (period) {
+        if (/^\d{4}-\d{2}$/.test(period)) {
+          df = `${period}-01`;
+          const [y, m] = period.split('-').map(Number);
+          const lastDay = new Date(y, m, 0).getDate();
+          dt = `${period}-${String(lastDay).padStart(2, '0')}`;
+        } else if (/^\d{4}-Q[1-4]$/.test(period)) {
+          const y = period.slice(0, 4);
+          const q = parseInt(period.slice(6), 10);
+          const qRanges = {
+            1: [`${y}-01-01`, `${y}-03-31`],
+            2: [`${y}-04-01`, `${y}-06-30`],
+            3: [`${y}-07-01`, `${y}-09-30`],
+            4: [`${y}-10-01`, `${y}-12-31`]
+          };
+          [df, dt] = qRanges[q];
+        } else if (/^\d{4}$/.test(period)) {
+          df = `${period}-01-01`;
+          dt = `${period}-12-31`;
+        }
+      }
+    }
+
+    if (!df || !dt) {
+      const curYear = new Date().getFullYear();
+      df = `${curYear}-01-01`;
+      dt = `${curYear}-12-31`;
+    }
+
+    // 1. Summary
+    const summaryRow = this.db.prepare(`
+      SELECT 
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND (ji.credit >= ji.debit) THEN ji.tax_base_amount 
+                       WHEN at.tag = 'vat_output' AND (ji.debit > ji.credit) THEN -ji.tax_base_amount 
+                       ELSE 0 END), 2) as taxable_sales,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND ji.credit > 0 THEN ji.credit ELSE 0 END), 2) as output_invoices,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' AND ji.debit > 0 THEN ji.debit ELSE 0 END), 2) as output_refunds,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN ji.credit - ji.debit ELSE 0 END), 2) as output_tax,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND (ji.debit >= ji.credit) THEN ji.tax_base_amount 
+                       WHEN at.tag = 'vat_input' AND (ji.credit > ji.debit) THEN -ji.tax_base_amount 
+                       ELSE 0 END), 2) as taxable_purchases,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND ji.debit > 0 THEN ji.debit ELSE 0 END), 2) as input_bills,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' AND ji.credit > 0 THEN ji.credit ELSE 0 END), 2) as input_refunds,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_input' THEN ji.debit - ji.credit ELSE 0 END), 2) as input_tax
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ji.company_id = ?
+        AND ji.tax_id IS NOT NULL
+        AND at.tag IN ('vat_output', 'vat_input')
+        AND ji.date >= ? AND ji.date <= ?
+    `).get(companyId, df, dt) || {};
+
+    const settlementsRow = this.db.prepare(`
+      SELECT 
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN ji.debit - ji.credit 
+                       WHEN at.tag = 'vat_input' THEN ji.credit - ji.debit 
+                       WHEN at.tag = 'vat_settlement' THEN ji.debit - ji.credit 
+                       ELSE 0 END), 2) as settlements
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ji.company_id = ?
+        AND ji.tax_id IS NULL
+        AND at.tag IN ('vat_output', 'vat_input', 'vat_settlement')
+        AND ji.date >= ? AND ji.date <= ?
+    `).get(companyId, df, dt) || {};
+
+    const summary = {
+      taxable_sales: summaryRow.taxable_sales || 0,
+      output_tax: summaryRow.output_tax || 0,
+      output_invoices: summaryRow.output_invoices || 0,
+      output_refunds: summaryRow.output_refunds || 0,
+      taxable_purchases: summaryRow.taxable_purchases || 0,
+      input_tax: summaryRow.input_tax || 0,
+      input_bills: summaryRow.input_bills || 0,
+      input_refunds: summaryRow.input_refunds || 0,
+      net_tax_due: Math.round(((summaryRow.output_tax || 0) - (summaryRow.input_tax || 0)) * 100) / 100,
+      settlements: settlementsRow.settlements || 0
+    };
+
+    // 2. Breakdown by tax type (including standard rates and 0%/exempt)
+    const standardTaxes = this.db.prepare(`
+      SELECT 
+        COALESCE(ot.tax_id, ji.tax_id, 0) as tax_id,
+        COALESCE(ot.name, ji.tax_name, 'أخرى') as name,
+        COALESCE(ot.type_tax_use, CASE WHEN at.tag = 'vat_output' THEN 'sale' ELSE 'purchase' END) as type_tax_use,
+        COALESCE(ot.amount, 15) as rate,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN (CASE WHEN ji.credit >= ji.debit THEN ji.tax_base_amount ELSE -ji.tax_base_amount END)
+                       WHEN at.tag = 'vat_input' THEN (CASE WHEN ji.debit >= ji.credit THEN ji.tax_base_amount ELSE -ji.tax_base_amount END)
+                       ELSE 0 END), 2) as base_amount,
+        ROUND(SUM(CASE WHEN at.tag = 'vat_output' THEN ji.credit - ji.debit
+                       WHEN at.tag = 'vat_input' THEN ji.debit - ji.credit
+                       ELSE 0 END), 2) as tax_amount,
+        COUNT(*) as count
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      LEFT JOIN odoo_taxes ot ON ot.tax_id = ji.tax_id
+      WHERE ji.company_id = ?
+        AND ji.tax_id IS NOT NULL
+        AND at.tag IN ('vat_output', 'vat_input')
+        AND ji.date >= ? AND ji.date <= ?
+      GROUP BY ot.tax_id, ot.name, ot.type_tax_use
+      ORDER BY type_tax_use DESC, tax_amount DESC
+    `).all(companyId, df, dt);
+
+    // Also get zero-rated or exempt sales from tax_ids
+    const zeroSaleTaxIds = this.db.prepare(`SELECT tax_id, name, amount FROM odoo_taxes WHERE amount = 0 AND type_tax_use = 'sale'`).all();
+    const zeroTaxRows = [];
+    for (const zt of zeroSaleTaxIds) {
+      const zRow = this.db.prepare(`
+        SELECT 
+          ROUND(SUM(ji.credit - ji.debit), 2) as base_amount,
+          COUNT(*) as count
+        FROM journal_items ji
+        WHERE ji.company_id = ?
+          AND ji.tax_id IS NULL
+          AND ji.tax_ids LIKE '%' || ? || '%'
+          AND ji.account_type LIKE 'income%'
+          AND ji.date >= ? AND ji.date <= ?
+      `).get(companyId, zt.tax_id, df, dt);
+
+      if (zRow && zRow.count > 0 && Math.abs(zRow.base_amount || 0) > 0) {
+        zeroTaxRows.push({
+          tax_id: zt.tax_id,
+          name: zt.name,
+          type_tax_use: 'sale',
+          rate: 0,
+          base_amount: zRow.base_amount || 0,
+          tax_amount: 0,
+          count: zRow.count
+        });
+      }
+    }
+
+    const byTaxType = [...standardTaxes, ...zeroTaxRows];
+
+    // 3. Document Lines (up to 500 lines)
+    const documents = this.db.prepare(`
+      SELECT 
+        ji.id,
+        ji.move_name,
+        COALESCE(ji.partner_name, '') as partner_name,
+        ji.date,
+        ji.account_code,
+        COALESCE(ji.tax_name, '') as tax_name,
+        ji.tax_base_amount,
+        ROUND(CASE WHEN at.tag = 'vat_output' THEN ji.credit - ji.debit ELSE ji.debit - ji.credit END, 2) as tax_amount,
+        COALESCE(ji.move_type, '') as move_type,
+        ji.debit,
+        ji.credit,
+        at.tag as tax_role,
+        CASE WHEN (at.tag = 'vat_output' AND ji.debit > ji.credit) OR (at.tag = 'vat_input' AND ji.credit > ji.debit) THEN 1 ELSE 0 END as is_refund
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ji.company_id = ?
+        AND ji.tax_id IS NOT NULL
+        AND at.tag IN ('vat_output', 'vat_input')
+        AND ji.date >= ? AND ji.date <= ?
+      ORDER BY ji.date DESC, ji.id DESC
+      LIMIT 500
+    `).all(companyId, df, dt);
+
+    // 4. Settlement Lines (up to 100 lines)
+    const settlementMoves = this.db.prepare(`
+      SELECT 
+        ji.id,
+        ji.move_name,
+        COALESCE(ji.partner_name, '') as partner_name,
+        ji.date,
+        COALESCE(ji.label, '') as label,
+        ji.debit,
+        ji.credit,
+        ji.account_code,
+        COALESCE(ji.account_name, '') as account_name
+      FROM journal_items ji
+      JOIN account_tags at ON at.company_id = ji.company_id AND at.account_code = ji.account_code
+      WHERE ji.company_id = ?
+        AND ji.tax_id IS NULL
+        AND at.tag IN ('vat_output', 'vat_input', 'vat_settlement')
+        AND ji.date >= ? AND ji.date <= ?
+      ORDER BY ji.date DESC, ji.id DESC
+      LIMIT 100
+    `).all(companyId, df, dt);
+
+    return {
+      company_id: companyId,
+      period: period || `${df} إلى ${dt}`,
+      date_from: df,
+      date_to: dt,
+      summary,
+      by_tax_type: byTaxType,
+      documents,
+      settlement_moves: settlementMoves
+    };
   }
 }
 

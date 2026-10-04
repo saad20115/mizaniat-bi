@@ -8,6 +8,10 @@ const { getDb } = require('../db/connection');
 
 // Secret key for JWT — in production, use env variable
 if (!process.env.JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET environment variable is required in production mode!');
+    process.exit(1);
+  }
   console.warn('[SECURITY WARNING] JWT_SECRET is not set in environment variables! Using default fallback secret.');
 }
 const JWT_SECRET = process.env.JWT_SECRET || 'mizaniat-bi-secret-key-2026';

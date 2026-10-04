@@ -105,6 +105,13 @@ export const api = {
   getExecutiveChildren: (params) => request(`/executive/children?${buildQuery(params)}`),
   getExecutiveInvoices: (params) => request(`/executive/invoices?${buildQuery(params)}`),
   getExecutiveAging: (params) => request(`/executive/aging?${buildQuery(params)}`),
+  getCustomersCollection: (params) => request(`/customers-collection?${buildQuery(params)}`),
+  getCustomerStatement: (params) => request(`/customers-collection/statement?${buildQuery(params)}`),
+  getCustomersCollectionInvoices: (params) => request(`/customers-collection/invoices?${buildQuery(params)}`),
+  getDepartmentsProfitability: (params) => request(`/departments-profitability?${buildQuery(params)}`),
+  getVatReport: (params) => request(`/vat?${buildQuery(params)}`),
+  getVatDetails: (params) => request(`/vat-details?${buildQuery(params)}`),
+  updateCompanyVatPeriod: (id, vat_period) => request(`/companies/${id}/vat-period`, { method: 'PUT', body: { vat_period } }),
   getPreferences: (key) => request(`/preferences/${encodeURIComponent(key)}`),
   setPreferences: (key, data) => request(`/preferences/${encodeURIComponent(key)}`, { method: 'PUT', body: data }),
   getDepartmentConflicts: () => request('/data-quality/department-conflicts'),
@@ -151,6 +158,7 @@ export const api = {
   unreleaseGuarantee: (params) => request(`/guarantees/release?${buildQuery(params)}`, { method: 'DELETE' }),
   getGuaranteeSubItems: (params) => request(`/guarantee-sub-items?${buildQuery(params)}`),
   addGuaranteeSubItem: (data) => request('/guarantee-sub-items', { method: 'POST', body: data }),
+  toggleGuaranteeSubItem: (id, data) => request(`/guarantee-sub-items/${id}`, { method: 'PUT', body: data }),
   deleteGuaranteeSubItem: (id) => request(`/guarantee-sub-items/${id}`, { method: 'DELETE' }),
 
   // Sales System API

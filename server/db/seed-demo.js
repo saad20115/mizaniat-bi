@@ -318,13 +318,17 @@ function seedAdmin(db) {
   try {
     const adminCount = db.prepare('SELECT COUNT(*) as count FROM admin_users').get();
     if (adminCount.count === 0) {
+      const email = process.env.ADMIN_EMAIL;
+      const password = process.env.ADMIN_PASSWORD;
+      if (!email || !password) {
+        console.log('[Seed] No admin user exists. Set ADMIN_EMAIL and ADMIN_PASSWORD in environment to create the initial admin user.');
+        return;
+      }
       const { hashPassword } = require('../middleware/auth');
-      const password = process.env.ADMIN_PASSWORD || '123456';
-      const email = process.env.ADMIN_EMAIL || 'saadm7294@gmail.com';
       const passwordHash = hashPassword(password);
       db.prepare('INSERT INTO admin_users (email, password_hash, name) VALUES (?, ?, ?)')
         .run(email, passwordHash, 'مدير النظام');
-      console.log(`[Seed] Default admin created: ${email}`);
+      console.log(`[Seed] Initial admin created: ${email}`);
     }
   } catch (e) {
     console.log('[Seed] Admin seeding deferred:', e.message);

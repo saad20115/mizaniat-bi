@@ -4,11 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="منصة تقارير مالية - نظام التقارير المالية المجمعة المتصل بأودو">
-  <title>تقارير مالية | التقارير المالية المجمعة</title>
+  <title>تقارير مالية | التقارير المالية المجمعة</title>
   <link rel="icon" type="image/png" href="/assets/logo-SiUukkZm.png">
-  <script type="module" crossorigin src="/assets/main-b8AVrCCM.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/presentation-CT6XNb48.js">
-  <link rel="modulepreload" crossorigin href="/assets/filters-C4Z6nVT4.js">
+  <script type="module" crossorigin src="/assets/main-Cyvgxrg3.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/presentation-DfAazk5G.js">
+  <link rel="modulepreload" crossorigin href="/assets/filters-CgDMCe4e.js">
   <link rel="stylesheet" crossorigin href="/assets/presentation-CaWSzoDD.css">
 </head>
 <body>
@@ -53,8 +53,11 @@
     if (urlToken) {
       localStorage.setItem('mizaniat_admin_token', urlToken);
       localStorage.setItem('mizaniat_admin_info', JSON.stringify({ id: 2, email: 'saadm7294@gmail.com', name: 'مدير النظام' }));
+      localStorage.removeItem('mizaniat_viewer_mode');
+      localStorage.removeItem('mizaniat_viewer_token');
+      sessionStorage.removeItem('mizaniat_viewer_token');
     }
   </script>
-
+
 </body>
 </html>

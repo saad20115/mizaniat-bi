@@ -106,6 +106,10 @@ class OdooConnector {
       'company_id',     // الشركة [id, name]
       'account_type',   // نوع الحساب (v17)
       'parent_state',   // حالة القيد (draft/posted/cancel)
+      'tax_line_id',    // الضريبة المرتبطة بالسطر [id, name]
+      'tax_base_amount',// أساس الضريبة
+      'tax_ids',        // مصفوفة معرفات الضرائب على سطر الأساس
+      'move_type',      // نوع حركة القيد (out_invoice, out_refund, in_invoice, etc.)
     ];
 
     const PAGE_SIZE = 500;
@@ -169,6 +173,31 @@ class OdooConnector {
     } catch (err) {
       console.log(`[OdooConnector] Failed to fetch analytic accounts: ${err.message}`);
       return {};
+    }
+  }
+
+  /**
+   * Fetch all taxes for a company with active_test: false
+   */
+  async fetchTaxesRPC(companyId) {
+    try {
+      const records = await this._rpcCall(
+        'account.tax',
+        'search_read',
+        [[
+          ['company_id', '=', parseInt(companyId)]
+        ]],
+        {
+          fields: ['id', 'name', 'amount', 'type_tax_use', 'company_id'],
+          context: { active_test: false },
+          limit: 1000,
+          order: 'id'
+        }
+      );
+      return records || [];
+    } catch (err) {
+      console.log(`[OdooConnector] Failed to fetch taxes: ${err.message}`);
+      return [];
     }
   }
 

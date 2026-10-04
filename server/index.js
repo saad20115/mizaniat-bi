@@ -47,7 +47,9 @@ app.use('/api', (req, res, next) => {
     '/analytic-groups', '/analytic-group-mappings',
     '/guarantee-details', '/guarantee-pending-list', '/guarantees',
     '/matrix', '/receivables', '/data-quality', '/performance-summary',
-    '/executive', '/preferences',
+    '/executive', '/customers-collection', '/departments-profitability', '/preferences',
+    '/customer-statement', '/executive-client-invoices',
+    '/vat',
     '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies'
   ];
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));

@@ -1458,6 +1458,105 @@ router.get('/executive/aging', (req, res) => {
 });
 
 // ==============================================
+// ===== D1: CUSTOMERS & COLLECTION (العملاء والتحصيل) =====
+// ==============================================
+
+router.get('/customers-collection', (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, asOfDate, includeInvoices } = req.query;
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getCustomersCollection({
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined,
+      includeInvoices: includeInvoices === 'true'
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /customers-collection] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/customers-collection/statement', (req, res) => {
+  try {
+    const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
+    if (!companyId || !partnerId) {
+      return res.status(400).json({ error: 'companyId and partnerId are required' });
+    }
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getCustomerStatement({
+      companyId: Number(companyId),
+      partnerId: Number(partnerId),
+      departmentId: departmentId ? Number(departmentId) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /customers-collection/statement] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/customers-collection/invoices', (req, res) => {
+  try {
+    const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
+    if (!companyId) {
+      return res.status(400).json({ error: 'companyId is required' });
+    }
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getExecutiveClientInvoices({
+      companyId: Number(companyId),
+      partnerId: partnerId ? Number(partnerId) : undefined,
+      departmentId: departmentId ? Number(departmentId) : undefined,
+      years,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      asOfDate: asOfDate || undefined
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /customers-collection/invoices] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stage D2: Departments & Profitability
+router.get('/departments-profitability', (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, year, measure, timeGrain, redistributeAdmin } = req.query;
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.getDepartmentsProfitability({
+      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+      years,
+      year: year || undefined,
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+      measure: measure || 'net',
+      timeGrain: timeGrain || 'quarter',
+      redistributeAdmin: redistributeAdmin === 'true' || redistributeAdmin === '1'
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /departments-profitability] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
 // ===== USER UI PREFERENCES (P4) =====
 // ==============================================
 
@@ -1837,10 +1936,10 @@ router.get('/guarantees', (req, res) => {
   try {
     const companyIds = parseCompanyIds(req.query);
     const engine = new ConsolidationEngine();
-    const results = engine.getGuaranteesAdminList({ companyIds, asOfDate: req.query.asOfDate });
+    const results = engine.getActiveGuarantees({ companyIds, asOfDate: req.query.asOfDate });
     res.json(results);
   } catch (err) {
-    console.error('Guarantees admin list error:', err);
+    console.error('Guarantees error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2060,6 +2159,78 @@ router.get('/account-statement', (req, res) => {
     });
   } catch (err) {
     console.error('Account statement error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==============================================
+// ===== VAT REPORT & DETAILS (D5) =====
+// ==============================================
+
+router.get('/vat', (req, res) => {
+  try {
+    const { company_id, company_ids, companyId, years, year, date_from, date_to, dateFrom, dateTo, grain, detail } = req.query;
+    const engine = new ConsolidationEngine();
+
+    // Check if requesting single-period detail
+    if (detail === 'true' || detail === '1') {
+      const coId = parseInt(company_id || company_ids || companyId);
+      const periodKey = req.query.period;
+      const result = engine.getVatDetails({
+        companyId: coId,
+        period: periodKey,
+        dateFrom: date_from || dateFrom,
+        dateTo: date_to || dateTo
+      });
+      return res.json(result);
+    }
+
+    const cids = company_ids || company_id || companyId;
+    const result = engine.getVatReport({
+      companyIds: cids,
+      years: years || year,
+      dateFrom: date_from || dateFrom,
+      dateTo: date_to || dateTo,
+      grain: grain || 'vat_period'
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[API /vat] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/vat-details', (req, res) => {
+  try {
+    const { company_id, companyId, period, date_from, date_to, dateFrom, dateTo } = req.query;
+    const engine = new ConsolidationEngine();
+    const coId = parseInt(company_id || companyId);
+    if (!coId) return res.status(400).json({ error: 'company_id is required' });
+
+    const result = engine.getVatDetails({
+      companyId: coId,
+      period,
+      dateFrom: date_from || dateFrom,
+      dateTo: date_to || dateTo
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[API /vat-details] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/companies/:id/vat-period', (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { vat_period } = req.body;
+    if (!['monthly', 'quarterly'].includes(vat_period)) {
+      return res.status(400).json({ error: 'دورية غير صالحة (monthly أو quarterly)' });
+    }
+    const db = getDb();
+    db.prepare('UPDATE companies SET vat_period = ? WHERE id = ?').run(vat_period, id);
+    res.json({ success: true, vat_period });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

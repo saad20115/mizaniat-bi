@@ -654,5 +654,257 @@ for (const pair of testPairs) {
     `gRevDiff=${gRevDiff}, gExpDiff=${gExpDiff}, gBilledDiff=${gBilledDiff}, gCollDiff=${gCollDiff}, gResDiff=${gResDiff}`);
 }
 
+// 20. Customers & Collection Verification (D1 — العملاء والتحصيل)
+console.log('\n── Customers & Collection Verification (D1 — العملاء والتحصيل)');
+
+for (const yr of ['2026', '2025']) {
+  const d1Yr = engine.getCustomersCollection({ years: [yr] });
+  const recvYr = engine.getReceivables({ years: [yr] });
+
+  const netOk = Math.abs(d1Yr.totals.total_net - recvYr.summary.total_billed) <= 1;
+  const collOk = Math.abs(d1Yr.totals.total_collected - recvYr.summary.total_collected) <= 1;
+  const resOk = Math.abs(d1Yr.totals.total_residual - recvYr.summary.total_outstanding) <= 1;
+
+  check(`D1 (${yr}): totals match getReceivables exactly (Net, Collected, Residual)`,
+    netOk && collOk && resOk,
+    `net ${d1Yr.totals.total_net}==${recvYr.summary.total_billed}, coll ${d1Yr.totals.total_collected}==${recvYr.summary.total_collected}, res ${d1Yr.totals.total_residual}==${recvYr.summary.total_outstanding}`
+  );
+
+  // Hierarchy integrity: partners -> department -> company -> group
+  let sumCoNet = 0, sumCoRes = 0;
+  let allDeptsOk = true;
+  for (const co of d1Yr.tree) {
+    sumCoNet += co.net;
+    sumCoRes += co.residual;
+    let sumDeptNet = 0, sumDeptRes = 0;
+    for (const dept of co.departments) {
+      sumDeptNet += dept.net;
+      sumDeptRes += dept.residual;
+      let sumPNet = 0, sumPRes = 0;
+      for (const p of dept.partners) {
+        sumPNet += p.net;
+        sumPRes += p.residual;
+      }
+      if (Math.abs(sumPNet - dept.net) > 1 || Math.abs(sumPRes - dept.residual) > 1) {
+        allDeptsOk = false;
+      }
+    }
+    if (Math.abs(sumDeptNet - co.net) > 1 || Math.abs(sumDeptRes - co.residual) > 1) {
+      allDeptsOk = false;
+    }
+  }
+  const groupNetOk = Math.abs(sumCoNet - d1Yr.totals.total_net) <= 1;
+  const groupResOk = Math.abs(sumCoRes - d1Yr.totals.total_residual) <= 1;
+
+  check(`D1 (${yr}): tree hierarchy mathematical integrity (partners == dept == company == group)`,
+    allDeptsOk && groupNetOk && groupResOk,
+    `tree sum matches grand totals (groupNetDiff: ${Math.round(Math.abs(sumCoNet - d1Yr.totals.total_net))}, groupResDiff: ${Math.round(Math.abs(sumCoRes - d1Yr.totals.total_residual))})`
+  );
+}
+
+// Customer statement check
+const sampleStmt = engine.getCustomerStatement({ companyId: 2, partnerId: 254, years: ['2026'] });
+const stmtBalanceOk = sampleStmt.items.length > 0 && Math.abs(sampleStmt.summary.total_residual - sampleStmt.items[sampleStmt.items.length - 1].running_balance) <= 0.05;
+check(`D1: customer statement running balance matches final residual`, stmtBalanceOk,
+  `stmt residual ${sampleStmt.summary.total_residual} == final balance ${sampleStmt.items[sampleStmt.items.length - 1]?.running_balance}`);
+
+// 21. Departments & Profitability Verification (D2 — الأقسام والربحية)
+console.log('\n── Departments & Profitability Verification (D2 — الأقسام والربحية)');
+
+for (const yr of ['2026', '2025']) {
+  const isData = engine.getIncomeStatement({ dateFrom: `${yr}-01-01`, dateTo: `${yr}-12-31` });
+  const d2Raw = engine.getDepartmentsProfitability({ years: [yr], redistributeAdmin: false });
+  const d2Redist = engine.getDepartmentsProfitability({ years: [yr], redistributeAdmin: true });
+
+  const revDiff = Math.abs(d2Raw.summary.total_revenue - Math.round(isData.summary.totalRevenue));
+  const expDiff = Math.abs(d2Raw.summary.total_expenses - Math.round(isData.summary.totalExpenses));
+  const netDiff = Math.abs(d2Raw.summary.net_profit - Math.round(isData.summary.netProfit));
+
+  check(`D2 (${yr}): summary totals match getIncomeStatement exactly (Rev, Exp, Net)`,
+    revDiff <= 1 && expDiff <= 1 && netDiff <= 1,
+    `revDiff=${revDiff}, expDiff=${expDiff}, netDiff=${netDiff}`
+  );
+
+  // Invariant: sum of expenses before redistribution == sum of expenses after redistribution (0 diff)
+  const expBefore = d2Raw.summary.total_expenses;
+  const expAfter = d2Redist.summary.total_expenses;
+  check(`D2 (${yr}): administrative expense redistribution total expense invariance (0 diff)`,
+    Math.abs(expBefore - expAfter) <= 1,
+    `before=${expBefore}, after=${expAfter}, diff=${Math.abs(expBefore - expAfter)}`
+  );
+
+  // Check per-company redistribution invariance with measure='expense'
+  const d2ExpRaw = engine.getDepartmentsProfitability({ years: [yr], measure: 'expense', redistributeAdmin: false });
+  const d2ExpRedist = engine.getDepartmentsProfitability({ years: [yr], measure: 'expense', redistributeAdmin: true });
+  let allCoInvarianceOk = true;
+  for (let i = 0; i < d2ExpRaw.tree.length; i++) {
+    const coBefore = d2ExpRaw.tree[i];
+    const coAfter = d2ExpRedist.tree[i];
+    if (coBefore && coAfter) {
+      const coDiff = Math.abs(coBefore.total - coAfter.total);
+      if (coDiff > 1) {
+        allCoInvarianceOk = false;
+        console.log(`Co ${coBefore.id} diff: ${coDiff}`);
+      }
+    }
+  }
+  check(`D2 (${yr}): each company expense invariance before and after redistribution`, allCoInvarianceOk);
+
+  // Hierarchy integrity: account -> cc -> dept -> co -> group
+  let sumCoVal = 0;
+  let allHierarchyOk = true;
+  for (const co of d2Raw.tree) {
+    sumCoVal += co.total;
+    let sumDeptVal = 0;
+    for (const dept of co.departments) {
+      sumDeptVal += dept.total;
+      let sumCcVal = 0;
+      for (const cc of dept.costCenters) {
+        sumCcVal += cc.total;
+        let sumAccVal = 0;
+        for (const acc of cc.accounts) {
+          sumAccVal += acc.values ? Object.values(acc.values).reduce((s, v) => s + v, 0) : 0;
+        }
+        if (Math.abs(sumAccVal - cc.total) > 1) allHierarchyOk = false;
+      }
+      if (Math.abs(sumCcVal - dept.total) > 1) allHierarchyOk = false;
+    }
+    if (Math.abs(sumDeptVal - co.total) > 1) allHierarchyOk = false;
+  }
+  const groupValOk = Math.abs(sumCoVal - d2Raw.totals.total) <= 1;
+
+  check(`D2 (${yr}): 4-level tree hierarchy mathematical integrity (account == cc == dept == co == group)`,
+    allHierarchyOk && groupValOk,
+    `sumCoVal=${sumCoVal}, d2Totals=${d2Raw.totals.total}`
+  );
+}
+
+// 22. Value Added Tax Verification (D5 — ضريبة القيمة المضافة)
+console.log('\n── Value Added Tax Verification (D5 — ضريبة القيمة المضافة)');
+
+// 22a. Independent Sales Invoice Tax Matching
+// For each company and each quarter of 2026: output_invoices = sum(amount_total - amount_untaxed) diff <= 1 SAR
+const quarters = [
+  { q: 'Q1', df: '-01-01', dt: '-03-31' },
+  { q: 'Q2', df: '-04-01', dt: '-06-30' },
+  { q: 'Q3', df: '-07-01', dt: '-09-30' },
+  { q: 'Q4', df: '-10-01', dt: '-12-31' }
+];
+
+let allQuartersTaxMatch = true;
+let maxQuarterDiff = 0;
+const diffMismatches = [];
+
+for (const c of companies) {
+  const sc = engine.db.prepare('SELECT id FROM sales_companies WHERE sales_company_id = ?').get(c.odoo_company_id);
+  if (!sc) continue;
+  for (const yr of ['2026']) {
+    for (const q of quarters) {
+      const df = yr + q.df;
+      const dt = yr + q.dt;
+
+      const siInv = engine.db.prepare('SELECT COALESCE(SUM(amount_total - amount_untaxed), 0) as tax FROM sales_invoices WHERE company_id = ? AND amount_total > 0 AND date >= ? AND date <= ?').get(sc.id, df, dt).tax;
+      const siRef = engine.db.prepare('SELECT COALESCE(SUM(ABS(amount_total - amount_untaxed)), 0) as tax FROM sales_invoices WHERE company_id = ? AND amount_total < 0 AND date >= ? AND date <= ?').get(sc.id, df, dt).tax;
+
+      const jiInv = engine.db.prepare('SELECT COALESCE(SUM(credit - debit), 0) as tax FROM journal_items ji JOIN account_tags at ON at.account_code = ji.account_code AND at.company_id = ji.company_id AND at.tag = \'vat_output\' WHERE ji.company_id = ? AND ji.tax_id IS NOT NULL AND ji.credit > ji.debit AND ji.date >= ? AND ji.date <= ?').get(c.id, df, dt).tax;
+      const jiRef = engine.db.prepare('SELECT COALESCE(SUM(debit - credit), 0) as tax FROM journal_items ji JOIN account_tags at ON at.account_code = ji.account_code AND at.company_id = ji.company_id AND at.tag = \'vat_output\' WHERE ji.company_id = ? AND ji.tax_id IS NOT NULL AND ji.debit > ji.credit AND ji.date >= ? AND ji.date <= ?').get(c.id, df, dt).tax;
+
+      const diffInv = Math.abs(jiInv - siInv);
+      const diffRef = Math.abs(jiRef - siRef);
+      maxQuarterDiff = Math.max(maxQuarterDiff, diffInv, diffRef);
+
+      if (diffInv > 1 || diffRef > 1) {
+        allQuartersTaxMatch = false;
+        diffMismatches.push(`Co ${c.id} ${yr}-${q.q}: invDiff=${round(diffInv)}, refDiff=${round(diffRef)}`);
+      }
+    }
+  }
+}
+
+check('D5 (2026): output tax on journal items matches sales invoices and refunds (diff <= 1 SAR)',
+  allQuartersTaxMatch,
+  diffMismatches.length > 0 ? diffMismatches.join('; ') : `all companies and quarters matched within ${round(maxQuarterDiff)} SAR`
+);
+
+// 22b. Ledger balance movement identity: tax lines + settlements = movement on tagged accounts (0 diff)
+const vatReport = engine.getVatReport({ years: ['2026', '2025'], grain: 'quarter' });
+let allCoVatReconciled = true;
+for (const co of vatReport.tree) {
+  if (Math.abs(co.reconciliation_diff) > 0.01) {
+    allCoVatReconciled = false;
+  }
+}
+check('D5: tax lines + settlements = ledger balance movement (reconciliation_diff = 0)',
+  allCoVatReconciled && Math.abs(vatReport.totals.reconciliation_diff) <= 0.01,
+  `total reconciliation_diff = ${vatReport.totals.reconciliation_diff}`
+);
+
+// 22c. Period hierarchy mathematical integrity: months == quarters == years == company
+const vatMonthlyReport = engine.getVatReport({ years: ['2026', '2025'], grain: 'month' });
+let vatHierarchyOk = true;
+
+for (const co of vatMonthlyReport.tree) {
+  let coSumSales = 0, coSumOut = 0, coSumIn = 0, coSumNet = 0;
+  for (const yr of (co.children || [])) {
+    let yrSumSales = 0, yrSumOut = 0, yrSumIn = 0, yrSumNet = 0;
+    for (const q of (yr.children || [])) {
+      let qSumSales = 0, qSumOut = 0, qSumIn = 0, qSumNet = 0;
+      for (const m of (q.children || [])) {
+        qSumSales += m.taxable_sales;
+        qSumOut += m.output_tax;
+        qSumIn += m.input_tax;
+        qSumNet += m.net_tax_due;
+      }
+      if (Math.abs(qSumSales - q.taxable_sales) > 0.05 || Math.abs(qSumOut - q.output_tax) > 0.05 || Math.abs(qSumNet - q.net_tax_due) > 0.05) {
+        vatHierarchyOk = false;
+      }
+      yrSumSales += q.taxable_sales;
+      yrSumOut += q.output_tax;
+      yrSumIn += q.input_tax;
+      yrSumNet += q.net_tax_due;
+    }
+    if (Math.abs(yrSumSales - yr.taxable_sales) > 0.05 || Math.abs(yrSumOut - yr.output_tax) > 0.05 || Math.abs(yrSumNet - yr.net_tax_due) > 0.05) {
+      vatHierarchyOk = false;
+    }
+    coSumSales += yr.taxable_sales;
+    coSumOut += yr.output_tax;
+    coSumIn += yr.input_tax;
+    coSumNet += yr.net_tax_due;
+  }
+  if (Math.abs(coSumSales - co.taxable_sales) > 0.05 || Math.abs(coSumOut - co.output_tax) > 0.05 || Math.abs(coSumNet - co.net_tax_due) > 0.05) {
+    vatHierarchyOk = false;
+  }
+}
+
+check('D5: period hierarchy mathematical integrity (months == quarter == year == company)',
+  vatHierarchyOk,
+  'sum of months equals quarter, sum of quarters equals year'
+);
+
+// 22d. Untagged tax accounts check / warning
+const untaggedTaxLines = engine.db.prepare(`
+  SELECT DISTINCT ji.company_id, ji.account_code, ji.account_name, ji.tax_name
+  FROM journal_items ji
+  WHERE ji.tax_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM account_tags at
+      WHERE at.company_id = ji.company_id
+        AND at.account_code = ji.account_code
+        AND at.tag IN ('vat_output', 'vat_input')
+    )
+`).all();
+
+if (untaggedTaxLines.length > 0) {
+  const sampleAccs = untaggedTaxLines.map(u => `Co ${u.company_id}:${u.account_code} (${u.account_name})`).slice(0, 3).join(', ');
+  console.log(`        (info: ${untaggedTaxLines.length} untagged account(s) have tax lines: ${sampleAccs})`);
+}
+check('D5: tax tags configured correctly for all companies (vat_output, vat_input)',
+  companies.every(c => {
+    const tags = engine.db.prepare('SELECT tag FROM account_tags WHERE company_id = ? AND tag IN (\'vat_output\', \'vat_input\')').all(c.id);
+    return tags.length >= 2;
+  }),
+  'all 4 companies have tagged vat_output and vat_input accounts'
+);
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

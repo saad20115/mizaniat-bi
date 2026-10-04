@@ -109,6 +109,28 @@ class SyncEngine {
         } catch (e) {
           console.log(`[Sync] Could not fetch analytic accounts: ${e.message}`);
         }
+
+        // Fetch and save taxes
+        try {
+          this._progress[companyId].phase = 'جاري جلب الضرائب...';
+          const taxes = await connector.fetchTaxesRPC(company.odoo_company_id);
+          const insTax = this.db.prepare(`
+            INSERT INTO odoo_taxes (instance_id, tax_id, company_odoo_id, name, amount, type_tax_use)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(instance_id, tax_id) DO UPDATE SET
+              name = excluded.name,
+              amount = excluded.amount,
+              type_tax_use = excluded.type_tax_use,
+              company_odoo_id = excluded.company_odoo_id
+          `);
+          for (const t of (taxes || [])) {
+            const coId = Array.isArray(t.company_id) ? t.company_id[0] : (t.company_id || company.odoo_company_id);
+            insTax.run(instance.id, t.id, coId, t.name || '', typeof t.amount === 'number' ? t.amount : 0, t.type_tax_use || '');
+          }
+          console.log(`[Sync] Synced ${taxes.length} taxes for instance ${instance.id}`);
+        } catch (e) {
+          console.log(`[Sync] Could not sync taxes: ${e.message}`);
+        }
       }
       
       this._journalMappings = {};
@@ -125,13 +147,15 @@ class SyncEngine {
           partner_name, partner_id, analytic_account, label,
           debit, credit, balance, amount_residual, currency, date,
           journal_name, journal_type, move_name, move_ref, move_state,
-          fiscal_year, period
+          fiscal_year, period,
+          tax_id, tax_name, tax_base_amount, tax_ids, move_type
         ) VALUES (
           @company_id, @odoo_line_id, @account_code, @account_name, @account_type,
           @partner_name, @partner_id, @analytic_account, @label,
           @debit, @credit, @balance, @amount_residual, @currency, @date,
           @journal_name, @journal_type, @move_name, @move_ref, @move_state,
-          @fiscal_year, @period
+          @fiscal_year, @period,
+          @tax_id, @tax_name, @tax_base_amount, @tax_ids, @move_type
         )
       `);
 
@@ -405,6 +429,24 @@ class SyncEngine {
     const debit = parseFloat(item.debit) || 0;
     const credit = parseFloat(item.credit) || 0;
 
+    // --- Tax fields (D5) ---
+    let taxId = null;
+    let taxName = '';
+    if (item.tax_line_id) {
+      if (Array.isArray(item.tax_line_id)) {
+        taxId = item.tax_line_id[0];
+        taxName = item.tax_line_id[1] || '';
+      } else if (typeof item.tax_line_id === 'number') {
+        taxId = item.tax_line_id;
+      }
+    }
+    const taxBaseAmount = (item.tax_base_amount !== undefined && item.tax_base_amount !== null) ? parseFloat(item.tax_base_amount) || 0 : 0;
+    let taxIds = null;
+    if (item.tax_ids && item.tax_ids !== false) {
+      taxIds = Array.isArray(item.tax_ids) ? JSON.stringify(item.tax_ids) : String(item.tax_ids);
+    }
+    const moveType = item.move_type ? String(item.move_type) : null;
+
     return {
       company_id: companyId,
       odoo_line_id: (typeof item.id === 'number') ? item.id : null,
@@ -427,7 +469,12 @@ class SyncEngine {
       move_ref: moveRef,
       move_state: item.parent_state || item.move_state || item.state || 'posted',
       fiscal_year: year,
-      period: month ? `${year}-${month}` : year
+      period: month ? `${year}-${month}` : year,
+      tax_id: taxId,
+      tax_name: taxName,
+      tax_base_amount: taxBaseAmount,
+      tax_ids: taxIds,
+      move_type: moveType
     };
   }
 

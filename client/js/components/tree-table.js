@@ -184,9 +184,32 @@ export class TreeTable {
     this.render();
   }
 
+  expandPath(pathKey) {
+    if (pathKey) this.expandedKeys.add(String(pathKey));
+    this.saveExpandedKeys();
+    this.render();
+  }
+
+  expandPaths(paths) {
+    if (Array.isArray(paths)) {
+      for (const p of paths) this.expandedKeys.add(String(p));
+      this.saveExpandedKeys();
+      this.render();
+    }
+  }
+
   expandAll(keys) {
     if (Array.isArray(keys)) {
       for (const k of keys) this.expandedKeys.add(String(k));
+    } else {
+      const collect = (node, parentPath = '', depth = 0) => {
+        const pk = this.getNodeKey(node, parentPath, depth);
+        this.expandedKeys.add(pk);
+        const kids = this.getChildren(node) || [];
+        for (const k of kids) collect(k, pk, depth + 1);
+      };
+      const rootList = Array.isArray(this.data) ? this.data : (this.data.rows || []);
+      for (const r of rootList) collect(r, '', 0);
     }
     this.saveExpandedKeys();
     this.render();
@@ -313,6 +336,9 @@ export function createTreeTable(container, options = {}) {
   if (container._treeTableInstance && !options.forceNew) {
     const inst = container._treeTableInstance;
     if (options.columns) inst.columns = options.columns;
+    if (options.getNodeKey) inst.getNodeKey = options.getNodeKey;
+    if (options.getChildren) inst.getChildren = options.getChildren;
+    if (options.hasChildren) inst.hasChildren = options.hasChildren;
     if (options.loadChildren) inst.loadChildren = options.loadChildren;
     if (options.renderRow) inst.renderRow = options.renderRow;
     if (options.renderTotals) inst.renderTotals = options.renderTotals;
