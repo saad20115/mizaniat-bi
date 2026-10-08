@@ -50,6 +50,9 @@ const pages = {
   'tax-builder': showTaxReportBuilder,
 };
 
+let isNavigating = false;
+let currentRenderedPage = null;
+
 async function navigateTo(pageName) {
   const container = document.getElementById('main-content');
   const isViewer = window.isViewerMode();
@@ -65,6 +68,10 @@ async function navigateTo(pageName) {
       window.history.replaceState({}, '', url);
     }
   }
+
+  if (isNavigating) return;
+  isNavigating = true;
+  currentRenderedPage = pageName;
 
   let renderPage = pages[pageName];
 
@@ -96,7 +103,11 @@ async function navigateTo(pageName) {
           <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload()">إعادة المحاولة</button>
         </div>
       `;
+    } finally {
+      isNavigating = false;
     }
+  } else {
+    isNavigating = false;
   }
   
   // Update sidebar active state
@@ -172,13 +183,6 @@ async function init() {
     // Render sidebar
     renderSidebar();
     
-    // Listen to page changes
-    store.subscribe((key) => {
-      if (key === 'currentPage') {
-        navigateTo(store.get('currentPage'));
-      }
-    });
-    
     // Navigate to presentation for viewer, dashboard for admin, or ?page= URL param
     const urlPage = new URLSearchParams(window.location.search).get('page');
     let startPage = urlPage || (isViewer ? 'presentation' : 'dashboard');
@@ -188,7 +192,20 @@ async function init() {
       url.searchParams.set('page', 'presentation');
       window.history.replaceState({}, '', url);
     }
+
+    // Set initial page in store
     store.set('currentPage', startPage);
+
+    // Listen to subsequent page changes
+    store.subscribe((key) => {
+      if (key === 'currentPage') {
+        const targetPage = store.get('currentPage');
+        if (targetPage !== currentRenderedPage) {
+          navigateTo(targetPage);
+        }
+      }
+    });
+
     await navigateTo(startPage);
     
     console.log('✅ Mizaniat BI ready');

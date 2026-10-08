@@ -5,10 +5,10 @@
  */
 
 // ===== CONSTANTS =====
-const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
-const LIGHT_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed','#db2777','#0d9488','#4d7c0f'];
-const YR_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'];
-const LIGHT_YR_COLORS = ['#2563eb','#059669','#b45309','#dc2626','#7c3aed'];
+const COLORS = ['#2563eb','#047857','#b45309','#dc2626','#7c3aed','#be185d','#0e7490','#4d7c0f'];
+const LIGHT_COLORS = ['#1d4ed8','#065f46','#92400e','#b91c1c','#6d28d9','#9d174d','#155e75','#3f6212'];
+const YR_COLORS = ['#2563eb'];
+const LIGHT_YR_COLORS = ['#1d4ed8'];
 const EXP_COLORS = ['#ef4444','#f59e0b','#ec4899','#f97316','#e11d48','#dc2626','#be123c','#ea580c'];
 const MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 

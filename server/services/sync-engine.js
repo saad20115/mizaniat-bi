@@ -146,14 +146,14 @@ class SyncEngine {
           company_id, odoo_line_id, account_code, account_name, account_type,
           partner_name, partner_id, analytic_account, label,
           debit, credit, balance, amount_residual, currency, date,
-          journal_name, journal_type, move_name, move_ref, move_state,
+          journal_id, journal_name, journal_type, move_name, move_ref, move_state,
           fiscal_year, period,
           tax_id, tax_name, tax_base_amount, tax_ids, move_type
         ) VALUES (
           @company_id, @odoo_line_id, @account_code, @account_name, @account_type,
           @partner_name, @partner_id, @analytic_account, @label,
           @debit, @credit, @balance, @amount_residual, @currency, @date,
-          @journal_name, @journal_type, @move_name, @move_ref, @move_state,
+          @journal_id, @journal_name, @journal_type, @move_name, @move_ref, @move_state,
           @fiscal_year, @period,
           @tax_id, @tax_name, @tax_base_amount, @tax_ids, @move_type
         )
@@ -372,6 +372,7 @@ class SyncEngine {
     const partnerName = extractName(item.partner_id) || item.partner_name || '';
 
     // --- Journal ---
+    const journalId = Array.isArray(item.journal_id) ? item.journal_id[0] : (typeof item.journal_id === 'number' ? item.journal_id : (parseInt(item.journal_id) || null));
     let journalName = String(extractName(item.journal_id) || item.journal_name || item.journal || '').trim();
     // Remove unicode replacement characters if any garbled text happened
     journalName = journalName.replace(/\uFFFD/g, '');
@@ -463,6 +464,7 @@ class SyncEngine {
       amount_residual: parseFloat(item.amount_residual) || 0,
       currency: item.currency || 'SAR',
       date: date,
+      journal_id: journalId,
       journal_name: journalName,
       journal_type: item.journal_type || '',
       move_name: moveName,
@@ -551,6 +553,9 @@ class SyncEngine {
           department_id,
           analytic_account,
           journal_name,
+          journal_id,
+          cost_center_key,
+          cost_center_name,
           debit,
           credit,
           revenue,
@@ -576,6 +581,14 @@ class SyncEngine {
                AND ji.analytic_account != '' 
              ORDER BY m1.id ASC
              LIMIT 1),
+            (SELECT m0.group_id 
+             FROM analytic_group_mapping m0 
+             WHERE m0.company_id = ji.company_id 
+               AND m0.journal_id = ji.journal_id 
+               AND ji.journal_id IS NOT NULL 
+               AND ji.journal_id > 0 
+             ORDER BY m0.id ASC
+             LIMIT 1),
             (SELECT m2.group_id 
              FROM analytic_group_mapping m2 
              WHERE m2.company_id = ji.company_id 
@@ -588,6 +601,34 @@ class SyncEngine {
           ) as department_id,
           COALESCE(ji.analytic_account, '') as analytic_account,
           COALESCE(ji.journal_name, '') as journal_name,
+          COALESCE(ji.journal_id, 0) as journal_id,
+          COALESCE(
+            CASE 
+              WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
+              THEN 'an:' || TRIM(ji.analytic_account)
+              ELSE (
+                SELECT 'an:' || TRIM(m.analytic_account)
+                FROM analytic_group_mapping m
+                WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
+                LIMIT 1
+              )
+            END,
+            'j:' || COALESCE(ji.journal_id, 0)
+          ) as cost_center_key,
+          COALESCE(
+            CASE 
+              WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
+              THEN TRIM(ji.analytic_account)
+              ELSE (
+                SELECT TRIM(m.analytic_account)
+                FROM analytic_group_mapping m
+                WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
+                LIMIT 1
+              )
+            END,
+            NULLIF(TRIM(ji.journal_name), ''),
+            'بدون دفتر'
+          ) as cost_center_name,
           ROUND(SUM(ji.debit), 2) as debit,
           ROUND(SUM(ji.credit), 2) as credit,
           ROUND(SUM(CASE 
@@ -621,8 +662,88 @@ class SyncEngine {
           section,
           department_id,
           COALESCE(ji.analytic_account, ''),
-          COALESCE(ji.journal_name, '')
+          COALESCE(ji.journal_name, ''),
+          COALESCE(ji.journal_id, 0),
+          cost_center_key,
+          cost_center_name
       `).run(cid);
+    }
+  }
+
+  /**
+   * S1 Unified Sync Pipeline:
+   * 1. Journal Items (SyncEngine.syncAll)
+   * 2. Sales Invoices (SalesSyncEngine.syncAll)
+   * 3. Invoice Departments Resolution (ConsolidationEngine.resolveInvoiceDepartments)
+   * 4. Payment Allocations (syncAllPaymentAllocations)
+   * 5. Final Cache Flush & Fact Table verification
+   */
+  async syncAllUnified(progressCallback) {
+    const startTime = Date.now();
+    console.log('[UnifiedSync] 🚀 Starting complete unified sync sequence...');
+    
+    const results = {
+      stages: {},
+      duration: 0,
+      success: true
+    };
+
+    try {
+      // Stage 1: Journal entries
+      if (progressCallback) progressCallback({ stage: 1, name: 'قيود اليومية', progress: 10 });
+      console.log('[UnifiedSync] Stage 1/4: Syncing journal items...');
+      const journalResults = await this.syncAll();
+      results.stages.journal_items = {
+        success: journalResults.every(r => r.success),
+        records: journalResults.reduce((s, r) => s + (r.count || 0), 0)
+      };
+
+      // Stage 2: Sales invoices
+      if (progressCallback) progressCallback({ stage: 2, name: 'فواتير المبيعات', progress: 40 });
+      console.log('[UnifiedSync] Stage 2/4: Syncing sales invoices...');
+      const SalesSyncEngine = require('./sales-sync-engine');
+      const salesEngine = new SalesSyncEngine();
+      const salesResults = await salesEngine.syncAll();
+      results.stages.sales_invoices = {
+        success: salesResults.every(r => r.status !== 'failed'),
+        records: salesResults.reduce((s, r) => s + (r.records_synced || 0), 0)
+      };
+
+      // Stage 3: Payment allocations
+      if (progressCallback) progressCallback({ stage: 3, name: 'تسويات السداد', progress: 70 });
+      console.log('[UnifiedSync] Stage 3/4: Syncing payment allocations...');
+      const { syncAllPaymentAllocations } = require('../scripts/sync-payment-allocations');
+      const paResult = await syncAllPaymentAllocations();
+      results.stages.payment_allocations = {
+        success: paResult.success,
+        totalAllocations: paResult.totalAllocations
+      };
+
+      // Stage 4: Invoice departments resolution
+      if (progressCallback) progressCallback({ stage: 4, name: 'إعادة بناء الأقسام', progress: 85 });
+      console.log('[UnifiedSync] Stage 4/4: Rebuilding invoice departments...');
+      const ConsolidationEngine = require('./consolidation');
+      const consolidation = new ConsolidationEngine(this.db);
+      const deptAllocations = consolidation.resolveInvoiceDepartments();
+      results.stages.invoice_departments = {
+        success: true,
+        allocations: deptAllocations
+      };
+
+      // Final Step: Cache Flush
+      const CacheService = require('./cache');
+      CacheService.flush();
+      
+      results.duration = Math.round((Date.now() - startTime) / 1000);
+      if (progressCallback) progressCallback({ stage: 4, name: 'اكتملت المزامنة بنجاح', progress: 100, done: true });
+      console.log(`[UnifiedSync] 🎉 Completed full unified sync in ${results.duration}s!`);
+      return results;
+    } catch (err) {
+      console.error('[UnifiedSync] ❌ Pipeline failed:', err.message);
+      results.success = false;
+      results.error = err.message;
+      results.duration = Math.round((Date.now() - startTime) / 1000);
+      throw err;
     }
   }
 }

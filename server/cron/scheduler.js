@@ -46,36 +46,29 @@ function writeNotification(type, message, details = null) {
 // Run sync and write notification
 async function runScheduledSync() {
   const startTime = new Date();
-  console.log(`[Cron] Starting scheduled sync at ${startTime.toISOString()}`);
+  console.log(`[Cron] Starting scheduled unified sync at ${startTime.toISOString()}`);
   
   try {
     const engine = new SyncEngine();
-    const results = await engine.syncAll();
-    CacheService.flush();
+    const results = await engine.syncAllUnified();
     
-    const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
-    const totalRecords = results.reduce((s, r) => s + (r.count || 0), 0);
-    const failedCompanies = results.filter(r => !r.success);
+    const duration = results.duration || Math.round((Date.now() - startTime.getTime()) / 1000);
+    const jRecords = results.stages?.journal_items?.records || 0;
+    const sRecords = results.stages?.sales_invoices?.records || 0;
+    const pRecords = results.stages?.payment_allocations?.totalAllocations || 0;
+    const totalRecords = jRecords + sRecords + pRecords;
 
-    if (failedCompanies.length === 0) {
-      writeNotification('success',
-        `مزامنة ناجحة — ${totalRecords} سجل في ${duration} ثانية`,
-        { results, duration }
-      );
-      console.log(`[Cron] Sync completed: ${totalRecords} records in ${duration}s`);
-    } else {
-      writeNotification('warning',
-        `مزامنة جزئية — ${failedCompanies.length} شركة فشلت من أصل ${results.length}`,
-        { results, duration, failedCompanies: failedCompanies.map(f => f.company) }
-      );
-      console.log(`[Cron] Sync partial: ${failedCompanies.length} failed`);
-    }
+    writeNotification('success',
+      `مزامنة موحدة ناجحة — ${totalRecords} سجل (قيود: ${jRecords}، فواتير: ${sRecords}، تسويات: ${pRecords}) في ${duration} ثانية`,
+      { results, duration }
+    );
+    console.log(`[Cron] Unified sync completed: ${totalRecords} records in ${duration}s`);
   } catch (err) {
     writeNotification('error',
-      `فشل المزامنة: ${err.message}`,
+      `فشل المزامنة الموحدة: ${err.message}`,
       { error: err.message }
     );
-    console.error('[Cron] Scheduled sync failed:', err.message);
+    console.error('[Cron] Scheduled unified sync failed:', err.message);
   }
 }
 

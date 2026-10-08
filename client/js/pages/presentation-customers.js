@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { store } from '../store.js';
 import { formatNumber, formatCurrency, formatDate } from '../utils/format.js';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -17,6 +18,7 @@ import { createTreeTable } from '../components/tree-table.js';
 
 let currentData = null;
 let currentTreeTable = null;
+const clientCache = new Map();
 let isAgingOpen = false;
 let isReturnsOpen = false;
 let returnsSearchQuery = '';
@@ -66,7 +68,7 @@ function getPeriodParamsFromFilter(timeFilter) {
   return { years: yearsParam, dateFrom, dateTo };
 }
 
-export async function renderCustomersCollectionTab(body, container, timeFilter, selectedCos) {
+export async function renderCustomersCollectionTab(body, container, timeFilter, selectedCos, globalFilters) {
   body.innerHTML = `
     <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
@@ -80,16 +82,37 @@ export async function renderCustomersCollectionTab(body, container, timeFilter, 
 
   const periodParams = getPeriodParamsFromFilter(timeFilter);
   const companyIdsParam = (selectedCos && selectedCos.length > 0) ? selectedCos.join(',') : undefined;
+  const grpIds = (globalFilters?.groupIds || []).join(',');
+  const jrnIds = (globalFilters?.journalIds || []).join(',');
+  const cacheKey = `${companyIdsParam || 'all'}:${periodParams.years || 'cur'}:${periodParams.dateFrom || ''}:${periodParams.dateTo || ''}:g${grpIds}:j${jrnIds}`;
+
+  if (clientCache.has(cacheKey)) {
+    const data = clientCache.get(cacheKey);
+    currentData = data;
+    const loadingEl = body.querySelector('#cust-loading');
+    const contentEl = body.querySelector('#cust-main-content');
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) {
+      contentEl.style.display = 'flex';
+      renderContent(contentEl, container, data, periodParams, selectedCos);
+    }
+    return;
+  }
 
   try {
-    const data = await api.getCustomersCollection({
+    const params = {
       companyIds: companyIdsParam,
       years: periodParams.years,
       dateFrom: periodParams.dateFrom,
       dateTo: periodParams.dateTo
-    });
+    };
+    if (globalFilters?.groupIds?.length) params.groupIds = globalFilters.groupIds.join(',');
+    if (globalFilters?.journalIds?.length) params.journalIds = globalFilters.journalIds.join(',');
+
+    const data = await api.getCustomersCollection(params);
 
     currentData = data;
+    clientCache.set(cacheKey, data);
     const loadingEl = body.querySelector('#cust-loading');
     const contentEl = body.querySelector('#cust-main-content');
     if (loadingEl) loadingEl.style.display = 'none';
@@ -229,20 +252,26 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
             👥 سجل العملاء والتحصيل الهرمي — ${escapeHtml(meta.period_label || '')}
           </h3>
           <span style="font-size:0.85rem;color:var(--exec-text-muted, rgba(255,255,255,0.5));">
-            الشركة ← القسم ← العميل ← الفاتورة | النقر على العميل أو زر كشف الحساب يفتح كشف الحساب المتسلسل
+            الشركة ← المجموعة ← مركز التكلفة (دفتر اليومية) ← العميل ← الفاتورة | النقر على العميل أو زر كشف الحساب يفتح كشف الحساب المتسلسل
           </span>
         </div>
 
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <input type="text" id="cust-tree-search" placeholder="🔍 تصفية بالعميل أو القسم..." 
-            value="${escapeHtml(mainSearchQuery)}"
-            style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 14px;color:#fff;font-size:0.88rem;width:240px;">
+          <div style="position:relative;display:inline-flex;align-items:center;">
+            <input type="text" id="cust-tree-search" placeholder="بحث…" 
+              style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 28px 6px 14px;color:#fff;font-size:0.88rem;width:240px;outline:none;">
+            <button id="btn-cust-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+          </div>
+          <span id="cust-search-counter" style="font-size:0.8rem;color:rgba(255,255,255,0.6);font-weight:600;display:none;"></span>
           
           <button id="cust-btn-expand-all" style="background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
             📂 توسيع الكل
           </button>
           <button id="cust-btn-collapse-all" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
             📁 طي الكل
+          </button>
+          <button id="cust-btn-export-excel" style="background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
+            📊 تصدير Excel
           </button>
         </div>
       </div>
@@ -317,10 +346,14 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
 
   // TreeTable search
   const treeSearchInput = contentEl.querySelector('#cust-tree-search');
-  treeSearchInput?.addEventListener('input', (e) => {
-    mainSearchQuery = e.target.value.trim().toLowerCase();
-    filterTreeTable(mainSearchQuery);
-  });
+  const treeClearBtn = contentEl.querySelector('#btn-cust-clear-search');
+  const treeCountEl = contentEl.querySelector('#cust-search-counter');
+  if (treeSearchInput && currentTreeTable && currentTreeTable.bindSearchInput) {
+    currentTreeTable.bindSearchInput(treeSearchInput, {
+      clearButton: treeClearBtn,
+      countElement: treeCountEl
+    });
+  }
 
   contentEl.querySelector('#cust-btn-expand-all')?.addEventListener('click', () => {
     if (currentTreeTable) {
@@ -338,6 +371,10 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
 
   contentEl.querySelector('#cust-btn-collapse-all')?.addEventListener('click', () => {
     if (currentTreeTable) currentTreeTable.collapseAll();
+  });
+
+  contentEl.querySelector('#cust-btn-export-excel')?.addEventListener('click', () => {
+    exportCustomersExcel();
   });
 
   // Modal close handlers
@@ -434,18 +471,18 @@ function renderReturnsTable(returnsList, query) {
 }
 
 const mainColumns = [
-  { id: 'name', label: 'البيان / الهيكل', minWidth: '260px', align: 'right', priority: 1 },
-  { id: 'inv_count', label: 'الفواتير', align: 'center', width: '75px', minWidth: '70px', priority: 2 },
-  { id: 'billed', label: 'المفوتر', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
-  { id: 'returns', label: 'المرتجعات', align: 'left', width: '95px', minWidth: '90px', priority: 2 },
-  { id: 'net', label: 'الصافي', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
-  { id: 'collected', label: 'المحصّل', align: 'left', width: '110px', minWidth: '100px', priority: 1 },
-  { id: 'residual', label: 'المتبقي', align: 'left', width: '110px', minWidth: '100px', color: '#ef4444', priority: 1 },
-  { id: 'collection_rate', label: '% التحصيل', align: 'center', width: '90px', minWidth: '85px', priority: 2 },
-  { id: 'overdue_90', label: 'متأخر +90', align: 'left', width: '110px', minWidth: '100px', color: '#ef4444', priority: 2 },
-  { id: 'avg_age', label: 'العمر (يوم)', title: 'متوسط عمر الدين المرجّح بالمبلغ — حسب تاريخ استحقاق الفاتورة', align: 'center', width: '85px', minWidth: '80px', priority: 2 },
-  { id: 'aging_visual', label: 'توزيع الأعمار', align: 'center', flex: true, minWidth: '160px', priority: 1 },
-  { id: 'actions', label: '', align: 'center', width: '44px', minWidth: '44px', maxWidth: '44px', priority: 1 }
+  { id: 'name', label: 'البيان / الهيكل', minWidth: '135px', align: 'right', priority: 1 },
+  { id: 'inv_count', label: 'الفواتير', align: 'center', width: '44px', minWidth: '38px', priority: 2 },
+  { id: 'billed', label: 'المفوتر', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
+  { id: 'returns', label: 'المرتجعات', align: 'left', width: '65px', minWidth: '55px', priority: 2 },
+  { id: 'net', label: 'الصافي', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
+  { id: 'collected', label: 'المحصّل', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
+  { id: 'residual', label: 'المتبقي', align: 'left', width: '72px', minWidth: '60px', color: 'var(--exec-danger, #f87171)', priority: 1 },
+  { id: 'collection_rate', label: '% التحصيل', align: 'center', width: '55px', minWidth: '50px', priority: 2 },
+  { id: 'overdue_90', label: 'متأخر +90', align: 'left', width: '70px', minWidth: '60px', color: 'var(--exec-danger, #f87171)', priority: 2 },
+  { id: 'avg_age', label: 'العمر', title: 'متوسط عمر الدين المرجّح بالمبلغ — حسب تاريخ استحقاق الفاتورة', align: 'center', width: '48px', minWidth: '42px', priority: 2 },
+  { id: 'aging_visual', label: 'توزيع الأعمار', align: 'center', flex: true, minWidth: '90px', priority: 1 },
+  { id: 'actions', label: '', align: 'center', width: '36px', minWidth: '36px', maxWidth: '36px', priority: 1 }
 ];
 
 function renderAgingVisual(node) {
@@ -488,16 +525,25 @@ function initTreeTable(container, data, periodParams) {
     columns: mainColumns,
     data: treeData,
     totals,
+    showZeroItems: store.get('showZeroItems') ?? false,
     getNodeKey: (node, parentPath, depth) => {
-      const type = node.type || (depth === 0 ? 'co' : depth === 1 ? 'dept' : depth === 2 ? 'partner' : 'inv');
-      const id = node.id !== undefined ? String(node.id) : (node.name || 'item');
+      let type = node.type;
+      if (!type) {
+        if (depth === 0) type = 'co';
+        else if (depth === 1) type = 'dept';
+        else if (depth === 2) type = 'journal';
+        else if (depth === 3) type = 'partner';
+        else type = 'inv';
+      }
+      const id = node.id !== undefined ? String(node.id) : (node.journal_id !== undefined ? String(node.journal_id) : (node.name || 'item'));
       return parentPath ? `${parentPath}/${type}:${id}` : `${type}:${id}`;
     },
     getChildren: (node) => {
-      return node.departments || node.partners || node.invoices || node.children || [];
+      return node.departments || node.journals || node.partners || node.invoices || node.children || [];
     },
     hasChildren: (node) => {
       if (node.departments && node.departments.length > 0) return true;
+      if (node.journals && node.journals.length > 0) return true;
       if (node.partners && node.partners.length > 0) return true;
       if (node.type === 'partner' && (node._canLoad || (node.invoices && node.invoices.length > 0))) return true;
       if (node.invoices && node.invoices.length > 0) return true;
@@ -511,6 +557,7 @@ function initTreeTable(container, data, periodParams) {
             companyId: node.company_id,
             partnerId: node.id,
             departmentId: node.department_id,
+            journalId: node.journal_id,
             years: periodParams.years,
             dateFrom: periodParams.dateFrom,
             dateTo: periodParams.dateTo
@@ -561,21 +608,23 @@ function initTreeTable(container, data, periodParams) {
     renderRow: ({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) => {
       const isCo = depth === 0 || node.type === 'co';
       const isDept = depth === 1 || node.type === 'dept';
-      const isPartner = depth === 2 || node.type === 'partner';
-      const isInvoice = depth === 3 || node.type === 'invoice';
+      const isJournal = depth === 2 || node.type === 'journal' || !!node.isJournal;
+      const isPartner = depth === 3 || node.type === 'partner';
+      const isInvoice = depth === 4 || node.type === 'invoice';
 
-      const indent = depth * 22;
+      const indent = depth * 18;
       const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
 
       let namePrefix = '';
       if (isCo) namePrefix = '🏢 ';
       else if (isDept) namePrefix = '📁 ';
+      else if (isJournal) namePrefix = '📒 ';
       else if (isPartner) namePrefix = '👤 ';
-      else if (isInvoice) namePrefix = node.isReturn ? '↩️ ' : '📄 ';
+      else if (isInvoice) namePrefix = node.isReturn ? '↩️ ' : '🧾 ';
 
       const rowBg = isCo
         ? 'background:rgba(59,130,246,0.06);font-weight:800;'
-        : (isDept ? 'background:rgba(255,255,255,0.02);font-weight:700;' : '');
+        : (isDept ? 'background:rgba(255,255,255,0.025);font-weight:700;' : (isJournal ? 'background:rgba(245,158,11,0.025);font-weight:600;' : ''));
 
       const cursor = hasKids ? 'cursor:pointer;' : (isPartner ? 'cursor:pointer;' : '');
 
@@ -583,15 +632,23 @@ function initTreeTable(container, data, periodParams) {
       let actionCell = '';
       if (isPartner) {
         actionCell = `
-          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" title="كشف حساب عميل"
+          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" data-journal="${node.journal_id || ''}" title="كشف حساب العميل على مستوى الشركة كاملة (يشمل كافة دفاتر وأقسام الشركة)"
             style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:0.9rem;cursor:pointer;padding:0;">
             📄
           </button>
         `;
       } else if (isInvoice) {
+        const isPaid = node.payment_state === 'paid'
+          || (node.residual !== undefined && Math.abs(node.residual) <= 0.01 && (node.collected > 0 || node.billed === 0))
+          || (node.collection_rate !== undefined && node.collection_rate === 100);
+        const isPartial = !isPaid && (node.collected > 0 || node.payment_state === 'partial');
+        const icon = isPaid ? '✅' : '⏳';
+        const title = isPaid
+          ? 'مسددة بالكامل (100%)'
+          : (isPartial ? `مسددة جزئياً (${node.collection_rate || 0}%) — متبقي: ${Number(node.residual || 0).toLocaleString('en-US')} ر.س` : 'غير مسددة (متبقية بالكامل)');
         actionCell = `
-          <span title="${node.payment_state === 'paid' ? 'مسدد' : 'متبقي'}" style="font-size:0.8rem;">
-            ${node.payment_state === 'paid' ? '✅' : '⏳'}
+          <span title="${title}" style="font-size:0.85rem;cursor:help;">
+            ${icon}
           </span>
         `;
       }
@@ -607,8 +664,9 @@ function initTreeTable(container, data, periodParams) {
           <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
             <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${icon}</span>
             ${namePrefix}
-            <span style="${isPartner ? 'color:#60a5fa;font-weight:700;' : ''}">${escapeHtml(node.name || '')}</span>
+            <span style="${isPartner ? 'color:#60a5fa;font-weight:700;' : (isJournal ? 'color:#fbbf24;font-weight:600;' : '')}">${escapeHtml(node.name || '')}</span>
             ${isInvoice ? `<span style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-right:6px;">(${escapeHtml(node.invoice_date || '')})</span>` : ''}
+            ${isInvoice && node.journal_name ? `<span class="badge-journal" style="font-size:0.72rem;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);padding:1px 6px;border-radius:4px;margin-right:6px;" title="الدفتر الأصلي: ${escapeHtml(node.journal_name)}">${escapeHtml(node.journal_name)}</span>` : ''}
             ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
           </td>
           <td class="tree-col-num" data-col-id="inv_count" data-priority="2" style="text-align:center;">${invCountDisplay}</td>
@@ -630,7 +688,7 @@ function initTreeTable(container, data, periodParams) {
           <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;${overdueColor}">${fmtVal(node.overdue_90)}</td>
           <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;">
             ${(node.avg_age || 0) > 0 ? `
-              <span class="exec-num" style="font-size:0.8rem;padding:2px 6px;border-radius:4px;background:${node.avg_age > 90 ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.06)'};color:${node.avg_age > 90 ? '#ef4444' : 'inherit'};">
+              <span class="exec-num cust-age-pill ${node.avg_age > 90 ? 'cust-age-over90' : ''}" style="font-size:0.8rem;padding:2px 6px;border-radius:4px;">
                 ${node.avg_age} يوم
               </span>
             ` : '—'}
@@ -687,39 +745,45 @@ function initTreeTable(container, data, periodParams) {
   });
 }
 
-function filterTreeTable(query) {
-  if (!currentTreeTable || !currentData) return;
-  const rawTree = currentData.tree || [];
-  if (!query) {
-    currentTreeTable.setData(rawTree, currentData.totals);
+
+function exportCustomersExcel() {
+  if (!currentData || !window.XLSX) {
+    alert('بيانات التقرير أو مكتبة Excel غير متوفرة');
     return;
   }
+  const rows = [
+    ['الشركة', 'المجموعة', 'دفتر اليومية / مركز التكلفة', 'العميل', 'عدد الفواتير', 'المفوتر', 'المرتجعات', 'الصافي', 'المحصّل', 'المتبقي', 'نسبة التحصيل %', 'متأخر +90', 'متوسط العمر (يوم)']
+  ];
 
-  // Filter tree keeping parent hierarchy if customer or dept matches
-  const filteredTree = [];
-  for (const co of rawTree) {
-    const matchingDepts = [];
+  for (const co of (currentData.tree || [])) {
     for (const dept of (co.departments || [])) {
-      const deptMatches = dept.name && dept.name.toLowerCase().includes(query);
-      const matchingPartners = (dept.partners || []).filter(p => 
-        deptMatches || (p.name && p.name.toLowerCase().includes(query))
-      );
-      if (deptMatches || matchingPartners.length > 0) {
-        matchingDepts.push({
-          ...dept,
-          partners: matchingPartners
-        });
+      for (const j of (dept.journals || [])) {
+        for (const p of (j.partners || [])) {
+          rows.push([
+            co.name || '',
+            dept.name || '',
+            j.name || '',
+            p.name || '',
+            p.inv_count || 0,
+            p.billed || 0,
+            p.returns || 0,
+            p.net || 0,
+            p.collected || 0,
+            p.residual || 0,
+            p.collection_rate || 0,
+            p.overdue_90 || 0,
+            p.avg_age || 0
+          ]);
+        }
       }
-    }
-    if (matchingDepts.length > 0 || (co.name && co.name.toLowerCase().includes(query))) {
-      filteredTree.push({
-        ...co,
-        departments: matchingDepts
-      });
     }
   }
 
-  currentTreeTable.setData(filteredTree, currentData.totals);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, 'سجل العملاء والتحصيل');
+  const periodLabel = currentData.meta?.period_label ? `_${currentData.meta.period_label.replace(/[\s/\\:]+/g, '_')}` : '';
+  XLSX.writeFile(wb, `customers_collection${periodLabel}.xlsx`);
 }
 
 /**

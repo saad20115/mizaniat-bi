@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -8,6 +9,7 @@ import { createTreeTable, getInvoiceBucket } from '../components/tree-table.js';
 let currentExecutiveData = null;
 let currentTimeFilter = null;
 let currentSelectedCos = [];
+let currentGlobalFilters = { groupIds: [], journalIds: [] };
 let isLightMode = false;
 let isAgingOpen = false;
 let selectedDrawerClient = null;
@@ -87,11 +89,18 @@ function escapeHtml(str) {
  * User Preferences Persistence (P4)
  */
 async function loadUserPreferences() {
+  const cached = store.get('executive_prefs');
+  if (cached && Object.keys(cached).length > 0) {
+    userPreferences = { ...defaultPreferences, ...cached };
+    return;
+  }
+
   try {
     // 1. Try server endpoint
     const res = await api.getPreferences('executive_view');
     if (res && res.found && res.data) {
       userPreferences = { ...defaultPreferences, ...res.data };
+      store.set('executive_prefs', res.data);
       return;
     }
   } catch (e) {
@@ -103,12 +112,14 @@ async function loadUserPreferences() {
     const local = localStorage.getItem('mizaniat_executive_prefs');
     if (local) {
       userPreferences = { ...defaultPreferences, ...JSON.parse(local) };
+      store.set('executive_prefs', userPreferences);
     }
   } catch (e) { console.warn(e); }
 }
 
 async function saveUserPreferences(prefs) {
   userPreferences = { ...userPreferences, ...prefs };
+  store.set('executive_prefs', userPreferences);
   try {
     localStorage.setItem('mizaniat_executive_prefs', JSON.stringify(userPreferences));
   } catch (e) {}
@@ -123,7 +134,10 @@ async function saveUserPreferences(prefs) {
 /**
  * Main entry point for Executive Dashboard Tab
  */
-export async function renderExecutiveDashboardTab(body, container, timeFilter, selectedCos) {
+export async function renderExecutiveDashboardTab(body, container, timeFilter, selectedCos, globalFilters) {
+  if (globalFilters) {
+    currentGlobalFilters = globalFilters;
+  }
   if (!selectedCos || !selectedCos.length) {
     selectedCos = [...container.querySelectorAll('.co-chip.active')].map(c => Number(c.dataset.id));
   }
@@ -484,6 +498,8 @@ async function loadExecutiveData(body, timeFilter, selectedCos) {
       companyIds: selectedCos && selectedCos.length ? selectedCos.join(',') : undefined,
       ...periodParams
     };
+    if (currentGlobalFilters?.groupIds?.length) params.groupIds = currentGlobalFilters.groupIds.join(',');
+    if (currentGlobalFilters?.journalIds?.length) params.journalIds = currentGlobalFilters.journalIds.join(',');
 
     const res = await api.getExecutiveSummary(params);
     if (reqId !== currentSummaryRequestId) return;
@@ -628,8 +644,12 @@ function renderExecutiveContent(container, data) {
             </h3>
             <span style="font-size:0.85rem;color:var(--exec-text-muted);">الشركة ← القسم ← (العملاء لأعمدة التحصيل والمتبقي / الحسابات لأعمدة الإيراد والمصروف) | الإجمالي في الأسفل</span>
           </div>
-          <div style="font-size:0.85rem;color:var(--exec-text-muted);">
-            * النقر على أي عميل يفتح لوحة فواتيره التفصيلية
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="position:relative;display:inline-flex;align-items:center;">
+              <input type="text" id="exec-tree-search" placeholder="بحث…" style="padding:6px 12px 6px 30px;background:rgba(255,255,255,0.06);border:1px solid var(--exec-border);border-radius:8px;font-size:0.82rem;color:var(--exec-text);width:220px;outline:none;" />
+              <button id="btn-exec-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--exec-text-muted);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+            </div>
+            <span id="exec-search-counter" style="font-size:0.8rem;color:var(--exec-text-muted);font-weight:600;display:none;"></span>
           </div>
         </div>
 
@@ -863,33 +883,34 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
  */
 // Aging table column definitions
 const agingColumns = [
-  { id: 'name', label: 'البيان', minWidth: '260px', align: 'right', priority: 1 },
-  { id: 'not_due', label: 'غير مستحق', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
-  { id: 'b1_30', label: '1-30 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
-  { id: 'b31_60', label: '31-60 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
-  { id: 'b61_90', label: '61-90 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
-  { id: 'b91_180', label: '91-180 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 2 },
-  { id: 'b181_365', label: '181-365 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 2 },
-  { id: 'over_365', label: '+365 يوم', align: 'left', minWidth: '110px', maxWidth: '130px', priority: 1 },
-  { id: 'total_residual', label: 'إجمالي المتبقي', align: 'left', minWidth: '110px', maxWidth: '130px', color: 'var(--exec-danger)', priority: 1 }
+  { id: 'name', label: 'البيان', minWidth: '140px', align: 'right', priority: 1 },
+  { id: 'not_due', label: 'غير مستحق', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 1 },
+  { id: 'b1_30', label: '1-30 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 1 },
+  { id: 'b31_60', label: '31-60 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 1 },
+  { id: 'b61_90', label: '61-90 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 1 },
+  { id: 'b91_180', label: '91-180 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 2 },
+  { id: 'b181_365', label: '181-365 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 2 },
+  { id: 'over_365', label: '+365 يوم', align: 'left', minWidth: '65px', maxWidth: '90px', priority: 1 },
+  { id: 'total_residual', label: 'إجمالي المتبقي', align: 'left', minWidth: '75px', maxWidth: '100px', color: 'var(--exec-danger)', priority: 1 }
 ];
 
 function getMainTableColumns(prefs) {
   const cols = prefs.columns || defaultPreferences.columns;
-  const list = [{ id: 'name', label: 'البيان', minWidth: '260px', align: 'right', priority: 1 }];
-  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
-  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
-  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
-  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', width: '85px', minWidth: '80px', priority: 2 });
-  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
-  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'تحصيل الإيراد (%)', align: 'center', flex: true, minWidth: '160px', priority: 2 });
-  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي من فواتير الفترة', align: 'left', width: '110px', minWidth: '100px', priority: 1 });
+  const list = [{ id: 'name', label: 'البيان', minWidth: '130px', align: 'right', priority: 1 }];
+  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
+  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
+  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
+  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', width: '60px', minWidth: '50px', priority: 2 });
+  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
+  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: '% التحصيل', align: 'center', flex: true, minWidth: '85px', priority: 2 });
+  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
   return list;
 }
 
 function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) {
   const isDept = depth === 1;
   const isGroup = !!node.isGroup;
+  const isJournal = node.type === 'journal' || !!node.isJournal;
   const isClient = node.type === 'client' || !!node.partner_id;
   const isAccount = node.type === 'account' || !!node.code;
 
@@ -902,50 +923,71 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
   const showRate = cols.includes('collection_rate');
   const showRes = cols.includes('residual');
 
-  const indent = depth * 20;
+  const indent = depth * 14;
   const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
   const nodeName = node.name || node.code || '';
 
   let namePrefix = '';
   if (depth === 0) namePrefix = '🏢 ';
   else if (isDept) namePrefix = '📁 ';
-  else if (isGroup) namePrefix = node.name === 'العملاء' ? '👥 ' : '📑 ';
+  else if (isGroup) namePrefix = (node.name === 'العملاء' || node.isClients) ? '👥 ' : '📑 ';
+  else if (isJournal) namePrefix = '📒 ';
   else if (isClient) namePrefix = '👤 ';
   else if (isAccount) namePrefix = '🔹 ';
 
   const rowBg = depth === 0 
     ? 'background:rgba(59,130,246,0.06);font-weight:800;' 
-    : (isDept ? 'background:var(--exec-bg-hover);font-weight:700;' : (isGroup ? 'color:var(--exec-text-muted);font-weight:700;' : ''));
+    : (isDept ? 'background:var(--exec-bg-hover);font-weight:700;' 
+      : (isGroup ? 'color:var(--exec-text-muted);font-weight:700;' 
+        : (isJournal ? 'background:rgba(245,158,11,0.025);font-weight:600;' : '')));
 
   const cursor = hasKids ? 'cursor:pointer;' : (isClient ? 'cursor:pointer;' : '');
 
+  // R3-8: Applicable vs non-applicable columns
+  // Finance columns apply to company, dept, accounts group, account.
+  // Sales columns apply to company, dept, clients group, journal, client.
+  const isFinanceRow = depth === 0 || isDept || isAccount || node.isAccounts || node.name === 'الحسابات';
+  const isSalesRow = depth === 0 || isDept || isClient || isJournal || node.isClients || node.name === 'العملاء';
+
+  const revVal = isFinanceRow ? fmtVal(node.revenue) : '';
+  const expVal = isFinanceRow ? fmtVal(node.expenses) : '';
+  const netVal = isFinanceRow ? fmtVal(node.net_profit) : '';
+  const marginVal = isFinanceRow ? fmtRate(node.margin, true, node.revenue) : '';
+
+  const colVal = isSalesRow ? fmtVal(node.collected) : '';
+  const resVal = isSalesRow ? fmtVal(node.residual) : '';
+  let rateVal = '';
+  if (isSalesRow) {
+    if (node.collection_rate !== null && node.collection_rate !== undefined) {
+      rateVal = `
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
+          <span class="exec-num" style="font-size:0.82rem;font-weight:700;width:38px;text-align:right;">${fmtRate(node.collection_rate)}</span>
+          <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
+            <div style="width:${Math.min(100, Math.max(0, node.collection_rate || 0))}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
+          </div>
+        </div>
+      `;
+    } else {
+      rateVal = '—';
+    }
+  }
+
   return `
     <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding-right:${indent + 14}px;text-align:right;" title="${escapeHtml(nodeName)}">
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding:6px 8px;padding-right:${indent + 10}px;text-align:right;" title="${escapeHtml(nodeName)}">
         <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted);font-size:0.85rem;">${icon}</span>
         ${namePrefix}
-        <span data-tree-name="true" style="${isClient ? 'color:var(--exec-accent);text-decoration:underline;' : ''}">${escapeHtml(nodeName)}</span>
+        <span data-tree-name="true" title="${escapeHtml(nodeName)}" style="display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;${isClient ? 'color:var(--exec-accent);text-decoration:underline;' : (isJournal ? 'color:#fbbf24;font-weight:600;' : '')}">${escapeHtml(nodeName)}</span>
         ${isClient && node.invoices ? `<span style="font-size:0.75rem;color:var(--exec-text-muted);margin-right:6px;">(${node.invoices.length} فواتير)</span>` : ''}
         ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
       </td>
-      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.revenue)}</td>` : ''}
-      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.expenses)}</td>` : ''}
-      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.net_profit)}</td>` : ''}
-      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${fmtRate(node.margin, true, node.revenue)}</td>` : ''}
-      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(node.collected)}</td>` : ''}
-      ${showRate ? `
-        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 12px;">
-          ${node.collection_rate !== null && node.collection_rate !== undefined ? `
-            <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
-              <span class="exec-num" style="font-size:0.82rem;font-weight:700;width:38px;text-align:right;">${fmtRate(node.collection_rate)}</span>
-              <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
-                <div style="width:${Math.min(100, node.collection_rate || 0)}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
-              </div>
-            </div>
-          ` : '—'}
-        </td>
-      ` : ''}
-      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:${(node.residual || 0) > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(node.residual)}</td>` : ''}
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${revVal}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${expVal}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${netVal}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${marginVal}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${colVal}</td>` : ''}
+      ${showRate ? `<td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 12px;">${rateVal}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:${(node.residual || 0) > 0 ? 'var(--exec-danger)' : ''};">${resVal}</td>` : ''}
     </tr>
   `;
 }
@@ -1004,6 +1046,7 @@ function initMainTreeTable(treeContainer, displayTree) {
     columns,
     data: rows,
     totals: displayTree.totals || {},
+    showZeroItems: store.get('showZeroItems') ?? false,
     getNodeKey: (node, parentPath, depth) => {
       if (depth === 0) {
         const cid = node.company_id != null ? node.company_id : String(node.id).replace(/^co_?/, '');
@@ -1014,13 +1057,14 @@ function initMainTreeTable(treeContainer, displayTree) {
         return `${parentPath}/dept:${did}`;
       }
       if (node.isGroup) return `${parentPath}/grp:${node.isClients ? 'clients' : 'accounts'}`;
+      if (node.isJournal || node.type === 'journal') return `${parentPath}/j:${node.journal_id !== undefined ? node.journal_id : node.id}`;
       if (node.type === 'client' || node.partner_id) return `${parentPath}/p:${node.partner_id || node.id}`;
       if (node.type === 'account' || node.code) return `${parentPath}/acc:${node.code || node.id}`;
       return `${parentPath}/n:${node.id || node.name}`;
     },
     getChildren: (node) => node.children,
     hasChildren: (node) => {
-      if (node.isGroup) return !!(node.children && node.children.length > 0);
+      if (node.isGroup || node.isJournal || node.type === 'journal') return !!(node.children && node.children.length > 0);
       if (node.type === 'client' || node.partner_id || node.type === 'account' || node.code) return false;
       if (node.children && node.children.length > 0) return true;
       if (node.has_children !== undefined) return !!node.has_children;
@@ -1041,32 +1085,108 @@ function initMainTreeTable(treeContainer, displayTree) {
       });
 
       const children = [];
-      if (childData.clients && childData.clients.length > 0) {
+      const hasClients = (childData.journals && childData.journals.length > 0) || (childData.clients && childData.clients.length > 0);
+      if (hasClients) {
+        const sum = childData.clientsSummary || {};
+        let journalsList = childData.journals || [];
+        if (journalsList.length === 0 && childData.clients) {
+          journalsList = [{
+            id: `journal_${companyId}_${deptId}_0`,
+            name: 'بدون دفتر',
+            journal_id: 0,
+            billed: sum.billed,
+            collected: sum.collected,
+            residual: sum.residual,
+            collection_rate: sum.collection_rate,
+            clients: childData.clients
+          }];
+        }
+        const targetBilled = node.billed != null ? node.billed : sum.billed;
+        const targetCollected = node.collected != null ? node.collected : sum.collected;
+        const targetResidual = node.residual != null ? node.residual : sum.residual;
+        const targetRate = targetBilled > 0 ? Math.round((targetCollected / targetBilled) * 1000) / 10 : (node.collection_rate != null ? node.collection_rate : sum.collection_rate);
+
+        // Adjust journalsList rounding to match exact target values
+        if (journalsList.length > 0) {
+          const jTotColl = journalsList.reduce((s, j) => s + (j.collected || 0), 0);
+          const cDiff = targetCollected - jTotColl;
+          if (cDiff !== 0 && Math.abs(cDiff) <= 2) {
+            let maxJ = 0;
+            for (let i = 1; i < journalsList.length; i++) {
+              if ((journalsList[i].collected || 0) > (journalsList[maxJ].collected || 0)) maxJ = i;
+            }
+            journalsList[maxJ].collected += cDiff;
+            if (journalsList[maxJ].billed > 0) {
+              journalsList[maxJ].collection_rate = Math.round((journalsList[maxJ].collected / journalsList[maxJ].billed) * 1000) / 10;
+            }
+          }
+        }
+
         children.push({
-          id: 'clients',
+          id: `sub_clients_${companyId}_${deptId}`,
           name: 'العملاء',
           type: 'grp',
           isGroup: true,
           isClients: true,
           company_id: companyId,
           department_id: deptId,
-          children: childData.clients.map(c => ({
-            ...c,
-            type: 'client',
+          billed: targetBilled,
+          collected: targetCollected,
+          residual: targetResidual,
+          collection_rate: targetRate,
+          revenue: null,
+          expenses: null,
+          net_profit: null,
+          margin: null,
+          children: journalsList.map(j => ({
+            id: `journal_${companyId}_${deptId}_${j.journal_id !== undefined ? j.journal_id : j.id}`,
+            name: j.name,
+            type: 'journal',
+            isJournal: true,
             company_id: companyId,
-            department_id: deptId
+            department_id: deptId,
+            journal_id: j.journal_id,
+            billed: j.billed,
+            collected: j.collected,
+            residual: j.residual,
+            collection_rate: j.collection_rate,
+            revenue: null,
+            expenses: null,
+            net_profit: null,
+            margin: null,
+            children: (j.clients || []).map(c => ({
+              ...c,
+              type: 'client',
+              company_id: companyId,
+              department_id: deptId,
+              journal_id: j.journal_id
+            }))
           }))
         });
       }
       if (childData.accounts && childData.accounts.length > 0) {
+        const sum = childData.accountsSummary || {};
+        const targetRev = node.revenue != null ? node.revenue : sum.revenue;
+        const targetExp = node.expenses != null ? node.expenses : sum.expenses;
+        const targetNet = node.net_profit != null ? node.net_profit : sum.net_profit;
+        const targetMargin = node.margin != null ? node.margin : sum.margin;
+
         children.push({
-          id: 'accounts',
+          id: `sub_accounts_${companyId}_${deptId}`,
           name: 'الحسابات',
           type: 'grp',
           isGroup: true,
           isAccounts: true,
           company_id: companyId,
           department_id: deptId,
+          revenue: targetRev,
+          expenses: targetExp,
+          net_profit: targetNet,
+          margin: targetMargin,
+          billed: null,
+          collected: null,
+          residual: null,
+          collection_rate: null,
           children: childData.accounts.map(a => ({
             ...a,
             type: 'account',
@@ -1099,6 +1219,24 @@ function initMainTreeTable(treeContainer, displayTree) {
         return `co:${cid}`;
       }));
     }
+  }
+
+  // Wire F1-ب Search Input
+  const cardParent = treeContainer.closest('div[style*="padding:24px"]') || treeContainer.parentElement;
+  const searchInput = cardParent?.querySelector('#exec-tree-search') || document.querySelector('#exec-tree-search');
+  const clearBtn = cardParent?.querySelector('#btn-exec-clear-search') || document.querySelector('#btn-exec-clear-search');
+  const countEl = cardParent?.querySelector('#exec-search-counter') || document.querySelector('#exec-search-counter');
+  if (searchInput && inst && inst.bindSearchInput) {
+    const periodParams = getPeriodParamsFromFilter(currentTimeFilter);
+    const searchContext = {
+      companyIds: currentSelectedCos && currentSelectedCos.length ? currentSelectedCos.join(',') : undefined,
+      ...periodParams
+    };
+    inst.bindSearchInput(searchInput, {
+      clearButton: clearBtn,
+      countElement: countEl,
+      searchContext
+    });
   }
 }
 
@@ -1201,6 +1339,7 @@ function initAgingTreeTable(agContainer, aging) {
     columns: agingColumns,
     data: tree,
     totals: totals,
+    showZeroItems: store.get('showZeroItems') ?? false,
     getNodeKey: (node, parentPath, depth) => {
       if (depth === 0) return `co:${node.id}`;
       if (depth === 1) return `${parentPath}/dept:${node.id}`;
@@ -1397,6 +1536,7 @@ async function openExecutiveDrawer(client) {
         companyId: client.company_id,
         partnerId: pid,
         departmentId: deptId,
+        journalId: client.journal_id,
         ...periodParams
       });
       invs = res.invoices || [];
@@ -1485,6 +1625,7 @@ window.openExecutiveDrawer = openExecutiveDrawer;
  */
 function exportExecutiveExcel() {
   if (!currentExecutiveData?.tree?.rows) return;
+  const showZeros = store.get('showZeroItems') ?? false;
   const period = currentTimeFilter?.periodLabel || String(new Date().getFullYear());
   const csvRows = [];
   csvRows.push(['التقرير', 'لوحة الإدارة الموحدة - الأداء والتحصيل']);
@@ -1492,7 +1633,21 @@ function exportExecutiveExcel() {
   csvRows.push([]);
   csvRows.push(['البيان', 'الإيرادات', 'المصروفات', 'صافي الربح', 'الهامش %', 'المحصّل', 'نسبة التحصيل %', 'المتبقي من فواتير الفترة']);
 
+  function isSubtreeZero(node) {
+    const isZero = (Math.abs(node.revenue || 0) < 0.01) &&
+                   (Math.abs(node.expenses || 0) < 0.01) &&
+                   (Math.abs(node.net_profit || 0) < 0.01) &&
+                   (Math.abs(node.collected || 0) < 0.01) &&
+                   (Math.abs(node.residual || 0) < 0.01);
+    if (!isZero) return false;
+    if (node.children && node.children.length > 0) {
+      return node.children.every(ch => isSubtreeZero(ch));
+    }
+    return true;
+  }
+
   function exportNode(node, prefix = '') {
+    if (!showZeros && isSubtreeZero(node)) return;
     csvRows.push([
       `"${prefix}${node.name || node.code || ''}"`,
       node.revenue || 0,

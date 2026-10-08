@@ -9,6 +9,7 @@ const externalRoutes = require('./routes/external-api');
 const authRoutes = require('./routes/auth');
 const salesRoutes = require('./routes/sales');
 const { requireAdmin, requireViewer } = require('./middleware/auth');
+const { validateFilterQuery } = require('./middleware/validator');
 const { startScheduler } = require('./cron/scheduler');
 const { startScheduler: startSalesScheduler } = require('./cron/sales_scheduler');
 
@@ -19,6 +20,8 @@ const PORT = process.env.PORT || 3090;
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
+const compression = require('compression');
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '50mb' }));
 
 // Auth routes (public - no middleware needed)
@@ -26,7 +29,7 @@ app.use('/api/auth', authRoutes);
 
 // Smart API protection middleware
 app.use('/api', (req, res, next) => {
-  // Skip auth routes (already handled above, but just in case)
+  // Skip auth routes
   if (req.path.startsWith('/auth')) return next();
 
   // External API — require x-api-key if EXTERNAL_API_KEY is configured
@@ -49,8 +52,10 @@ app.use('/api', (req, res, next) => {
     '/matrix', '/receivables', '/data-quality', '/performance-summary',
     '/executive', '/customers-collection', '/departments-profitability', '/preferences',
     '/customer-statement', '/executive-client-invoices',
-    '/vat',
-    '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies'
+    '/vat', '/actual-collections',
+    '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies',
+    '/search', '/search/tree',
+    '/cache/stats', '/sync/latest-status'
   ];
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));
   if (isViewerPath) {
@@ -68,6 +73,9 @@ app.use('/api', (req, res, next) => {
   return requireAdmin(req, res, next);
 });
 
+// Input validation for query filter parameters
+app.use('/api', validateFilterQuery);
+
 // API routes
 app.use('/api', apiRoutes);
 app.use('/api/sales', salesRoutes);
@@ -80,10 +88,19 @@ app.all(['/api', '/api/*'], (req, res) => {
 
 // Serve static files from client build
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
-app.use(express.static(clientDist));
+app.use(express.static(clientDist, {
+  setHeaders: (res, filePath) => {
+    if (filePath.includes(path.sep + 'assets' + path.sep) || filePath.includes('/assets/')) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 
 // SPA fallback — serve correct HTML for each route
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const p = req.path;
   if (p.startsWith('/login')) return res.sendFile(path.join(clientDist, 'login.html'));
   if (p.startsWith('/viewer')) return res.sendFile(path.join(clientDist, 'viewer.html'));
@@ -106,9 +123,9 @@ async function start() {
     // Seed demo data
     seedDemoData();
     
-    // Start cron scheduler
+    // Start cron scheduler (S1: Single unified scheduler runs all stages)
     startScheduler();
-    startSalesScheduler();
+    // startSalesScheduler() is superseded by unified startScheduler()
 
     // Check external API key configuration
     if (!process.env.EXTERNAL_API_KEY) {
@@ -127,6 +144,8 @@ async function start() {
         engine.syncAll().then(results => {
           const total = results.reduce((s, r) => s + (r.records_synced || 0), 0);
           console.log(`[Startup] Initial sync completed: ${total} records`);
+          const CacheService = require('./services/cache');
+          CacheService.flush();
         }).catch(err => {
           console.error('[Startup] Initial sync failed:', err.message);
         });
@@ -137,10 +156,15 @@ async function start() {
       console.error('[Startup] Auto-sync check failed:', syncErr.message);
     }
     
+    const CacheService = require('./services/cache');
     app.listen(PORT, () => {
       console.log(`\n🚀 Mizaniat BI Server running at http://localhost:${PORT}`);
       console.log(`📊 API available at http://localhost:${PORT}/api`);
       console.log(`⏰ Sync scheduler active\n`);
+      // Pre-warm cache for default presentation view
+      if (!process.env.NO_CACHE_WARMUP && process.env.NODE_ENV !== 'test') {
+        CacheService.warmupCache();
+      }
     });
   } catch (err) {
     console.error('Failed to start server:', err);

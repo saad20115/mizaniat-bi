@@ -222,6 +222,23 @@ class SalesSyncEngine {
         results.push({ company_id: c.id, status: 'failed', error: err.message });
       }
     }
+
+    // Automatically sync payment allocations for all companies
+    try {
+      const { syncAllPaymentAllocations } = require('../scripts/sync-payment-allocations');
+      await syncAllPaymentAllocations();
+    } catch (e) {
+      console.error('[SalesSyncEngine] Error syncing payment allocations:', e.message);
+      try {
+        db.prepare('INSERT INTO sync_notifications (type, message, details) VALUES (?, ?, ?)').run(
+          'error',
+          `فشل تحديث تسويات السداد: ${e.message}`,
+          JSON.stringify({ error: e.message })
+        );
+      } catch (_) {}
+      throw e;
+    }
+
     return results;
   }
 }

@@ -2,6 +2,7 @@ import { api } from '../api.js';
 import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { showToast } from '../utils/ui.js';
+import { normalizeArabic } from '../components/tree-table.js';
 
 const fmt = v => formatNumber(v, 2);
 
@@ -45,26 +46,26 @@ export async function renderGuaranteesComponent(container, options = {}) {
       .gr-title-group p { font-size: 0.85rem; color: var(--text-muted, #94a3b8); margin: 0; }
       
       .gr-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 22px; }
-      .gr-kpi-card { background: var(--bg-card, #1e293b); border: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); border-radius: 14px; padding: 14px 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-      .gr-kpi-label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted, #94a3b8); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-      .gr-kpi-val { font-size: 1.3rem; font-weight: 800; font-family: var(--font-en, 'Inter', sans-serif); direction: ltr; text-align: right; }
-      .gr-kpi-sub { font-size: 0.75rem; color: var(--text-muted, #64748b); margin-top: 4px; }
+      .gr-kpi-card { background: var(--exec-bg-card, #1e293b); border: 1px solid var(--exec-border, rgba(255,255,255,0.08)); border-radius: 14px; padding: 14px 18px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+      .gr-kpi-label { font-size: 0.8rem; font-weight: 600; color: var(--exec-text-dim, #94a3b8); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+      .gr-kpi-val { font-size: 1.3rem; font-weight: 800; font-family: var(--font-en, 'Inter', sans-serif); direction: ltr; text-align: right; color: var(--exec-text, #f8fafc); }
+      .gr-kpi-sub { font-size: 0.75rem; color: var(--exec-text-muted, #64748b); margin-top: 4px; }
 
-      .gr-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding: 10px 14px; background: rgba(30, 41, 59, 0.4); border: 1px solid var(--border-subtle, rgba(255,255,255,0.06)); border-radius: 10px; }
-      .gr-legend { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-muted, #94a3b8); flex-wrap: wrap; align-items: center; }
+      .gr-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; padding: 10px 14px; background: var(--exec-surface, rgba(30, 41, 59, 0.4)); border: 1px solid var(--exec-border, rgba(255,255,255,0.06)); border-radius: 10px; }
+      .gr-legend { display: flex; gap: 14px; font-size: 0.8rem; color: var(--exec-text-dim, #94a3b8); flex-wrap: wrap; align-items: center; }
       .gr-legend-item { display: flex; align-items: center; gap: 5px; }
       .gr-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 
-      .gr-company { margin-bottom: 24px; border: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); border-radius: 14px; overflow: hidden; background: var(--bg-card, #1e293b); width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
-      .gr-company-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: rgba(30, 41, 59, 0.7); border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); flex-wrap: wrap; gap: 12px; }
-      .gr-company-name { font-size: 1.05rem; font-weight: 750; color: var(--text-primary, #f8fafc); display: flex; align-items: center; gap: 8px; }
-      .gr-company-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; }
+      .gr-company { margin-bottom: 24px; border: 1px solid var(--exec-border, rgba(255,255,255,0.08)); border-radius: 14px; overflow: hidden; background: var(--exec-bg-card, #1e293b); width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; }
+      .gr-company-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: var(--exec-surface, rgba(30, 41, 59, 0.7)); border-bottom: 1px solid var(--exec-border, rgba(255,255,255,0.08)); flex-wrap: wrap; gap: 12px; }
+      .gr-company-name { font-size: 1.05rem; font-weight: 750; color: var(--exec-text, #f8fafc); display: flex; align-items: center; gap: 8px; }
+      .gr-company-stats { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--exec-text-dim, #94a3b8); }
 
       .gr-table-wrap { overflow-x: auto; max-width: 100%; width: 100%; min-width: 0; box-sizing: border-box; }
       .gr-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: right; }
-      .gr-table th { background: rgba(15, 23, 42, 0.6); color: var(--text-muted, #cbd5e1); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08)); white-space: nowrap; }
-      .gr-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.04)); vertical-align: middle; }
-      .gr-table tbody tr:hover { background: rgba(99, 102, 241, 0.04); }
+      .gr-table th { background: var(--exec-sticky-bg, rgba(15, 23, 42, 0.6)); color: var(--exec-text-dim, #cbd5e1); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--exec-border, rgba(255,255,255,0.08)); white-space: nowrap; }
+      .gr-table td { padding: 8px 10px; border-bottom: 1px solid var(--exec-border, rgba(255,255,255,0.04)); vertical-align: middle; color: var(--exec-text, #f8fafc); }
+      .gr-table tbody tr:hover { background: var(--exec-bg-hover, rgba(99, 102, 241, 0.04)); }
       .gr-table .num { text-align: left; font-family: var(--font-en, 'Inter', sans-serif); direction: ltr; font-weight: 700; white-space: nowrap; }
 
       .gr-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 9999px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
@@ -143,12 +144,25 @@ export async function renderGuaranteesComponent(container, options = {}) {
           <div class="gr-legend-item"><span class="gr-dot" style="background:#fbbf24"></span> مفرج تلقائياً (مطابق)</div>
           <div class="gr-legend-item"><span class="gr-dot" style="background:#facc15"></span> استثناء يدوي</div>
         </div>
-        ${!isViewer ? `
-          <div style="display:flex;align-items:center;gap:6px;">
-            <input type="checkbox" id="gr-toggle-released" ${showReleasedState ? 'checked' : ''} style="cursor:pointer;accent-color:#6366f1;">
-            <label for="gr-toggle-released" style="cursor:pointer;font-size:0.82rem;user-select:none;color:var(--text-muted, #cbd5e1);">عرض الضمانات المفرجة</label>
+
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <!-- Search filter input (F1-ج2) -->
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="position:relative;display:inline-flex;align-items:center;">
+              <input type="text" id="gr-search-input" placeholder="بحث…"
+                style="width:200px;padding:6px 12px 6px 30px;background:rgba(255,255,255,0.05);border:1px solid var(--exec-border, rgba(255,255,255,0.12));border-radius:6px;color:var(--exec-text, #fff);font-size:0.82rem;outline:none;" />
+              <button id="btn-gr-clear-search" type="button" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--exec-text-dim, #94a3b8);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+            </div>
+            <span id="gr-search-counter" style="display:none;font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;"></span>
           </div>
-        ` : ''}
+
+          ${!isViewer ? `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="gr-toggle-released" ${showReleasedState ? 'checked' : ''} style="cursor:pointer;accent-color:#6366f1;">
+              <label for="gr-toggle-released" style="cursor:pointer;font-size:0.82rem;user-select:none;color:var(--text-muted, #cbd5e1);">عرض الضمانات المفرجة</label>
+            </div>
+          ` : ''}
+        </div>
       </div>
 
       <div id="gr-content">
@@ -156,6 +170,24 @@ export async function renderGuaranteesComponent(container, options = {}) {
       </div>
     </div>
   `;
+
+  // Bind search events (F1-ج2)
+  const searchInput = container.querySelector('#gr-search-input');
+  const clearBtn = container.querySelector('#btn-gr-clear-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      applyGuaranteesSearch(container, e.target.value);
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      applyGuaranteesSearch(container, '');
+    });
+  }
 
   await loadGuaranteesData(container, options);
 
@@ -230,7 +262,7 @@ async function loadGuaranteesData(container, options = {}) {
             <div class="gr-company-name">🏢 ${escapeHtml(co.companyName)}</div>
             <div class="gr-company-stats">
               <div>رصيد الأستاذ: <b style="color:var(--text-primary, #e2e8f0);font-family:var(--font-en, 'Inter')">${fmt(coLedger)}</b></div>
-              <div>معلّق: <b style="color:#06b6d4;font-family:var(--font-en, 'Inter')">${fmt(coPending)}</b></div>
+              <div>معلّق: <b style="color:var(--gr-amt-cyan, #06b6d4);font-family:var(--font-en, 'Inter')">${fmt(coPending)}</b></div>
               ${isMatched
                 ? '<span class="gr-badge-success">✓ مطابقة تامة مع الأستاذ</span>'
                 : (co.isPendingOdoo
@@ -288,11 +320,11 @@ async function loadGuaranteesData(container, options = {}) {
 
           html += `
             <tr class="${isSub ? 'gr-sub-row' : ''}">
-              <td style="text-align:center;color:var(--text-muted,#64748b);font-size:0.78rem">${idx++}</td>
+              <td style="text-align:center;color:var(--exec-text-dim, #94a3b8);font-size:0.78rem">${idx++}</td>
               <td><span class="gr-badge ${badgeClass}">${badgeLabel}</span></td>
-              <td style="font-family:var(--font-en,'Inter');color:var(--text-muted,#94a3b8);white-space:nowrap">${item.date || ''}</td>
-              <td style="font-family:var(--font-en,'Inter');color:#818cf8;white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
-              <td style="font-size:0.8rem;color:var(--text-muted,#cbd5e1);white-space:nowrap" title="${escapeHtml(item.accountName || '')}">${escapeHtml(item.accountCode || '')}</td>
+              <td style="font-family:var(--font-en,'Inter');color:var(--exec-text-dim, #94a3b8);white-space:nowrap">${item.date || ''}</td>
+              <td style="font-family:var(--font-en,'Inter');color:var(--gr-move-color, #818cf8);white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
+              <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);white-space:nowrap" title="${escapeHtml(item.accountName || '')}">${escapeHtml(item.accountCode || '')}</td>
               <td style="width:auto;min-width:200px;">
                 <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                 ${item.releaseNotes ? `
@@ -301,8 +333,8 @@ async function loadGuaranteesData(container, options = {}) {
                   </div>
                 ` : ''}
               </td>
-              <td style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">${escapeHtml(item.partner || '')}</td>
-              <td class="num" style="color:${isSub ? '#c084fc' : '#34d399'}">${fmt(item.amount)}</td>
+              <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8)">${escapeHtml(item.partner || '')}</td>
+              <td class="num" style="color:${isSub ? 'var(--gr-sub-amt-color, #c084fc)' : 'var(--gr-amt-color, #34d399)'}">${fmt(item.amount)}</td>
               ${!isViewer ? `
                 <td style="text-align:center;white-space:nowrap">
                   <div style="display:inline-flex;gap:4px;align-items:center;">
@@ -336,11 +368,11 @@ async function loadGuaranteesData(container, options = {}) {
 
             html += `
               <tr class="gr-row-released ${isSub ? 'gr-sub-row' : ''}">
-                <td style="text-align:center;color:var(--text-muted,#64748b);font-size:0.78rem">${idx++}</td>
+                <td style="text-align:center;color:var(--exec-text-dim, #94a3b8);font-size:0.78rem">${idx++}</td>
                 <td><span class="gr-badge ${badgeClass}">${badgeLabel}</span></td>
-                <td style="font-family:var(--font-en,'Inter');color:var(--text-muted,#94a3b8);white-space:nowrap">${item.date || ''}</td>
-                <td style="font-family:var(--font-en,'Inter');color:#818cf8;white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
-                <td style="font-size:0.8rem;color:var(--text-muted,#cbd5e1);white-space:nowrap">${escapeHtml(item.accountCode || '')}</td>
+                <td style="font-family:var(--font-en,'Inter');color:var(--exec-text-dim, #94a3b8);white-space:nowrap">${item.date || ''}</td>
+                <td style="font-family:var(--font-en,'Inter');color:var(--gr-move-color, #818cf8);white-space:nowrap">${escapeHtml(item.moveName || '')}</td>
+                <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);white-space:nowrap">${escapeHtml(item.accountCode || '')}</td>
                 <td style="width:auto;min-width:200px;">
                   <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                   ${item.releaseNotes ? `
@@ -349,8 +381,8 @@ async function loadGuaranteesData(container, options = {}) {
                     </div>
                   ` : ''}
                 </td>
-                <td style="font-size:0.8rem;color:var(--text-muted,#94a3b8)">${escapeHtml(item.partner || '')}</td>
-                <td class="num" style="color:var(--text-muted,#94a3b8)">${fmt(item.amount)}</td>
+                <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8)">${escapeHtml(item.partner || '')}</td>
+                <td class="num" style="color:var(--exec-text-dim, #94a3b8)">${fmt(item.amount)}</td>
                 ${!isViewer ? `
                   <td style="text-align:center;white-space:nowrap">
                     <div style="display:inline-flex;gap:4px;align-items:center;">
@@ -371,8 +403,8 @@ async function loadGuaranteesData(container, options = {}) {
       html += `
               </tbody>
               <tfoot>
-                <tr style="background:rgba(15,23,42,0.4);font-weight:700">
-                  <td colspan="7" style="text-align:left;padding:10px 14px;color:var(--text-muted,#cbd5e1)">إجمالي المعلّق للشركة:</td>
+                <tr style="background:var(--exec-surface, rgba(15,23,42,0.4));font-weight:700">
+                  <td colspan="7" style="text-align:left;padding:10px 14px;color:var(--exec-text-dim,#cbd5e1)">إجمالي المعلّق للشركة:</td>
                   <td class="num" style="color:#06b6d4;font-size:0.95rem;font-weight:800">${fmt(coPending)}</td>
                   ${!isViewer ? '<td></td>' : ''}
                 </tr>
@@ -385,12 +417,84 @@ async function loadGuaranteesData(container, options = {}) {
 
     content.innerHTML = html;
 
+    const searchInput = container.querySelector('#gr-search-input');
+    if (searchInput && searchInput.value) {
+      applyGuaranteesSearch(container, searchInput.value);
+    }
+
     if (!isViewer) {
       bindAdminActions(container, options);
     }
   } catch (err) {
     console.error('Guarantees loading error:', err);
     content.innerHTML = `<div class="gr-empty" style="color:#ef4444">❌ خطأ في تحميل الضمانات: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function applyGuaranteesSearch(container, query) {
+  const cleanQ = normalizeArabic(query || '');
+  const clearBtn = container.querySelector('#btn-gr-clear-search');
+  const counterEl = container.querySelector('#gr-search-counter');
+
+  if (clearBtn) clearBtn.style.display = cleanQ ? 'inline-flex' : 'none';
+
+  let totalMatches = 0;
+  const companyCards = container.querySelectorAll('.gr-company');
+
+  companyCards.forEach(card => {
+    const rows = card.querySelectorAll('tbody tr:not(.gr-no-match-row)');
+    const existingNoMatch = card.querySelector('.gr-no-match-row');
+    if (existingNoMatch) existingNoMatch.remove();
+
+    let coVisibleMatches = 0;
+
+    rows.forEach(tr => {
+      if (tr.querySelector('td[colspan]')) {
+        tr.style.display = cleanQ ? 'none' : '';
+        return;
+      }
+
+      if (!cleanQ) {
+        tr.style.display = '';
+        return;
+      }
+
+      const text = normalizeArabic(tr.textContent || '');
+      if (text.includes(cleanQ)) {
+        tr.style.display = '';
+        coVisibleMatches++;
+        totalMatches++;
+      } else {
+        tr.style.display = 'none';
+      }
+    });
+
+    if (cleanQ && coVisibleMatches === 0 && rows.length > 0) {
+      const tbody = card.querySelector('tbody');
+      if (tbody) {
+        const trEmpty = document.createElement('tr');
+        trEmpty.className = 'gr-no-match-row';
+        trEmpty.innerHTML = `<td colspan="9" style="text-align:center;padding:24px;color:var(--exec-text-dim, #94a3b8);font-size:0.9rem;">لا توجد نتائج مطابقة للبحث</td>`;
+        tbody.appendChild(trEmpty);
+      }
+    }
+  });
+
+  if (counterEl) {
+    if (!cleanQ) {
+      counterEl.style.display = 'none';
+      counterEl.textContent = '';
+    } else if (totalMatches > 0) {
+      counterEl.style.display = 'inline-block';
+      counterEl.textContent = `${totalMatches} نتيجة`;
+      counterEl.style.background = 'rgba(16,185,129,0.15)';
+      counterEl.style.color = '#10b981';
+    } else {
+      counterEl.style.display = 'inline-block';
+      counterEl.textContent = 'لا توجد نتائج';
+      counterEl.style.background = 'rgba(239,68,68,0.15)';
+      counterEl.style.color = '#ef4444';
+    }
   }
 }
 

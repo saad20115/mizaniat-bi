@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { store } from '../store.js';
 import { formatNumber, formatCurrency } from '../utils/format.js';
 import { createTreeTable } from '../components/tree-table.js';
 
@@ -115,14 +116,14 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
     <!-- Top 4 KPI Cards -->
     <div class="vat-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
       <!-- Card 1: Output VAT -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
+      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#3b82f6;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المخرجات (المبيعات)</span>
           <span style="font-size:1.2rem;">📤</span>
         </div>
-        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          ${fmtVal(cards.output_tax, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
+        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
+          ${fmtVal(cards.output_tax, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
           <span>المبيعات الخاضعة: ${fmtVal(cards.taxable_sales, false, 0)} ر.س</span>
@@ -130,14 +131,14 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
       </div>
 
       <!-- Card 2: Input VAT -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
+      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#10b981;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المدخلات (المشتريات)</span>
           <span style="font-size:1.2rem;">📥</span>
         </div>
-        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          ${fmtVal(cards.input_tax, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
+        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
+          ${fmtVal(cards.input_tax, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
           <span>المشتريات الخاضعة: ${fmtVal(cards.taxable_purchases, false, 0)} ر.س</span>
@@ -145,29 +146,29 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
       </div>
 
       <!-- Card 3: Net Tax Due (Highlighted) -->
-      <div class="exec-card" style="background:linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(30,41,59,0.7) 100%);border:1px solid rgba(59,130,246,0.35);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
+      <div class="exec-card" style="background:var(--vat-card-net-bg, linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(30,41,59,0.7) 100%));border:1px solid var(--vat-card-net-border, rgba(59,130,246,0.35));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#60a5fa;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.9rem;color:#93c5fd;font-weight:700;">صافي الضريبة المستحقة للفترة</span>
+          <span style="font-size:0.9rem;color:var(--vat-card-net-title, #93c5fd);font-weight:700;">صافي الضريبة المستحقة للفترة</span>
           <span style="font-size:1.2rem;">🧾</span>
         </div>
-        <div style="font-size:clamp(1.2rem, 2.3vw, 1.85rem);font-weight:900;color:#ffffff;letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          ${fmtVal(cards.net_tax_due, false)} <span style="font-size:0.95rem;font-weight:500;color:#93c5fd;">ر.س</span>
+        <div style="font-size:clamp(1.1rem, 2.3vw, 1.85rem);font-weight:900;color:var(--vat-card-net-num, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
+          ${fmtVal(cards.net_tax_due, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--vat-card-net-title, #93c5fd);">ر.س</span>
         </div>
-        <div style="font-size:0.82rem;color:${cards.last_completed_period ? '#60a5fa' : 'var(--exec-text-dim, #94a3b8)'};font-weight:500;">
+        <div style="font-size:0.82rem;color:var(--vat-card-net-sub, #60a5fa);font-weight:500;">
           ${cards.last_completed_period ? `آخر فترة إقرار مكتملة: ${escapeHtml(cards.last_completed_period)}` : 'المخرجات − المدخلات'}
         </div>
       </div>
 
       <!-- Card 4: Ledger Balance -->
-      <div class="exec-card" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
+      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
         <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#f59e0b;"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">رصيد حسابات الضريبة الدفتري</span>
           <span style="font-size:1.2rem;">🏦</span>
         </div>
-        <div style="font-size:clamp(1.15rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-          ${fmtVal(cards.ledger_balance, false)} <span style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
+        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
+          ${fmtVal(cards.ledger_balance, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
         </div>
         <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
           <span>التسويات والسداد: ${fmtVal(cards.settlements, false, 0)} ر.س</span>
@@ -176,35 +177,35 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
     </div>
 
     <!-- Toolbar: Grain toggle, search, controls, notice -->
-    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;background:var(--exec-card-bg, #1a2234);padding:14px 18px;border-radius:12px;border:1px solid var(--exec-border, rgba(255,255,255,0.08));">
+    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;background:var(--exec-bg-card);padding:14px 18px;border-radius:12px;border:1px solid var(--exec-border);">
       <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
         <!-- Grain Toggle -->
         <span style="font-size:0.88rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">مفتاح العرض:</span>
-        <div class="vat-grain-pills" style="display:inline-flex;background:rgba(255,255,255,0.05);padding:3px;border-radius:8px;gap:4px;">
+        <div class="vat-grain-pills" style="display:inline-flex;background:var(--vat-grain-bg, rgba(255,255,255,0.05));padding:3px;border-radius:8px;gap:4px;">
           <button type="button" class="vat-grain-btn ${currentGrain === 'vat_period' ? 'active' : ''}" data-grain="vat_period"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'vat_period' ? 'background:#3b82f6;color:#fff;' : 'background:transparent;color:var(--exec-text-dim, #94a3b8);'}">
+            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'vat_period' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
             حسب دورية الإقرار
           </button>
           <button type="button" class="vat-grain-btn ${currentGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'quarter' ? 'background:#3b82f6;color:#fff;' : 'background:transparent;color:var(--exec-text-dim, #94a3b8);'}">
+            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'quarter' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
             ربعي
           </button>
           <button type="button" class="vat-grain-btn ${currentGrain === 'month' ? 'active' : ''}" data-grain="month"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'month' ? 'background:#3b82f6;color:#fff;' : 'background:transparent;color:var(--exec-text-dim, #94a3b8);'}">
+            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'month' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
             شهري
           </button>
           <button type="button" class="vat-grain-btn ${currentGrain === 'year' ? 'active' : ''}" data-grain="year"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'year' ? 'background:#3b82f6;color:#fff;' : 'background:transparent;color:var(--exec-text-dim, #94a3b8);'}">
+            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'year' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
             سنوي
           </button>
         </div>
 
         <!-- Expand / Collapse All -->
         <div style="display:inline-flex;gap:6px;margin-right:8px;">
-          <button type="button" id="vat-expand-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid var(--exec-border, rgba(255,255,255,0.1));color:var(--exec-text, #fff);cursor:pointer;">
+          <button type="button" id="vat-expand-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;cursor:pointer;">
             + توسيع الكل
           </button>
-          <button type="button" id="vat-collapse-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid var(--exec-border, rgba(255,255,255,0.1));color:var(--exec-text, #fff);cursor:pointer;">
+          <button type="button" id="vat-collapse-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;cursor:pointer;">
             − طي الكل
           </button>
         </div>
@@ -212,10 +213,13 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
 
       <div style="display:flex;align-items:center;gap:12px;">
         <!-- Search filter input -->
-        <div style="position:relative;">
-          <input type="text" id="vat-search-input" value="${escapeHtml(currentSearchQuery)}" placeholder="تصفية بالبيان أو الفترة..."
-            style="width:200px;padding:6px 12px 6px 30px;background:rgba(255,255,255,0.05);border:1px solid var(--exec-border, rgba(255,255,255,0.12));border-radius:6px;color:var(--exec-text, #fff);font-size:0.82rem;outline:none;" />
-          <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);">🔍</span>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="position:relative;display:inline-flex;align-items:center;">
+            <input type="text" id="vat-search-input" value="${escapeHtml(currentSearchQuery)}" placeholder="بحث…"
+              style="width:200px;padding:6px 12px 6px 30px;background:rgba(255,255,255,0.05);border:1px solid var(--exec-border, rgba(255,255,255,0.12));border-radius:6px;color:var(--exec-text, #fff);font-size:0.82rem;outline:none;" />
+            <button id="btn-vat-clear-search" type="button" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--exec-text-dim, #94a3b8);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+          </div>
+          <span id="vat-search-counter" style="display:none;font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;"></span>
         </div>
 
         <!-- Export Buttons -->
@@ -232,11 +236,11 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
     </div>
 
     <!-- TreeTable Container -->
-    <div id="vat-tree-container" class="vat-treetable-container tree-table-wrap" data-scroll-x="true" style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
+    <div id="vat-tree-container" class="vat-treetable-container tree-table-wrap" data-scroll-x="true" style="background:var(--exec-bg-card, #ffffff);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
 
     <!-- Slide-over Drawer for Details -->
     <div id="vat-drawer-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9998;backdrop-filter:blur(2px);transition:opacity 0.2s;"></div>
-    <div id="vat-drawer" style="position:fixed;top:0;left:0;bottom:0;width:min(720px, 92vw);background:var(--exec-card-bg, #1e293b);box-shadow:4px 0 24px rgba(0,0,0,0.5);z-index:9999;transform:translateX(-100%);transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);display:flex;flex-direction:column;border-right:1px solid var(--exec-border, rgba(255,255,255,0.1));">
+    <div id="vat-drawer" style="position:fixed;top:0;left:0;bottom:0;width:min(720px, 92vw);background:var(--exec-bg-drawer, #ffffff);box-shadow:4px 0 24px rgba(0,0,0,0.5);z-index:9999;transform:translateX(-100%);transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);display:flex;flex-direction:column;border-right:1px solid var(--exec-border, rgba(255,255,255,0.1));">
       <div id="vat-drawer-content" style="display:flex;flex-direction:column;height:100%;"></div>
     </div>
   `;
@@ -274,14 +278,7 @@ function attachToolbarEvents(body, container, timeFilter, selectedCos) {
     if (currentTreeTable) currentTreeTable.collapseAll();
   });
 
-  // Search filter
-  const searchInput = body.querySelector('#vat-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      currentSearchQuery = e.target.value.trim().toLowerCase();
-      filterTreeTableBySearch();
-    });
-  }
+
 
   // Export to Excel
   body.querySelector('#vat-export-excel')?.addEventListener('click', () => {
@@ -310,12 +307,12 @@ function renderVatTreeTable(body, data) {
     const pIn = (inTax / total * 100).toFixed(1);
     const tip = `ضريبة المخرجات: ${Math.round(outTax).toLocaleString('en-US')} (${pOut}%)\nضريبة المدخلات: ${Math.round(inTax).toLocaleString('en-US')} (${pIn}%)`;
     return `
-      <div title="${escapeHtml(tip)}" style="display:flex;flex-direction:column;gap:3px;width:100%;min-width:120px;cursor:help;padding:2px 4px;">
-        <div style="display:flex;width:100%;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
+      <div title="${escapeHtml(tip)}" style="display:flex;flex-direction:column;gap:3px;width:100%;min-width:60px;max-width:110px;margin:0 auto;cursor:help;padding:2px 2px;">
+        <div style="display:flex;width:100%;height:7px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
           <div style="width:${pOut}%;background:#3b82f6;height:100%;"></div>
           <div style="width:${pIn}%;background:#10b981;height:100%;"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--exec-text-dim, #94a3b8);padding:0 2px;">
+        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--exec-text-dim, #94a3b8);padding:0 1px;">
           <span style="color:#60a5fa;">مخرجات ${pOut}%</span>
           <span style="color:#34d399;">مدخلات ${pIn}%</span>
         </div>
@@ -324,22 +321,24 @@ function renderVatTreeTable(body, data) {
   }
 
   const columns = [
-    { id: 'name', key: 'name', label: 'البيان / الفترة', minWidth: '260px', priority: 1 },
-    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '110px', minWidth: '100px', priority: 2 },
-    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '115px', minWidth: '100px', priority: 1 },
-    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '110px', minWidth: '100px', priority: 2 },
-    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '115px', minWidth: '100px', priority: 1 },
-    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '120px', minWidth: '105px', priority: 1 },
-    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '110px', minWidth: '100px', priority: 2 },
-    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات مقابل المدخلات', align: 'center', flex: true, minWidth: '160px', priority: 1 },
-    { id: 'actions', key: 'actions', label: '', width: '44px', minWidth: '44px', maxWidth: '44px', priority: 1 }
+    { id: 'name', key: 'name', label: 'البيان / الفترة', width: '24%', minWidth: '120px', priority: 1 },
+    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '10%', minWidth: '60px', priority: 2 },
+    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '10%', minWidth: '60px', priority: 1 },
+    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '10%', minWidth: '60px', priority: 2 },
+    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '10%', minWidth: '60px', priority: 1 },
+    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '10%', minWidth: '60px', priority: 1 },
+    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '9%', minWidth: '55px', priority: 2 },
+    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات والمدخلات', width: '13%', minWidth: '65px', align: 'center', priority: 1 },
+    { id: 'actions', key: 'actions', label: '', width: '4%', minWidth: '32px', maxWidth: '36px', priority: 1 }
   ];
 
   currentTreeTable = createTreeTable(container, {
     storageKey: 'mizaniat_vat_tree',
+    tableLayout: 'fixed',
     columns,
     data: rawTree,
     totals,
+    showZeroItems: store.get('showZeroItems') ?? false,
     getChildren: (node) => node.children || [],
     hasChildren: (node) => !!(node.children && node.children.length > 0),
     getNodeKey: (node, parentPath, depth) => {
@@ -390,12 +389,12 @@ function renderVatTreeTable(body, data) {
 
       const actionBtn = (node.type === 'month' || node.type === 'quarter') ? `
         <button type="button" class="vat-detail-btn exec-btn-icon" data-cid="${node.company_id}" data-period="${escapeHtml(node.period_key || node.month || node.quarter)}" title="عرض تفاصيل الفترة"
-          style="width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;cursor:pointer;font-size:0.9rem;padding:0;">
+          style="width:30px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;cursor:pointer;font-size:0.85rem;padding:0;">
           📑
         </button>
       ` : '';
 
-      const indent = depth * 20;
+      const indent = depth * 14;
       const toggleIcon = hasKids ? (isExpanded ? '▼' : '▶') : '•';
       const cursor = hasKids ? 'cursor:pointer;' : '';
       const rowBg = node.type === 'company'
@@ -404,22 +403,22 @@ function renderVatTreeTable(body, data) {
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 14px;padding-right:${indent + 14}px;white-space:nowrap;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:6px 6px;padding-right:${indent + 8}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
             <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${toggleIcon}</span>
-            <span style="margin-left:6px;">${icon}</span>
-            <span style="${nameStyle}">${escapeHtml(node.name)}</span>
+            <span style="margin-left:4px;">${icon}</span>
+            <span data-tree-name="true" title="${escapeHtml(node.name)}" style="display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;${nameStyle}">${escapeHtml(node.name)}</span>
             ${badge}
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 14px;text-align:right;">${fmtVal(node.output_tax)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 14px;text-align:right;">${fmtVal(node.input_tax)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 14px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 14px;text-align:right;">${fmtVal(node.settlements)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:8px 12px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:6px 6px;text-align:right;">${fmtVal(node.output_tax)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:6px 6px;text-align:right;">${fmtVal(node.input_tax)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:6px 6px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.settlements)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:6px 6px;">
             ${renderVatVisual(node)}
           </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:44px;min-width:44px;max-width:44px;padding:4px 2px;">
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:36px;min-width:32px;max-width:36px;padding:4px 2px;">
             ${actionBtn}
           </td>
         </tr>
@@ -429,19 +428,19 @@ function renderVatTreeTable(body, data) {
       const netDue = (tot.output_tax || 0) - (tot.input_tax || 0);
       return `
         <tr class="exec-totals-row" style="background:rgba(255,255,255,0.06);font-weight:800;border-top:2px solid var(--exec-border, rgba(255,255,255,0.15));">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:12px 14px;font-size:0.92rem;color:var(--exec-text, #ffffff);">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:8px 6px;font-size:0.92rem;color:var(--exec-text, #ffffff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             المجموع الكلي العام
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:12px 14px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:12px 12px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:8px 6px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:8px 6px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:8px 6px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:8px 6px;">
             ${renderVatVisual(tot)}
           </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:44px;min-width:44px;max-width:44px;padding:4px 2px;"></td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:36px;min-width:32px;max-width:36px;padding:4px 2px;"></td>
         </tr>
       `;
     }
@@ -457,6 +456,17 @@ function renderVatTreeTable(body, data) {
       openVatDrawer(body, coId, periodKey);
     }
   });
+
+  // Wire TreeTable Search (F1-ج2)
+  const searchInput = body.querySelector('#vat-search-input');
+  const clearBtnEl = body.querySelector('#btn-vat-clear-search');
+  const counterEl = body.querySelector('#vat-search-counter');
+  if (searchInput && currentTreeTable && currentTreeTable.bindSearchInput) {
+    currentTreeTable.bindSearchInput(searchInput, {
+      clearBtnEl,
+      counterEl
+    });
+  }
 }
 
 function applyGrainExpansion(grain) {
@@ -505,22 +515,6 @@ function applyGrainExpansion(grain) {
       });
     });
   }
-}
-
-function filterTreeTableBySearch() {
-  if (!currentTreeTable) return;
-  const table = currentTreeTable.container.querySelector('table');
-  if (!table) return;
-
-  const rows = table.querySelectorAll('tbody tr');
-  rows.forEach(tr => {
-    if (!currentSearchQuery) {
-      tr.style.display = '';
-      return;
-    }
-    const text = tr.innerText.toLowerCase();
-    tr.style.display = text.includes(currentSearchQuery) ? '' : 'none';
-  });
 }
 
 async function openVatDrawer(body, companyId, periodKey) {
@@ -671,10 +665,10 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
         </div>
 
         <!-- Net Box -->
-        <div style="background:var(--exec-card-bg, #1a2234);border:1px solid var(--exec-border, rgba(255,255,255,0.1));border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;">
+        <div style="background:var(--exec-bg-card, #ffffff);border:1px solid var(--exec-border, rgba(255,255,255,0.1));border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <span style="font-weight:700;font-size:1.05rem;color:var(--exec-text, #fff);">صافي الضريبة المستحقة للإقرار:</span>
-            <span style="font-size:1.35rem;font-weight:900;color:#60a5fa;">${fmtVal(summary.net_tax_due)} ر.س</span>
+            <span style="font-size:1.35rem;font-weight:900;color:var(--exec-accent, #60a5fa);">${fmtVal(summary.net_tax_due)} ر.س</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);font-size:0.88rem;color:var(--exec-text-dim, #94a3b8);">
             <span>التسويات وسداد الهيئة في الفترة:</span>
@@ -817,12 +811,28 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
 function exportVatToExcel() {
   if (!currentData || !currentData.tree) return;
+  const showZeros = store.get('showZeroItems') ?? false;
 
   const rows = [];
   rows.push(['الشركة / الفترة', 'النوع', 'المبيعات الخاضعة', 'ضريبة المخرجات', 'المشتريات الخاضعة', 'ضريبة المدخلات', 'صافي الضريبة المستحقة', 'التسويات والسداد']);
 
+  function isSubtreeZero(node) {
+    const isZero = (Math.abs(node.taxable_sales || 0) < 0.01) &&
+                   (Math.abs(node.output_tax || 0) < 0.01) &&
+                   (Math.abs(node.taxable_purchases || 0) < 0.01) &&
+                   (Math.abs(node.input_tax || 0) < 0.01) &&
+                   (Math.abs(node.net_tax_due || 0) < 0.01) &&
+                   (Math.abs(node.settlements || 0) < 0.01);
+    if (!isZero) return false;
+    if (node.children && node.children.length > 0) {
+      return node.children.every(ch => isSubtreeZero(ch));
+    }
+    return true;
+  }
+
   function traverse(nodes) {
     for (const node of nodes) {
+      if (!showZeros && isSubtreeZero(node)) continue;
       rows.push([
         node.name,
         node.type === 'company' ? 'شركة' : (node.type === 'year' ? 'سنة' : (node.type === 'quarter' ? 'ربع' : 'شهر')),

@@ -43,3 +43,10 @@ raw_sample_*.json
 scratch/
 test*.js
 tmp*.js
+.tmp_chrome_debug/
+
+# Internal collaboration notes (contain financial figures and customer names)
+AI_COLLAB.md
+REPORTS_REVIEW.md
+reports-export/
+scratch/

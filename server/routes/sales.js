@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getDb } = require('../db/connection');
 const SalesSyncEngine = require('../services/sales-sync-engine');
+const CacheService = require('../services/cache');
 
 let salesSyncEngineInstance = null;
 function getSalesSyncEngine() {
@@ -224,6 +225,7 @@ router.post('/companies', (req, res) => {
     INSERT INTO sales_companies (sales_instance_id, sales_company_id, name, currency, color)
     VALUES (?, ?, ?, ?, ?)
   `).run(sales_instance_id, sales_company_id || 1, name, currency || 'SAR', color || '#10b981');
+  CacheService.flush();
   res.json({ id: result.lastInsertRowid, success: true });
 });
 
@@ -235,6 +237,7 @@ router.put('/companies/:id', (req, res) => {
     color = COALESCE(?, color), is_active = COALESCE(?, is_active),
     sales_instance_id = COALESCE(?, sales_instance_id) WHERE id = ?
   `).run(name, currency, color, is_active, sales_instance_id, req.params.id);
+  CacheService.flush();
   res.json({ success: true });
 });
 
@@ -247,6 +250,7 @@ router.delete('/companies/:id', (req, res) => {
     db.prepare('DELETE FROM sales_sync_logs WHERE company_id = ?').run(cid);
     db.prepare('DELETE FROM sales_elimination_rules WHERE source_company_id = ? OR target_company_id = ?').run(cid, cid);
     db.prepare('DELETE FROM sales_companies WHERE id = ?').run(cid);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -365,6 +369,7 @@ router.post('/eliminations', (req, res) => {
     INSERT INTO sales_elimination_rules (name, description, rule_type, source_company_id, target_company_id, source_account_code, target_account_code)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(name, description || '', rule_type || 'account_match', source_company_id, target_company_id, source_account_code, target_account_code);
+  CacheService.flush();
   res.json({ id: result.lastInsertRowid, success: true });
 });
 
@@ -376,6 +381,7 @@ router.post('/sync/company/:companyId', async (req, res) => {
     res.json({ started: true, message: 'بدأت عملية المزامنة (نظام المبيعات)' });
     
     engine.syncCompany(companyId).then(result => {
+      CacheService.flush();
       console.log(`[Sales API] Sync completed for company ${companyId}:`, result);
     }).catch(err => {
       console.error(`[Sales API] Sync failed for company ${companyId}:`, err.message);
@@ -392,13 +398,14 @@ router.get('/sync/progress/:companyId', (req, res) => {
 
 router.post('/sync/all', async (req, res) => {
   try {
-    const engine = getSalesSyncEngine();
-    res.json({ started: true, message: 'بدأت مزامنة بيانات المبيعات للشركات' });
+    const SyncEngine = require('../services/sync-engine');
+    const engine = new SyncEngine();
+    res.json({ started: true, message: 'بدأت المزامنة الموحدة لجميع الشركات (القيود، الفواتير، التسويات، والأقسام)' });
     
-    engine.syncAll().then(results => {
-      console.log('[Sales API] Sync all completed:', results);
+    engine.syncAllUnified().then(results => {
+      console.log('[Sales API] Unified sync all completed:', results);
     }).catch(err => {
-      console.error('[Sales API] Sync all failed:', err.message);
+      console.error('[Sales API] Unified sync all failed:', err.message);
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

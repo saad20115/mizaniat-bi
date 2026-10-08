@@ -122,6 +122,19 @@ function initializeSchema() {
       UNIQUE(company_id, original_name)
     );
 
+    -- S1: Synced Odoo journals with exact type and name
+    CREATE TABLE IF NOT EXISTS odoo_journals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      odoo_journal_id INTEGER NOT NULL,
+      company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, odoo_journal_id)
+    );
+
     -- Admin users (email + password login)
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,9 +364,13 @@ function initializeSchema() {
       sales_invoice_id INTEGER NOT NULL,
       department_id INTEGER NOT NULL DEFAULT 0,
       share REAL NOT NULL DEFAULT 1.0,
+      cost_center_key TEXT,
+      cost_center_name TEXT,
       created_at TEXT DEFAULT (datetime('now')),
+      odoo_invoice_id INTEGER DEFAULT 0,
+      company_id INTEGER DEFAULT 0,
       FOREIGN KEY (sales_invoice_id) REFERENCES sales_invoices(id) ON DELETE CASCADE,
-      UNIQUE(sales_invoice_id, department_id)
+      UNIQUE(sales_invoice_id, department_id, cost_center_key)
     );
 
     -- Sales App settings (key-value store for schedule)
@@ -400,6 +417,9 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_company_accounts_unified ON company_accounts(unified_account_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_company ON journal_entries(company_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
+    CREATE INDEX IF NOT EXISTS idx_journal_items_partner_name ON journal_items(partner_name);
+    CREATE INDEX IF NOT EXISTS idx_journal_items_receivable_fast ON journal_items(company_id, account_type, move_state, date);
+    CREATE INDEX IF NOT EXISTS idx_journal_items_partner_rec ON journal_items(partner_name, account_type, move_state);
 
     -- App settings (key-value store)
     CREATE TABLE IF NOT EXISTS app_settings (
@@ -478,6 +498,63 @@ function initializeSchema() {
     console.log('[DB] Added journal_name column to analytic_group_mapping');
   } catch (e) { /* column already exists */ }
 
+  // S1: Add journal_id column to analytic_group_mapping
+  try {
+    db.prepare(`ALTER TABLE analytic_group_mapping ADD COLUMN journal_id INTEGER`).run();
+    console.log('[DB] Added journal_id column to analytic_group_mapping');
+  } catch (e) { /* column already exists */ }
+
+  // S1: Add journal_id column to journal_items
+  try {
+    db.prepare(`ALTER TABLE journal_items ADD COLUMN journal_id INTEGER`).run();
+    console.log('[DB] Added journal_id column to journal_items');
+  } catch (e) { /* column already exists */ }
+
+  // S1: Migrate existing journal_name rows in analytic_group_mapping to journal_id
+  try {
+    const mappings = db.prepare(`
+      SELECT id, company_id, journal_name 
+      FROM analytic_group_mapping 
+      WHERE (journal_id IS NULL OR journal_id = 0) AND journal_name IS NOT NULL AND journal_name != ''
+    `).all();
+    
+    if (mappings.length > 0) {
+      const updateStmt = db.prepare('UPDATE analytic_group_mapping SET journal_id = ? WHERE id = ?');
+      const findJidStmt = db.prepare(`
+        SELECT DISTINCT invoice_journal_id as journal_id 
+        FROM payment_allocations 
+        WHERE company_id = ? AND (TRIM(invoice_journal_name) = ? OR invoice_journal_name = ?)
+        LIMIT 1
+      `);
+      const findSalesJidStmt = db.prepare(`
+        SELECT DISTINCT si.journal_id
+        FROM sales_invoices si
+        JOIN sales_companies sc ON sc.id = si.company_id
+        JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+        WHERE c.id = ? AND (TRIM(si.journal_name) = ? OR si.journal_name = ?)
+        LIMIT 1
+      `);
+      
+      let count = 0;
+      for (const m of mappings) {
+        const cleanName = (m.journal_name || '').trim();
+        let found = findJidStmt.get(m.company_id, cleanName, m.journal_name);
+        if (!found || !found.journal_id) {
+          found = findSalesJidStmt.get(m.company_id, cleanName, m.journal_name);
+        }
+        if (found && found.journal_id) {
+          updateStmt.run(found.journal_id, m.id);
+          count++;
+        }
+      }
+      if (count > 0) {
+        console.log(`[DB] S1: Migrated ${count} analytic_group_mapping rows with journal_id`);
+      }
+    }
+  } catch (e) {
+    console.warn('[DB] Migration of journal_id in analytic_group_mapping:', e.message);
+  }
+
   // D5 VAT Migrations
   try {
     db.prepare(`ALTER TABLE companies ADD COLUMN vat_period TEXT DEFAULT 'quarterly'`).run();
@@ -495,10 +572,7 @@ function initializeSchema() {
   } catch (e) { /* column already exists */ }
 
   try {
-    db.prepare(`UPDATE companies SET short_name = 'مكتب سمير أبو غلية' WHERE id = 1 AND (short_name IS NULL OR short_name = '')`).run();
-    db.prepare(`UPDATE companies SET short_name = 'شركة سمير مهنية' WHERE id = 2 AND (short_name IS NULL OR short_name = '')`).run();
-    db.prepare(`UPDATE companies SET short_name = 'حريري مهنية' WHERE id = 3 AND (short_name IS NULL OR short_name = '')`).run();
-    db.prepare(`UPDATE companies SET short_name = 'شركة جمال حريري' WHERE id = 4 AND (short_name IS NULL OR short_name = '')`).run();
+    db.prepare(`UPDATE companies SET short_name = name WHERE short_name IS NULL OR short_name = '' OR short_name != name`).run();
   } catch (e) {}
 
   for (const col of [
@@ -598,6 +672,7 @@ function initializeSchema() {
     -- Performance indexes for sales_invoices
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_name ON sales_invoices(company_id, name);
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_date ON sales_invoices(company_id, date);
+    CREATE INDEX IF NOT EXISTS idx_sales_invoices_comp_inv_id ON sales_invoices(company_id, invoice_id);
 
     -- Fact daily table for matrix reporting & rapid aggregations (M1)
     CREATE TABLE IF NOT EXISTS fact_daily (
@@ -613,6 +688,7 @@ function initializeSchema() {
       department_id INTEGER NOT NULL DEFAULT 0,
       analytic_account TEXT DEFAULT '',
       journal_name TEXT DEFAULT '',
+      journal_id INTEGER DEFAULT 0,
       debit REAL DEFAULT 0,
       credit REAL DEFAULT 0,
       revenue REAL DEFAULT 0,
@@ -630,6 +706,7 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_acc ON fact_daily(company_id, account_code);
     CREATE INDEX IF NOT EXISTS idx_analytic_group_mapping_lookup ON analytic_group_mapping(company_id, analytic_account);
     CREATE INDEX IF NOT EXISTS idx_analytic_group_mapping_journal ON analytic_group_mapping(company_id, journal_name);
+    CREATE INDEX IF NOT EXISTS idx_analytic_group_mapping_journal_id ON analytic_group_mapping(company_id, journal_id);
   `);
 
   // Add columns to sales_invoices if not existing (must run before indexes)
@@ -647,16 +724,146 @@ function initializeSchema() {
   try {
     db.prepare('ALTER TABLE journal_items ADD COLUMN amount_residual REAL DEFAULT 0').run();
   } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE fact_daily ADD COLUMN journal_id INTEGER DEFAULT 0').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE fact_daily ADD COLUMN cost_center_key TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE fact_daily ADD COLUMN cost_center_name TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE invoice_departments ADD COLUMN odoo_invoice_id INTEGER DEFAULT 0').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE invoice_departments ADD COLUMN company_id INTEGER DEFAULT 0').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE invoice_departments ADD COLUMN cost_center_key TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE invoice_departments ADD COLUMN cost_center_name TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE payment_allocations ADD COLUMN cost_center_key TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE payment_allocations ADD COLUMN cost_center_name TEXT').run();
+  } catch (e) {}
 
   db.exec(`
-    -- Performance indexes for journal_items, sales_invoices & invoice_departments (M1a)
+    -- Performance indexes for journal_items, sales_invoices, invoice_departments & fact_daily (M1a/B1/B2/M1)
     CREATE INDEX IF NOT EXISTS idx_ji_co_odoo_line ON journal_items(company_id, odoo_line_id);
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_due ON sales_invoices(company_id, invoice_date_due);
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_partner ON sales_invoices(company_id, partner_id);
     CREATE INDEX IF NOT EXISTS idx_sales_invoices_payment ON sales_invoices(company_id, payment_state);
     CREATE INDEX IF NOT EXISTS idx_inv_dept_invoice ON invoice_departments(sales_invoice_id);
     CREATE INDEX IF NOT EXISTS idx_inv_dept_dept ON invoice_departments(department_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_dept_odoo ON invoice_departments(company_id, odoo_invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_inv_dept_cc ON invoice_departments(company_id, cost_center_key);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_journal ON fact_daily(company_id, journal_id);
+    CREATE INDEX IF NOT EXISTS idx_fact_daily_comp_cc ON fact_daily(company_id, cost_center_key);
+
+    -- Sister company partner configuration (for identifying payments received through sister companies)
+    CREATE TABLE IF NOT EXISTS sister_company_partners (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      partner_id INTEGER NOT NULL,
+      partner_name TEXT NOT NULL,
+      sister_company_name TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(company_id, partner_id)
+    );
+
+    -- Payment allocations from Odoo account.partial.reconcile (C1)
+    CREATE TABLE IF NOT EXISTS payment_allocations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      sales_company_id INTEGER NOT NULL,
+      odoo_company_id INTEGER NOT NULL,
+      odoo_reconcile_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      full_reconcile_id INTEGER,
+
+      -- Invoice details (Debit line)
+      invoice_id INTEGER,
+      invoice_name TEXT NOT NULL,
+      invoice_date TEXT NOT NULL,
+      invoice_year TEXT NOT NULL,
+      invoice_journal_id INTEGER,
+      invoice_journal_name TEXT,
+      cost_center_key TEXT,
+      cost_center_name TEXT,
+      partner_id INTEGER,
+      partner_name TEXT,
+      department_id INTEGER DEFAULT 0,
+      department_name TEXT DEFAULT 'غير مصنف',
+
+      -- Payment details (Credit line)
+      payment_line_id INTEGER,
+      payment_move_name TEXT NOT NULL,
+      payment_move_type TEXT NOT NULL,
+      payment_date TEXT NOT NULL,
+      payment_year TEXT NOT NULL,
+      payment_quarter TEXT NOT NULL,
+      payment_month TEXT NOT NULL,
+      payment_journal_id INTEGER,
+      payment_journal_name TEXT,
+      payment_journal_type TEXT,
+      payment_label TEXT,
+
+      -- Counterpart details
+      counterpart_account_code TEXT,
+      counterpart_account_name TEXT,
+      counterpart_account_type TEXT,
+      counterpart_partner_id INTEGER,
+      counterpart_partner_name TEXT,
+      counterpart_share REAL DEFAULT 1.0,
+
+      -- Channel classification
+      channel TEXT NOT NULL,
+      channel_label TEXT NOT NULL,
+      sister_company_name TEXT,
+
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(company_id, odoo_reconcile_id, counterpart_account_code, department_id, cost_center_key)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pa_comp_date ON payment_allocations(company_id, payment_date);
+    CREATE INDEX IF NOT EXISTS idx_pa_comp_year ON payment_allocations(company_id, payment_year);
+    CREATE INDEX IF NOT EXISTS idx_pa_comp_month ON payment_allocations(company_id, payment_month);
+    CREATE INDEX IF NOT EXISTS idx_pa_invoice_year ON payment_allocations(company_id, invoice_year);
+    CREATE INDEX IF NOT EXISTS idx_pa_journal ON payment_allocations(company_id, invoice_journal_id);
+    CREATE INDEX IF NOT EXISTS idx_pa_partner ON payment_allocations(company_id, partner_id);
+    CREATE INDEX IF NOT EXISTS idx_pa_channel ON payment_allocations(company_id, channel);
+    CREATE INDEX IF NOT EXISTS idx_pa_dept ON payment_allocations(company_id, department_id);
+    CREATE INDEX IF NOT EXISTS idx_pa_invoice_id ON payment_allocations(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_pa_inv_journal_name ON payment_allocations(invoice_journal_name);
+    CREATE INDEX IF NOT EXISTS idx_pa_payment_move ON payment_allocations(company_id, payment_move_name);
+    CREATE INDEX IF NOT EXISTS idx_pa_partner_name ON payment_allocations(partner_name);
+    CREATE INDEX IF NOT EXISTS idx_pa_comp_inv_id ON payment_allocations(sales_company_id, invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_pa_cost_center ON payment_allocations(company_id, cost_center_key);
   `);
+
+  // Seed default sister company partner mappings
+  try {
+    const scpCount = db.prepare('SELECT COUNT(*) as cnt FROM sister_company_partners').get().cnt;
+    if (scpCount === 0) {
+      const insScp = db.prepare(`
+        INSERT OR IGNORE INTO sister_company_partners (company_id, partner_id, partner_name, sister_company_name)
+        VALUES (?, ?, ?, ?)
+      `);
+      // Instance 7: Co 1 & Co 2
+      insScp.run(1, 7, 'شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد', 'شركة سمير صالح سليمان ابو غلية');
+      insScp.run(2, 1, 'مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية', 'مكتب المهندس سمير صالح ابو غلية');
+      // Instance 8: Co 3 & Co 4
+      insScp.run(3, 11, 'شركة جمال بكر حريري للاستشارات الهندسية', 'شركة جمال بكر حريري للاستشارات الهندسية');
+      insScp.run(4, 10, 'شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد', 'شركة جمال بكر حريري للاستشارات الهندسية مهنية');
+    }
+  } catch (e) {
+    console.error('[DB] Error seeding sister_company_partners:', e.message);
+  }
 
   console.log('[DB] Schema initialized successfully');
 
@@ -744,6 +951,32 @@ function initializeSchema() {
     }
   } catch (e) {
     console.log('[DB] Sales invoice backfill error:', e.message);
+  }
+
+  // Backfill fact_daily cost centers if needed (M1-R2)
+  try {
+    const unmappedFdCount = db.prepare(`SELECT COUNT(*) as cnt FROM fact_daily WHERE cost_center_key IS NULL`).get().cnt;
+    if (unmappedFdCount > 0) {
+      console.log(`[DB] Backfilling ${unmappedFdCount} fact_daily rows with cost centers...`);
+      const ConsolidationEngine = require('../services/consolidation');
+      const engine = new ConsolidationEngine();
+      const updateStmt = db.prepare('UPDATE fact_daily SET cost_center_key = ?, cost_center_name = ? WHERE id = ?');
+      const rows = db.prepare('SELECT id, company_id, analytic_account, journal_id, journal_name FROM fact_daily WHERE cost_center_key IS NULL').all();
+      db.transaction(() => {
+        for (const r of rows) {
+          const cc = engine.resolveCostCenter({
+            companyId: r.company_id,
+            analyticAccount: r.analytic_account,
+            journalId: r.journal_id,
+            journalName: r.journal_name
+          });
+          updateStmt.run(cc.key, cc.name, r.id);
+        }
+      })();
+      console.log('[DB] fact_daily cost centers backfill completed.');
+    }
+  } catch (e) {
+    console.log('[DB] fact_daily cost center backfill error:', e.message);
   }
 }
 

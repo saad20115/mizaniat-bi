@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const SalesSyncEngine = require('../services/sales-sync-engine');
+const CacheService = require('../services/cache');
 const { getDb } = require('../db/connection');
 
 let scheduledJob = null;
@@ -50,6 +51,7 @@ async function runScheduledSync() {
   try {
     const engine = new SalesSyncEngine();
     const results = await engine.syncAll();
+    CacheService.flush();
     
     const duration = Math.round((Date.now() - startTime.getTime()) / 1000);
     const totalRecords = results.reduce((s, r) => s + (r.records_synced || 0), 0);

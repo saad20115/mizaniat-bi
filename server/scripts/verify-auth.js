@@ -67,9 +67,12 @@ app.use('/api', (req, res, next) => {
     '/analytic-groups', '/analytic-group-mappings',
     '/guarantee-details', '/guarantee-pending-list', '/guarantees',
     '/matrix', '/receivables', '/data-quality', '/performance-summary',
-    '/executive', '/preferences',
-    '/vat',
-    '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies'
+    '/executive', '/customers-collection', '/departments-profitability', '/preferences',
+    '/customer-statement', '/executive-client-invoices',
+    '/vat', '/actual-collections',
+    '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies',
+    '/search', '/search/tree',
+    '/cache/stats', '/sync/latest-status'
   ];
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));
   if (isViewerPath) {
@@ -318,6 +321,27 @@ async function run() {
   console.log('\n── Admin Permissions');
   await test('Admin GET /api/executive (admin full access)', '/api/executive?year=2026', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
   await test('Admin PUT /api/preferences/executive_view (admin save preferences)', '/api/preferences/executive_view', 'PUT', { 'Authorization': `Bearer ${adminToken}` }, { theme: 'dark' }, 200);
+
+  console.log('\n── M1-R1: Filter Parameter Validation & SQL Injection Prevention');
+  const r1Res = await test('GET /api/actual-collections with journalIds=NaN (returns 400)', '/api/actual-collections?companyId=1&journalIds=NaN', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  if (r1Res) {
+    try {
+      const data = await r1Res.clone().json();
+      if (data.code === 'INVALID_FILTER_PARAM') {
+        console.log(`[PASS] Returned code: INVALID_FILTER_PARAM on NaN`);
+        passed++;
+      } else {
+        console.error(`[FAIL] Expected code INVALID_FILTER_PARAM, got:`, data);
+        failed++;
+      }
+    } catch (e) {}
+  }
+  await test('GET /api/actual-collections with costCenters=NaN (returns 400)', '/api/actual-collections?companyId=1&costCenters=NaN', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  await test('GET /api/actual-collections with costCenterKey=NaN (returns 400)', '/api/actual-collections?companyId=1&costCenterKey=NaN', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  await test('GET /api/customers-collection with SQL injection (returns 400)', '/api/customers-collection?companyIds=1&journalIds=1;%20DROP%20TABLE%20users;--', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  await test('GET /api/actual-collections with valid costCenters (returns 200)', '/api/actual-collections?companyId=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('GET /api/executive with valid costCenters (returns 200)', '/api/executive?year=2026&companyIds=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('GET /api/customers-collection with valid costCenters (returns 200)', '/api/customers-collection?companyIds=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
 
   await stopServer();
 

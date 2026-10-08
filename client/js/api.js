@@ -1,53 +1,104 @@
 const API_BASE = '/api';
 
-async function request(endpoint, options = {}) {
-  const url = `${API_BASE}${endpoint}`;
-  const config = {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  };
+// In-flight request deduplication map for GET requests
+const inflightRequests = new Map();
 
-  // Attach auth token
+async function request(endpoint, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
   const isViewer = localStorage.getItem('mizaniat_viewer_mode') === 'true';
   const viewerToken = localStorage.getItem('mizaniat_viewer_token') || sessionStorage.getItem('mizaniat_viewer_token');
   const adminToken = localStorage.getItem('mizaniat_admin_token');
+  const token = isViewer ? viewerToken : adminToken;
 
-  if (isViewer && viewerToken) {
-    config.headers = { ...config.headers, 'x-viewer-token': viewerToken };
-  } else if (adminToken) {
-    config.headers = { ...config.headers, 'Authorization': `Bearer ${adminToken}` };
-  }
-  
-  if (config.body && typeof config.body === 'object') {
-    config.body = JSON.stringify(config.body);
-  }
+  // Deduplicate concurrent identical GET requests
+  const isGet = method === 'GET' && !options.body;
+  const reqKey = isGet ? `${token || 'anon'}:${endpoint}` : null;
 
-  const res = await fetch(url, config);
-
-  // Handle 401 — redirect to login
-  if (res.status === 401) {
-    localStorage.removeItem('mizaniat_admin_token');
-    localStorage.removeItem('mizaniat_admin_info');
-    localStorage.removeItem('mizaniat_viewer_mode');
-    localStorage.removeItem('mizaniat_viewer_token');
-    sessionStorage.removeItem('mizaniat_viewer_token');
-    localStorage.removeItem('mizaniat_viewer_info');
-    window.location.href = '/login.html';
-    throw new Error('جلسة غير صالحة');
+  if (isGet && inflightRequests.has(reqKey)) {
+    return inflightRequests.get(reqKey);
   }
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || err.message || `HTTP ${res.status}`);
+  const reqPromise = (async () => {
+    try {
+      const url = `${API_BASE}${endpoint}`;
+      const config = {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      };
+
+      if (isViewer && viewerToken) {
+        config.headers = { ...config.headers, 'x-viewer-token': viewerToken };
+      } else if (adminToken) {
+        config.headers = { ...config.headers, 'Authorization': `Bearer ${adminToken}` };
+      }
+      
+      if (config.body && typeof config.body === 'object') {
+        config.body = JSON.stringify(config.body);
+      }
+
+      const res = await fetch(url, config);
+
+      // Handle 401 — redirect to login
+      if (res.status === 401) {
+        localStorage.removeItem('mizaniat_admin_token');
+        localStorage.removeItem('mizaniat_admin_info');
+        localStorage.removeItem('mizaniat_viewer_mode');
+        localStorage.removeItem('mizaniat_viewer_token');
+        sessionStorage.removeItem('mizaniat_viewer_token');
+        localStorage.removeItem('mizaniat_viewer_info');
+        window.location.href = '/login.html';
+        throw new Error('جلسة غير صالحة');
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || err.message || `HTTP ${res.status}`);
+      }
+      return await res.json();
+    } finally {
+      if (reqKey) {
+        inflightRequests.delete(reqKey);
+      }
+    }
+  })();
+
+  if (isGet) {
+    inflightRequests.set(reqKey, reqPromise);
   }
-  return res.json();
+
+  return reqPromise;
+}
+
+// Session-level cache for static or low-churn metadata (companies, filters)
+const sessionCache = new Map();
+
+export function invalidateClientCache() {
+  sessionCache.clear();
 }
 
 export const api = {
+  clearCache: invalidateClientCache,
+
   // Companies
-  getCompanies: () => request('/companies'),
-  createCompany: (data) => request('/companies', { method: 'POST', body: data }),
-  updateCompany: (id, data) => request(`/companies/${id}`, { method: 'PUT', body: data }),
+  getCompanies: async (options = {}) => {
+    const cacheKey = 'companies';
+    if (!options.fresh && sessionCache.has(cacheKey)) {
+      return sessionCache.get(cacheKey);
+    }
+    const data = await request('/companies');
+    sessionCache.set(cacheKey, data);
+    return data;
+  },
+  createCompany: async (data) => {
+    const res = await request('/companies', { method: 'POST', body: data });
+    invalidateClientCache();
+    return res;
+  },
+  updateCompany: async (id, data) => {
+    const res = await request(`/companies/${id}`, { method: 'PUT', body: data });
+    invalidateClientCache();
+    return res;
+  },
 
   // Instances
   getInstances: () => request('/instances'),
@@ -97,6 +148,10 @@ export const api = {
   deleteClosingEntry: (params) => request(`/closing-entry?${buildQuery(params)}`, { method: 'DELETE' }),
   getCompanyAccounts: (params) => request(`/company-accounts?${buildQuery(params)}`),
 
+  // Actual Collections (C1)
+  getActualCollections: (params) => request(`/actual-collections?${buildQuery(params)}`),
+  getActualCollectionPayments: (params) => request(`/actual-collections/payments?${buildQuery(params)}`),
+
   // Matrix Engine & Receivables (M1)
   getMatrix: (params) => request(`/matrix?${buildQuery(params)}`),
   getReceivables: (params) => request(`/receivables?${buildQuery(params)}`),
@@ -117,7 +172,16 @@ export const api = {
   getDepartmentConflicts: () => request('/data-quality/department-conflicts'),
 
   // Filters
-  getFilterOptions: (params) => request(`/filters?${buildQuery(params)}`),
+  getFilterOptions: async (params, options = {}) => {
+    const cacheKey = `filters:${buildQuery(params)}`;
+    if (!options.fresh && sessionCache.has(cacheKey)) {
+      return sessionCache.get(cacheKey);
+    }
+    const data = await request(`/filters?${buildQuery(params)}`);
+    sessionCache.set(cacheKey, data);
+    return data;
+  },
+  searchTree: (params) => request(`/search/tree?${buildQuery(params)}`),
 
   // Accounts
   getCompanyAccounts: (companyId) => request(`/accounts/company/${companyId}`),
@@ -130,9 +194,18 @@ export const api = {
   createEliminationRule: (data) => request('/eliminations', { method: 'POST', body: data }),
 
   // Sync
-  syncCompany: (id) => request(`/sync/company/${id}`, { method: 'POST' }),
-  syncAll: () => request('/sync/all', { method: 'POST' }),
+  syncCompany: async (id) => {
+    const res = await request(`/sync/company/${id}`, { method: 'POST' });
+    invalidateClientCache();
+    return res;
+  },
+  syncAll: async () => {
+    const res = await request('/sync/all', { method: 'POST' });
+    invalidateClientCache();
+    return res;
+  },
   getSyncStatus: () => request('/sync/status'),
+  getLatestSyncStatus: () => request('/sync/latest-status'),
   getSyncProgress: (companyId) => request(`/sync/progress/${companyId}`),
 
   // Sync Schedule

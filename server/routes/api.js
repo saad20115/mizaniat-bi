@@ -6,6 +6,9 @@ const CacheService = require('../services/cache');
 const SyncEngine = require('../services/sync-engine');
 const OdooConnector = require('../services/odoo-connector');
 const { reschedule, getSchedulerStatus } = require('../cron/scheduler');
+const { validateFilterQuery } = require('../middleware/validator');
+
+router.use(validateFilterQuery);
 
 // Helper to parse companyIds from query
 function parseCompanyIds(query) {
@@ -15,16 +18,19 @@ function parseCompanyIds(query) {
 }
 
 // ===== COMPANIES =====
-router.get('/companies', (req, res) => {
-  const db = getDb();
-  const companies = db.prepare(`
-    SELECT c.*, oi.name as instance_name, oi.url as instance_url,
-      (SELECT COUNT(*) FROM journal_items WHERE company_id = c.id) as item_count,
-      (SELECT MAX(date) FROM journal_items WHERE company_id = c.id) as last_entry_date
-    FROM companies c
-    LEFT JOIN odoo_instances oi ON oi.id = c.odoo_instance_id
-    ORDER BY c.name
-  `).all();
+router.get('/companies', async (req, res) => {
+  const cacheKey = CacheService.makeKey('companies', {});
+  const companies = await CacheService.getOrSet(cacheKey, () => {
+    const db = getDb();
+    return db.prepare(`
+      SELECT c.*, oi.name as instance_name, oi.url as instance_url,
+        (SELECT COUNT(*) FROM journal_items WHERE company_id = c.id) as item_count,
+        (SELECT MAX(date) FROM journal_items WHERE company_id = c.id) as last_entry_date
+      FROM companies c
+      LEFT JOIN odoo_instances oi ON oi.id = c.odoo_instance_id
+      ORDER BY c.name
+    `).all();
+  });
   res.json(companies);
 });
 
@@ -35,6 +41,7 @@ router.post('/companies', (req, res) => {
     INSERT INTO companies (odoo_instance_id, odoo_company_id, name, currency, color)
     VALUES (?, ?, ?, ?, ?)
   `).run(odoo_instance_id, odoo_company_id, name, currency || 'SAR', color || '#3b82f6');
+  CacheService.flush();
   res.json({ id: result.lastInsertRowid, success: true });
 });
 
@@ -104,94 +111,81 @@ router.post('/instances/:id/test', async (req, res) => {
 });
 
 // ===== REPORTS =====
-router.get('/reports/dashboard', (req, res) => {
+router.get('/reports/dashboard', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
   const { dateFrom, dateTo } = req.query;
   const cacheKey = CacheService.makeKey('dashboard', { companyIds, dateFrom, dateTo });
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getDashboardKPIs({ companyIds, dateFrom, dateTo });
-  CacheService.set(cacheKey, data);
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getDashboardKPIs({ companyIds, dateFrom, dateTo });
+  });
   res.json(data);
 });
 
-router.get('/reports/income-statement', (req, res) => {
+router.get('/reports/income-statement', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
-  const { dateFrom, dateTo, costCenter, project, useEliminations } = req.query;
+  const { dateFrom, dateTo, years, year, costCenter, project, useEliminations } = req.query;
   const cacheKey = CacheService.makeKey('income', req.query);
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getIncomeStatement({ 
-    companyIds, dateFrom, dateTo, costCenter, project,
-    useEliminations: useEliminations === 'true'
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getIncomeStatement({ 
+      companyIds, dateFrom, dateTo, years, year, costCenter, project,
+      useEliminations: useEliminations === 'true'
+    });
   });
-  CacheService.set(cacheKey, data);
   res.json(data);
 });
 
-router.get('/reports/balance-sheet', (req, res) => {
+router.get('/reports/balance-sheet', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
-  const { asOfDate, costCenter, useEliminations } = req.query;
+  const { asOfDate, costCenter, useEliminations, fiscalYear } = req.query;
   const cacheKey = CacheService.makeKey('balance', req.query);
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getBalanceSheet({ 
-    companyIds, asOfDate, costCenter,
-    useEliminations: useEliminations === 'true'
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getBalanceSheet({ 
+      companyIds, asOfDate, costCenter,
+      useEliminations: useEliminations === 'true',
+      fiscalYear
+    });
   });
-  CacheService.set(cacheKey, data);
   res.json(data);
 });
 
-router.get('/reports/cash-flow', (req, res) => {
+router.get('/reports/cash-flow', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
   const { dateFrom, dateTo } = req.query;
   const cacheKey = CacheService.makeKey('cashflow', req.query);
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getCashFlow({ companyIds, dateFrom, dateTo });
-  CacheService.set(cacheKey, data);
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getCashFlow({ companyIds, dateFrom, dateTo });
+  });
   res.json(data);
 });
 
-router.get('/reports/pivot', (req, res) => {
+router.get('/reports/pivot', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
   const { dateFrom, dateTo, measure } = req.query;
   const rows = req.query.rows ? req.query.rows.split(',') : ['account'];
   const columns = req.query.columns ? req.query.columns.split(',') : ['period'];
   const cacheKey = CacheService.makeKey('pivot', req.query);
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getPivotData({ companyIds, dateFrom, dateTo, rows, columns, measure });
-  CacheService.set(cacheKey, data);
-  res.json(data);
+  try {
+    const data = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getPivotData({ companyIds, dateFrom, dateTo, rows, columns, measure });
+    });
+    res.json(data);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
-router.get('/reports/trial-balance', (req, res) => {
+router.get('/reports/trial-balance', async (req, res) => {
   const { companyId, dateFrom, dateTo, costCenter } = req.query;
   const cacheKey = CacheService.makeKey('trial-balance', req.query);
-  
-  const cached = CacheService.get(cacheKey);
-  if (cached) return res.json(cached);
-
-  const engine = new ConsolidationEngine();
-  const data = engine.getTrialBalance({ companyId: companyId ? parseInt(companyId) : null, dateFrom, dateTo, costCenter });
-  CacheService.set(cacheKey, data);
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getTrialBalance({ companyId: companyId ? parseInt(companyId) : null, dateFrom, dateTo, costCenter });
+  });
   res.json(data);
 });
 
@@ -258,6 +252,7 @@ router.post('/partner-account-config', (req, res) => {
     });
     
     saveAll(mappings);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) {
     console.error('Save partner config error:', err);
@@ -285,6 +280,7 @@ router.post('/analytic-groups', (req, res) => {
     const { getDb } = require('../db/connection');
     const db = getDb();
     const result = db.prepare('INSERT INTO analytic_groups (name, color) VALUES (?, ?)').run(name, color || '#3b82f6');
+    CacheService.flush();
     res.json({ success: true, id: result.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -297,6 +293,7 @@ router.put('/analytic-groups/:id', (req, res) => {
     const db = getDb();
     db.prepare('UPDATE analytic_groups SET name = COALESCE(?, name), color = COALESCE(?, color), sort_order = COALESCE(?, sort_order) WHERE id = ?')
       .run(name, color, sort_order, req.params.id);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -307,6 +304,7 @@ router.delete('/analytic-groups/:id', (req, res) => {
     const { getDb } = require('../db/connection');
     const db = getDb();
     db.prepare('DELETE FROM analytic_groups WHERE id = ?').run(req.params.id);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -366,17 +364,32 @@ router.post('/analytic-group-mappings', (req, res) => {
     const db = getDb();
     
     const deleteStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ?');
-    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name) VALUES (?, ?, ?, ?, ?)');
+    const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name, journal_id) VALUES (?, ?, ?, ?, ?, ?)');
     
+    const findJidStmt = db.prepare(`
+      SELECT COALESCE(
+        (SELECT journal_id FROM sales_invoices WHERE company_id = ? AND (TRIM(journal_name) = ? OR journal_name = ?) AND journal_id > 0 LIMIT 1),
+        (SELECT invoice_journal_id FROM payment_allocations WHERE company_id = ? AND (TRIM(invoice_journal_name) = ? OR invoice_journal_name = ?) AND invoice_journal_id > 0 LIMIT 1),
+        (SELECT journal_id FROM journal_items WHERE company_id = ? AND (TRIM(journal_name) = ? OR journal_name = ?) AND journal_id > 0 LIMIT 1)
+      ) as jid
+    `);
+
     db.transaction(() => {
       deleteStmt.run(parseInt(companyId));
       for (const m of mappings) {
         if (m.analytic_account && m.group_id) {
-          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, m.journal_name || null);
+          let jid = m.journal_id ? parseInt(m.journal_id) : null;
+          if (!jid && m.journal_name) {
+            const clean = (m.journal_name || '').trim();
+            const r = findJidStmt.get(companyId, clean, m.journal_name, companyId, clean, m.journal_name, companyId, clean, m.journal_name);
+            if (r?.jid) jid = r.jid;
+          }
+          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, m.journal_name || null, jid);
         }
       }
     })();
     
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -622,11 +635,29 @@ router.get('/company-accounts', (req, res) => {
 });
 
 // ===== FILTERS =====
-router.get('/filters', (req, res) => {
+router.get('/filters', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
-  const engine = new ConsolidationEngine();
-  const data = engine.getFilterOptions({ companyIds });
+  const cacheKey = CacheService.makeKey('filters', { companyIds });
+  const data = await CacheService.getOrSet(cacheKey, () => {
+    const engine = new ConsolidationEngine();
+    return engine.getFilterOptions({ companyIds });
+  });
   res.json(data);
+});
+
+// ===== TREE SEARCH (F1-b) =====
+router.get('/search/tree', (req, res) => {
+  try {
+    const { query, dateFrom, dateTo } = req.query;
+    const companyIds = parseCompanyIds(req.query);
+    const years = parseYearsParam(req);
+    const engine = new ConsolidationEngine();
+    const result = engine.searchHierarchyPaths({ companyIds, years, dateFrom, dateTo, query });
+    res.json(result);
+  } catch (err) {
+    console.error('[API /search/tree] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ===== ACCOUNTS & MAPPING =====
@@ -655,6 +686,7 @@ router.post('/accounts/unified', (req, res) => {
     INSERT INTO unified_accounts (code, name_ar, name_en, account_type, parent_id, is_group, sort_order)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(code, name_ar, name_en || '', account_type, parent_id || null, is_group || 0, sort_order || 0);
+  CacheService.flush();
   res.json({ id: result.lastInsertRowid, success: true });
 });
 
@@ -700,6 +732,7 @@ router.post('/eliminations', (req, res) => {
     INSERT INTO elimination_rules (name, description, rule_type, source_company_id, target_company_id, source_account_code, target_account_code)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(name, description || '', rule_type || 'account_match', source_company_id, target_company_id, source_account_code, target_account_code);
+  CacheService.flush();
   res.json({ id: result.lastInsertRowid, success: true });
 });
 
@@ -753,13 +786,40 @@ router.get('/sync/progress/:companyId', (req, res) => {
 router.post('/sync/all', async (req, res) => {
   try {
     const engine = getSyncEngine();
-    res.json({ started: true, message: 'بدأت مزامنة جميع الشركات' });
+    res.json({ started: true, message: 'بدأت المزامنة الموحدة لجميع الشركات (القيود، الفواتير، التسويات، والأقسام)' });
     
-    engine.syncAll().then(results => {
-      CacheService.flush();
-      console.log('[API] Sync all completed:', results);
+    engine.syncAllUnified().then(results => {
+      console.log('[API] Unified sync completed:', results);
     }).catch(err => {
-      console.error('[API] Sync all failed:', err.message);
+      console.error('[API] Unified sync failed:', err.message);
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/sync/latest-status', (req, res) => {
+  try {
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    const s1 = db.prepare("SELECT MAX(completed_at) as t FROM sync_logs WHERE status = 'completed' AND (sync_type IS NULL OR sync_type = 'full')").get()?.t || null;
+    const s2 = db.prepare("SELECT MAX(completed_at) as t FROM sales_sync_logs WHERE status = 'completed'").get()?.t || null;
+    const s3 = db.prepare("SELECT MAX(completed_at) as t FROM sync_logs WHERE status = 'completed' AND sync_type = 'payment_allocations'").get()?.t
+      || db.prepare("SELECT MAX(created_at) as t FROM payment_allocations").get()?.t || null;
+    
+    const timestamps = [s1, s2, s3].filter(Boolean);
+    let earliest = null;
+    if (timestamps.length > 0) {
+      earliest = timestamps.reduce((min, t) => (t < min ? t : min), timestamps[0]);
+    }
+
+    res.json({
+      earliest,
+      stages: {
+        journal_items: { label: 'قيود اليومية', timestamp: s1 },
+        sales_invoices: { label: 'فواتير المبيعات', timestamp: s2 },
+        payment_allocations: { label: 'تسويات السداد', timestamp: s3 }
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1090,7 +1150,7 @@ router.post('/tax-report-config', (req, res) => {
       JSON.stringify(excludedJournals || []),
       JSON.stringify(excludedMoveNames || [])
     );
-    
+    CacheService.flush();
     res.json({ success: true, message: 'Tax report configuration saved successfully' });
   } catch (err) {
     console.error('Save tax config error:', err);
@@ -1349,16 +1409,19 @@ router.get('/receivables', (req, res) => {
 // ===== PERFORMANCE SUMMARY (H1-fix) =====
 // ==============================================
 
-router.get('/performance-summary', (req, res) => {
+router.get('/performance-summary', async (req, res) => {
   try {
     const { companyIds, dateFrom, dateTo } = req.query;
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getPerformanceSummary({
-      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined
+    const cacheKey = CacheService.makeKey('performance-summary', { companyIds, years, dateFrom, dateTo });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getPerformanceSummary({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1372,19 +1435,30 @@ router.get('/performance-summary', (req, res) => {
 // ===== EXECUTIVE DASHBOARD (لوحة الإدارة الموحدة) =====
 // ==============================================
 
-router.get('/executive', (req, res) => {
+router.get('/executive', async (req, res) => {
   try {
-    const { companyIds, dateFrom, dateTo, asOfDate, fullTree, includeAging } = req.query;
+    const { companyIds, dateFrom, dateTo, asOfDate, fullTree, includeAging, groupIds, departmentIds, journalIds, costCenters } = req.query;
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getExecutiveSummary({
-      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined,
-      fullTree: fullTree === 'true',
-      includeAging: includeAging === 'true'
+    const isFullTree = fullTree === 'true';
+    const isIncludeAging = includeAging === 'true';
+    const dIds = departmentIds || groupIds;
+    const targetJournals = costCenters || journalIds;
+    const jIds = targetJournals ? (Array.isArray(targetJournals) ? targetJournals : String(targetJournals).split(',')).map(s => (typeof s === 'string' ? s.trim() : s)).filter(Boolean) : undefined;
+    const cacheKey = CacheService.makeKey('executive', { companyIds, years, dateFrom, dateTo, asOfDate, fullTree: isFullTree, includeAging: isIncludeAging, departmentIds: dIds, journalIds: jIds, costCenters: jIds });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getExecutiveSummary({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined,
+        fullTree: isFullTree,
+        includeAging: isIncludeAging,
+        departmentIds: dIds ? (Array.isArray(dIds) ? dIds : String(dIds).split(',')).map(Number) : undefined,
+        journalIds: jIds,
+        costCenters: jIds
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1394,21 +1468,28 @@ router.get('/executive', (req, res) => {
   }
 });
 
-router.get('/executive/children', (req, res) => {
+router.get('/executive/children', async (req, res) => {
   try {
-    const { companyId, departmentId, kind, dateFrom, dateTo } = req.query;
+    const { companyId, departmentId, kind, dateFrom, dateTo, journalIds, costCenters } = req.query;
     if (!companyId || departmentId === undefined) {
       return res.status(400).json({ error: 'companyId and departmentId are required' });
     }
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getExecutiveDepartmentChildren({
-      companyId: Number(companyId),
-      departmentId: Number(departmentId),
-      kind: kind || 'both',
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined
+    const targetJournals = costCenters || journalIds;
+    const jIds = targetJournals ? (Array.isArray(targetJournals) ? targetJournals : String(targetJournals).split(',')).map(s => (typeof s === 'string' ? s.trim() : s)).filter(Boolean) : undefined;
+    const cacheKey = CacheService.makeKey('executive-children', { companyId: Number(companyId), departmentId: Number(departmentId), kind: kind || 'both', years, dateFrom, dateTo, journalIds: jIds, costCenters: jIds });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getExecutiveDepartmentChildren({
+        companyId: Number(companyId),
+        departmentId: Number(departmentId),
+        kind: kind || 'both',
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        journalIds: jIds,
+        costCenters: jIds
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1418,22 +1499,28 @@ router.get('/executive/children', (req, res) => {
   }
 });
 
-router.get('/executive/invoices', (req, res) => {
+router.get('/executive/invoices', async (req, res) => {
   try {
-    const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
+    const { companyId, partnerId, departmentId, journalId, costCenterKey, dateFrom, dateTo, asOfDate } = req.query;
     if (!companyId) {
       return res.status(400).json({ error: 'companyId is required' });
     }
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getExecutiveClientInvoices({
-      companyId: Number(companyId),
-      partnerId: partnerId || undefined,
-      departmentId: departmentId ? Number(departmentId) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined
+    const jid = journalId ? Number(journalId) : undefined;
+    const cacheKey = CacheService.makeKey('executive-invoices', { companyId: Number(companyId), partnerId, departmentId: departmentId ? Number(departmentId) : undefined, journalId: jid, costCenterKey, years, dateFrom, dateTo, asOfDate });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getExecutiveClientInvoices({
+        companyId: Number(companyId),
+        partnerId: partnerId || undefined,
+        departmentId: departmentId ? Number(departmentId) : undefined,
+        journalId: jid,
+        costCenterKey: costCenterKey || undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1443,18 +1530,22 @@ router.get('/executive/invoices', (req, res) => {
   }
 });
 
-router.get('/executive/aging', (req, res) => {
+router.get('/executive/aging', async (req, res) => {
   try {
     const { companyIds, dateFrom, dateTo, asOfDate, includeInvoices } = req.query;
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getExecutiveAging({
-      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined,
-      includeInvoices: includeInvoices === 'true'
+    const isIncInv = includeInvoices === 'true';
+    const cacheKey = CacheService.makeKey('executive-aging', { companyIds, years, dateFrom, dateTo, asOfDate, includeInvoices: isIncInv });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getExecutiveAging({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined,
+        includeInvoices: isIncInv
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1468,18 +1559,28 @@ router.get('/executive/aging', (req, res) => {
 // ===== D1: CUSTOMERS & COLLECTION (العملاء والتحصيل) =====
 // ==============================================
 
-router.get('/customers-collection', (req, res) => {
+router.get('/customers-collection', async (req, res) => {
   try {
-    const { companyIds, dateFrom, dateTo, asOfDate, includeInvoices } = req.query;
+    const { companyIds, dateFrom, dateTo, asOfDate, includeInvoices, groupIds, departmentIds, journalIds, costCenters } = req.query;
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getCustomersCollection({
-      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined,
-      includeInvoices: includeInvoices === 'true'
+    const isIncInv = includeInvoices === 'true';
+    const dIds = departmentIds || groupIds;
+    const targetJournals = costCenters || journalIds;
+    const jIds = targetJournals ? (Array.isArray(targetJournals) ? targetJournals : String(targetJournals).split(',')).map(s => (typeof s === 'string' ? s.trim() : s)).filter(Boolean) : undefined;
+    const cacheKey = CacheService.makeKey('customers-collection', { companyIds, years, dateFrom, dateTo, asOfDate, includeInvoices: isIncInv, departmentIds: dIds, journalIds: jIds, costCenters: jIds });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getCustomersCollection({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined,
+        includeInvoices: isIncInv,
+        departmentIds: dIds ? (Array.isArray(dIds) ? dIds : String(dIds).split(',')).map(Number) : undefined,
+        journalIds: jIds,
+        costCenters: jIds
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1489,22 +1590,25 @@ router.get('/customers-collection', (req, res) => {
   }
 });
 
-router.get('/customers-collection/statement', (req, res) => {
+router.get('/customers-collection/statement', async (req, res) => {
   try {
     const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
     if (!companyId || !partnerId) {
       return res.status(400).json({ error: 'companyId and partnerId are required' });
     }
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getCustomerStatement({
-      companyId: Number(companyId),
-      partnerId: Number(partnerId),
-      departmentId: departmentId ? Number(departmentId) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined
+    const cacheKey = CacheService.makeKey('customers-statement', { companyId: Number(companyId), partnerId: Number(partnerId), departmentId: departmentId ? Number(departmentId) : undefined, years, dateFrom, dateTo, asOfDate });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getCustomerStatement({
+        companyId: Number(companyId),
+        partnerId: Number(partnerId),
+        departmentId: departmentId ? Number(departmentId) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1514,22 +1618,27 @@ router.get('/customers-collection/statement', (req, res) => {
   }
 });
 
-router.get('/customers-collection/invoices', (req, res) => {
+router.get('/customers-collection/invoices', async (req, res) => {
   try {
-    const { companyId, partnerId, departmentId, dateFrom, dateTo, asOfDate } = req.query;
+    const { companyId, partnerId, departmentId, journalId, dateFrom, dateTo, asOfDate } = req.query;
     if (!companyId) {
       return res.status(400).json({ error: 'companyId is required' });
     }
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getExecutiveClientInvoices({
-      companyId: Number(companyId),
-      partnerId: partnerId ? Number(partnerId) : undefined,
-      departmentId: departmentId ? Number(departmentId) : undefined,
-      years,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      asOfDate: asOfDate || undefined
+    const jid = journalId ? Number(journalId) : undefined;
+    const cacheKey = CacheService.makeKey('customers-invoices', { companyId: Number(companyId), partnerId: partnerId ? Number(partnerId) : undefined, departmentId: departmentId ? Number(departmentId) : undefined, journalId: jid, years, dateFrom, dateTo, asOfDate });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getExecutiveClientInvoices({
+        companyId: Number(companyId),
+        partnerId: partnerId ? Number(partnerId) : undefined,
+        departmentId: departmentId ? Number(departmentId) : undefined,
+        journalId: jid,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1539,21 +1648,140 @@ router.get('/customers-collection/invoices', (req, res) => {
   }
 });
 
-// Stage D2: Departments & Profitability
-router.get('/departments-profitability', (req, res) => {
+// ==============================================
+// Stage C1: Actual Collections (التحصيل الفعلي)
+// ==============================================
+router.get('/actual-collections', async (req, res) => {
   try {
-    const { companyIds, dateFrom, dateTo, year, measure, timeGrain, redistributeAdmin } = req.query;
+    const {
+      companyIds, dateFrom, dateTo, asOfDate,
+      departmentIds, groupIds, journalIds, journalNames, journalName,
+      partnerIds, partnerName, timeGrain, costCenters, costCenterKey
+    } = req.query;
+
     const years = parseYearsParam(req);
-    const engine = new ConsolidationEngine();
-    const result = engine.getDepartmentsProfitability({
-      companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+    const targetDeptIds = departmentIds || groupIds;
+    const dIds = targetDeptIds ? (Array.isArray(targetDeptIds) ? targetDeptIds : String(targetDeptIds).split(',')) : undefined;
+    const jIds = journalIds ? (Array.isArray(journalIds) ? journalIds : String(journalIds).split(',')) : undefined;
+    const pIds = partnerIds ? (Array.isArray(partnerIds) ? partnerIds : String(partnerIds).split(',')) : undefined;
+    const cCenters = costCenters ? (Array.isArray(costCenters) ? costCenters : String(costCenters).split(',')) : undefined;
+    const jNames = journalNames
+      ? (Array.isArray(journalNames) ? journalNames : String(journalNames).split(',').map(s => s.trim()).filter(Boolean))
+      : undefined;
+
+    const cacheKey = CacheService.makeKey('actual-collections', {
+      companyIds, years, dateFrom, dateTo, asOfDate,
+      departmentIds: dIds, journalIds: jIds, costCenters: cCenters, costCenterKey,
+      journalNames: jNames ? [...jNames].sort().join(',') : undefined,
+      journalName,
+      partnerIds: pIds, partnerName, timeGrain
+    });
+
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getCollections({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined,
+        departmentIds: dIds,
+        journalIds: jIds,
+        costCenters: cCenters,
+        costCenterKey,
+        journalNames: jNames,
+        journalName,
+        partnerIds: pIds,
+        partnerName,
+        timeGrain: timeGrain || 'month'
+      });
+    });
+
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /actual-collections] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/actual-collections/payments', async (req, res) => {
+  try {
+    const { companyId, partnerId, journalId, costCenterKey, journalNames, invoiceName, dateFrom, dateTo, channel, page, limit } = req.query;
+    const years = parseYearsParam(req);
+    const jNames = journalNames
+      ? (Array.isArray(journalNames) ? journalNames : String(journalNames).split(',').map(s => s.trim()).filter(Boolean))
+      : undefined;
+
+    const cacheKey = CacheService.makeKey('actual-collections-payments', {
+      companyId, partnerId, journalId, costCenterKey,
+      journalNames: jNames ? [...jNames].sort().join(',') : undefined,
+      invoiceName, years, dateFrom, dateTo, channel, page, limit
+    });
+
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      const resolvedCcKey = costCenterKey || (journalId && typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:')) ? journalId : undefined);
+      const resolvedJid = journalId ? (typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:')) ? undefined : Number(journalId)) : undefined;
+      return engine.getCollectionPayments({
+        companyId: companyId ? Number(companyId) : undefined,
+        partnerId: partnerId ? Number(partnerId) : undefined,
+        journalId: resolvedJid,
+        costCenterKey: resolvedCcKey,
+        journalNames: jNames,
+        invoiceName: invoiceName || undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        channel: channel || undefined,
+        page: page ? Number(page) : 1,
+        limit: limit ? Number(limit) : 100
+      });
+    });
+
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /actual-collections/payments] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Stage D2: Departments & Profitability
+router.get('/departments-profitability', async (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, year, measure, timeGrain, redistributeAdmin, groupIds, departmentIds, journalIds, costCenters } = req.query;
+    const years = parseYearsParam(req);
+    const isRedist = redistributeAdmin === 'true' || redistributeAdmin === '1';
+    const dIds = departmentIds || groupIds;
+    const cacheKey = CacheService.makeKey('departments-profitability', {
+      companyIds,
       years,
       year: year || undefined,
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
       measure: measure || 'net',
       timeGrain: timeGrain || 'quarter',
-      redistributeAdmin: redistributeAdmin === 'true' || redistributeAdmin === '1'
+      redistributeAdmin: isRedist,
+      departmentIds: dIds,
+      journalIds,
+      costCenters
+    });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getDepartmentsProfitability({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        year: year || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        measure: measure || 'net',
+        timeGrain: timeGrain || 'quarter',
+        redistributeAdmin: isRedist,
+        departmentIds: dIds ? (Array.isArray(dIds) ? dIds : String(dIds).split(',')).map(Number) : undefined,
+        journalIds: journalIds ? (Array.isArray(journalIds) ? journalIds : String(journalIds).split(',')).map(s => (typeof s === 'string' ? s.trim() : s)).filter(Boolean) : undefined,
+        costCenters: costCenters ? (Array.isArray(costCenters) ? costCenters : String(costCenters).split(',')) : undefined
+      });
     });
     res.json(result);
   } catch (err) {
@@ -1707,16 +1935,18 @@ router.delete('/presentation/share/:id', (req, res) => {
 });
 
 // Get presentation data (multi-company × multi-year)
-router.get('/presentation/data', (req, res) => {
+router.get('/presentation/data', async (req, res) => {
   try {
     const { companyIds, years } = req.query;
     const customFrom = req.query.dateFrom || null;
     const customTo = req.query.dateTo || null;
-    console.log('[Presentation] Query:', { companyIds, years, customFrom, customTo });
-    const db = getDb();
-    const engine = new ConsolidationEngine();
-    const ids = companyIds ? companyIds.split(',').map(Number) : [];
-    const yearList = years ? years.split(',') : [];
+    const cacheKey = CacheService.makeKey('presentation-data', { companyIds, years, customFrom, customTo });
+    const data = await CacheService.getOrSet(cacheKey, () => {
+      console.log('[Presentation] Query:', { companyIds, years, customFrom, customTo });
+      const db = getDb();
+      const engine = new ConsolidationEngine();
+      const ids = companyIds ? companyIds.split(',').map(Number) : [];
+      const yearList = years ? years.split(',') : [];
     
     function getKpis(cid, dateFrom, dateTo) {
       return engine.getPresentationKPIs({ companyId: cid, dateFrom, dateTo });
@@ -1930,7 +2160,9 @@ router.get('/presentation/data', (req, res) => {
       yearlyData[yr] = { companies, totals: sumKpis(companies.map(c => c.kpis)), dateFrom, dateTo };
     }
     
-    res.json({ yearlyData, years: yearList, grandTotals: sumKpis(allKpis) });
+      return { yearlyData, years: yearList, grandTotals: sumKpis(allKpis) };
+    });
+    res.json(data);
   } catch (err) {
     console.error('Presentation data error:', err);
     res.status(500).json({ error: err.message });
@@ -1939,11 +2171,15 @@ router.get('/presentation/data', (req, res) => {
 
 // ===== GUARANTEE MANAGEMENT =====
 // List all guarantee journal items with release status (admin)
-router.get('/guarantees', (req, res) => {
+router.get('/guarantees', async (req, res) => {
   try {
     const companyIds = parseCompanyIds(req.query);
-    const engine = new ConsolidationEngine();
-    const results = engine.getActiveGuarantees({ companyIds, asOfDate: req.query.asOfDate });
+    const asOfDate = req.query.asOfDate;
+    const cacheKey = CacheService.makeKey('guarantees', { companyIds, asOfDate });
+    const results = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getActiveGuarantees({ companyIds, asOfDate });
+    });
     res.json(results);
   } catch (err) {
     console.error('Guarantees error:', err);
@@ -1958,6 +2194,7 @@ router.post('/guarantees/release', (req, res) => {
     const db = getDb();
     db.prepare(`INSERT OR REPLACE INTO guarantee_releases (company_id, account_code, move_name, released_date, notes) VALUES (?, ?, ?, ?, ?)`)
       .run(companyId, accountCode, moveName, releasedDate || new Date().toISOString().slice(0, 10), notes || '');
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1969,6 +2206,7 @@ router.delete('/guarantees/release', (req, res) => {
     const db = getDb();
     db.prepare('DELETE FROM guarantee_releases WHERE company_id = ? AND account_code = ? AND move_name = ?')
       .run(companyId, accountCode, moveName);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -1990,6 +2228,7 @@ router.post('/guarantee-sub-items', (req, res) => {
     const db = getDb();
     const r = db.prepare(`INSERT INTO guarantee_sub_items (parent_company_id, parent_account_code, parent_move_name, description, amount, notes) VALUES (?, ?, ?, ?, ?, ?)`)
       .run(parentCompanyId, parentAccountCode, parentMoveName, description, amount || 0, notes || '');
+    CacheService.flush();
     res.json({ success: true, id: r.lastInsertRowid });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2002,6 +2241,7 @@ router.put('/guarantee-sub-items/:id', (req, res) => {
     const db = getDb();
     db.prepare(`UPDATE guarantee_sub_items SET is_released = ?, released_date = ? WHERE id = ?`)
       .run(isReleased ? 1 : 0, isReleased ? (releasedDate || new Date().toISOString().slice(0, 10)) : null, id);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2011,6 +2251,7 @@ router.delete('/guarantee-sub-items/:id', (req, res) => {
   try {
     const db = getDb();
     db.prepare('DELETE FROM guarantee_sub_items WHERE id = ?').run(req.params.id);
+    CacheService.flush();
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2174,31 +2415,42 @@ router.get('/account-statement', (req, res) => {
 // ===== VAT REPORT & DETAILS (D5) =====
 // ==============================================
 
-router.get('/vat', (req, res) => {
+router.get('/vat', async (req, res) => {
   try {
     const { company_id, company_ids, companyId, years, year, date_from, date_to, dateFrom, dateTo, grain, detail } = req.query;
-    const engine = new ConsolidationEngine();
+    const cids = company_ids || company_id || companyId;
+    const y = years || year;
+    const df = date_from || dateFrom;
+    const dt = date_to || dateTo;
+    const g = grain || 'vat_period';
 
     // Check if requesting single-period detail
     if (detail === 'true' || detail === '1') {
       const coId = parseInt(company_id || company_ids || companyId);
       const periodKey = req.query.period;
-      const result = engine.getVatDetails({
-        companyId: coId,
-        period: periodKey,
-        dateFrom: date_from || dateFrom,
-        dateTo: date_to || dateTo
+      const cacheKey = CacheService.makeKey('vat-details', { companyId: coId, period: periodKey, dateFrom: df, dateTo: dt });
+      const result = await CacheService.getOrSet(cacheKey, () => {
+        const engine = new ConsolidationEngine();
+        return engine.getVatDetails({
+          companyId: coId,
+          period: periodKey,
+          dateFrom: df,
+          dateTo: dt
+        });
       });
       return res.json(result);
     }
 
-    const cids = company_ids || company_id || companyId;
-    const result = engine.getVatReport({
-      companyIds: cids,
-      years: years || year,
-      dateFrom: date_from || dateFrom,
-      dateTo: date_to || dateTo,
-      grain: grain || 'vat_period'
+    const cacheKey = CacheService.makeKey('vat', { companyIds: cids, years: y, dateFrom: df, dateTo: dt, grain: g });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getVatReport({
+        companyIds: cids,
+        years: y,
+        dateFrom: df,
+        dateTo: dt,
+        grain: g
+      });
     });
     res.json(result);
   } catch (err) {
@@ -2207,18 +2459,23 @@ router.get('/vat', (req, res) => {
   }
 });
 
-router.get('/vat-details', (req, res) => {
+router.get('/vat-details', async (req, res) => {
   try {
     const { company_id, companyId, period, date_from, date_to, dateFrom, dateTo } = req.query;
-    const engine = new ConsolidationEngine();
     const coId = parseInt(company_id || companyId);
     if (!coId) return res.status(400).json({ error: 'company_id is required' });
+    const df = date_from || dateFrom;
+    const dt = date_to || dateTo;
 
-    const result = engine.getVatDetails({
-      companyId: coId,
-      period,
-      dateFrom: date_from || dateFrom,
-      dateTo: date_to || dateTo
+    const cacheKey = CacheService.makeKey('vat-details', { companyId: coId, period, dateFrom: df, dateTo: dt });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getVatDetails({
+        companyId: coId,
+        period,
+        dateFrom: df,
+        dateTo: dt
+      });
     });
     res.json(result);
   } catch (err) {
@@ -2236,10 +2493,16 @@ router.put('/companies/:id/vat-period', (req, res) => {
     }
     const db = getDb();
     db.prepare('UPDATE companies SET vat_period = ? WHERE id = ?').run(vat_period, id);
+    CacheService.flush();
     res.json({ success: true, vat_period });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// Cache Stats & Health endpoint (R2-8)
+router.get('/cache/stats', (req, res) => {
+  res.json(CacheService.getStats());
 });
 
 module.exports = router;
