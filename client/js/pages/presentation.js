@@ -984,7 +984,7 @@ function populateJournalSlicer(container) {
   const seenJrn = new Set();
   const uniqueJournals = [];
   for (const j of journals) {
-    const itemKey = `${j.company_id}:::${j.cost_center_key || j.id || j.journal_id}`;
+    const itemKey = String(j.id || `${j.company_id}|${j.cost_center_key || j.journal_id}`);
     if (!seenJrn.has(itemKey)) {
       seenJrn.add(itemKey);
       uniqueJournals.push(j);
@@ -993,14 +993,14 @@ function populateJournalSlicer(container) {
 
   // Clean up globalFilters.journalIds if any previously selected item is no longer valid
   if (globalFilters.journalIds && globalFilters.journalIds.length > 0) {
-    const validIds = new Set(uniqueJournals.map(j => String(j.cost_center_key || j.id || j.journal_id)));
+    const validIds = new Set(uniqueJournals.map(j => String(j.id)));
     globalFilters.journalIds = globalFilters.journalIds.filter(id => validIds.has(String(id)));
   }
 
   const items = uniqueJournals.map(j => {
     const cleanName = (j.cost_center_name || j.journal_name || '').replace(/\s+/g, ' ').trim();
     return {
-      id: j.cost_center_key || j.id || j.journal_id,
+      id: j.id,
       name: cleanName,
       companyId: j.company_id,
       companyName: j.company_name,
@@ -1086,26 +1086,30 @@ function updateActiveFilterUI(container) {
 
         const jrnMap = new Map();
         journals.forEach(j => {
-          const key = String(j.cost_center_key || j.id || j.journal_id);
+          const key = String(j.id);
           const name = (j.cost_center_name || j.journal_name || '').replace(/\s+/g, ' ').trim();
-          const hasMultipleCos = (nameToCos.get(name)?.size || 0) > 1;
-          let displayName = name;
-          if (hasMultipleCos && j.company_name) {
-            const shortCo = getCompanyShortName(j.company_name);
-            displayName = `${name} (${shortCo})`;
-          }
+          const shortCo = j.company_name ? getCompanyShortName(j.company_name) : '';
+          const displayName = shortCo ? `${name} (${shortCo})` : name;
           jrnMap.set(key, displayName);
           if (j.cost_center_key) {
-            jrnMap.set(String(j.cost_center_key), displayName);
-            jrnMap.set(String(j.cost_center_key).replace(/\s+/g, ' '), displayName);
+            jrnMap.set(`${j.company_id}|${j.cost_center_key}`, displayName);
           }
-          if (j.journal_id) jrnMap.set(String(j.journal_id), displayName);
         });
 
         const jrnNames = globalFilters.journalIds.map(jid => {
           const s = String(jid);
           if (jrnMap.has(s)) return jrnMap.get(s);
           if (jrnMap.has(s.replace(/\s+/g, ' '))) return jrnMap.get(s.replace(/\s+/g, ' '));
+          if (s.includes('|')) {
+            const pipeIdx = s.indexOf('|');
+            const coId = parseInt(s.slice(0, pipeIdx), 10);
+            const ccKey = s.slice(pipeIdx + 1);
+            const coObj = (store.get('companies') || []).find(c => Number(c.id) === coId);
+            const shortCo = coObj ? getCompanyShortName(coObj.name) : '';
+            const bareName = ccKey.startsWith('an:') ? ccKey.slice(3) : (ccKey.startsWith('j:') ? ccKey.slice(2) : ccKey);
+            const cleanBare = bareName.replace(/\s+/g, ' ').trim();
+            return shortCo ? `${cleanBare} (${shortCo})` : cleanBare;
+          }
           if (s.startsWith('an:')) return s.slice(3).replace(/\s+/g, ' ').trim();
           if (s.startsWith('jn:')) return jrnMap.get(s.slice(3)) || s.slice(3).replace(/\s+/g, ' ').trim();
           return s;

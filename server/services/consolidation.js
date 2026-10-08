@@ -1150,7 +1150,7 @@ class ConsolidationEngine {
       SELECT 
         c.id as company_id,
         c.name as company_name,
-        id.department_id as group_id,
+        m.dominant_dept_id as group_id,
         COALESCE(ag.name, 'غير مصنّف') as group_name,
         id.cost_center_key,
         id.cost_center_name,
@@ -1161,16 +1161,22 @@ class ConsolidationEngine {
       JOIN sales_companies sc ON sc.id = si.company_id
       JOIN companies c ON c.odoo_company_id = sc.sales_company_id
       JOIN invoice_departments id ON id.sales_invoice_id = si.id
-      LEFT JOIN analytic_groups ag ON ag.id = id.department_id
+      JOIN (
+        SELECT id_sub.company_id, id_sub.cost_center_key, MAX(id_sub.department_id) as dominant_dept_id
+        FROM invoice_departments id_sub
+        GROUP BY id_sub.company_id, id_sub.cost_center_key
+      ) m ON m.company_id = id.company_id AND m.cost_center_key = id.cost_center_key
+      LEFT JOIN analytic_groups ag ON ag.id = m.dominant_dept_id
       ${journalFilter}
-      GROUP BY c.id, id.department_id, id.cost_center_key, id.cost_center_name
-      ORDER BY c.id, id.department_id, id.cost_center_name
+      GROUP BY c.id, id.cost_center_key, id.cost_center_name
+      ORDER BY c.id, m.dominant_dept_id, id.cost_center_name
     `).all(jParams);
 
     const journals = rawCostCenters.map(r => {
       const cleanName = (r.cost_center_name || '').replace(/\s+/g, ' ').trim();
+      const ccKey = r.cost_center_key || ('j:' + (r.journal_id || 0));
       return {
-        id: r.cost_center_key || ('j:' + (r.journal_id || 0)),
+        id: `${r.company_id}|${ccKey}`,
         cost_center_key: r.cost_center_key,
         cost_center_name: cleanName,
         journal_id: r.journal_id,
@@ -2283,7 +2289,7 @@ class ConsolidationEngine {
    * Priority: Analytic Account on revenue lines -> fallback to Journal ID / Journal Name
    */
   resolveCostCenter({ companyId, analyticAccount, journalId, journalName }) {
-    let cleanAnalytic = (analyticAccount || '').trim();
+    let cleanAnalytic = (analyticAccount || '').replace(/\s+/g, ' ').trim();
     if (!cleanAnalytic && journalId && companyId) {
       try {
         const mapped = this.db.prepare(`
@@ -2293,7 +2299,7 @@ class ConsolidationEngine {
           LIMIT 1
         `).get(companyId, journalId);
         if (mapped && mapped.analytic_account) {
-          cleanAnalytic = mapped.analytic_account.trim();
+          cleanAnalytic = mapped.analytic_account.replace(/\s+/g, ' ').trim();
         }
       } catch (e) {}
     }
@@ -2439,6 +2445,18 @@ class ConsolidationEngine {
               if (deptShares.length > 0 && Math.abs(sSum - 1.0) > 0.00001) {
                 deptShares[0].share = Math.round((deptShares[0].share + (1.0 - sSum)) * 10000) / 10000;
               }
+            } else if (Object.keys(groupAmounts).length > 0) {
+              const entries = Object.keys(groupAmounts);
+              const equalShare = Math.round((1.0 / entries.length) * 10000) / 10000;
+              deptShares = entries.map((compKey, idx) => {
+                const [gidStr, ccKey, ccName] = compKey.split(':::');
+                return {
+                  deptId: parseInt(gidStr, 10) || 0,
+                  costCenterKey: ccKey,
+                  costCenterName: ccName,
+                  share: idx === 0 ? Math.round((1.0 - equalShare * (entries.length - 1)) * 10000) / 10000 : equalShare
+                };
+              });
             }
           }
 
@@ -2459,6 +2477,12 @@ class ConsolidationEngine {
               journalId: inv.journal_id,
               journalName: inv.journal_name
             });
+            if (matchedGid === undefined && cc.key && cc.key.startsWith('an:')) {
+              const cleanAnalytic = (cc.name || '').trim();
+              if (cleanAnalytic && analyticMap[cleanAnalytic] !== undefined) {
+                matchedGid = analyticMap[cleanAnalytic];
+              }
+            }
             deptShares = [{
               deptId: matchedGid !== undefined ? matchedGid : 0,
               costCenterKey: cc.key,
@@ -2475,6 +2499,26 @@ class ConsolidationEngine {
       });
 
       insertAll();
+
+      // Rule 3: Post-allocation reconciliation - ensure cost centers inherit their dominant department
+      // if any invoice ended up with department_id = 0 while the cost center has mapped department > 0
+      this.db.prepare(`
+        UPDATE invoice_departments
+        SET department_id = (
+          SELECT MAX(id2.department_id)
+          FROM invoice_departments id2
+          WHERE id2.company_id = invoice_departments.company_id
+            AND id2.cost_center_key = invoice_departments.cost_center_key
+            AND id2.department_id > 0
+        )
+        WHERE company_id = ?
+          AND department_id = 0
+          AND cost_center_key IN (
+            SELECT cost_center_key
+            FROM invoice_departments
+            WHERE company_id = ? AND department_id > 0
+          )
+      `).run(scId, scId);
     }
 
     return totalAllocations;
@@ -2668,9 +2712,34 @@ class ConsolidationEngine {
    *  'pa' (payment_allocations: pa.invoice_journal_id, pa.cost_center_key, pa.cost_center_name, pa.invoice_journal_name)
    *  'id' (invoice_departments: id.cost_center_key, id.cost_center_name)
    */
+  _getSalesCid(ledgerCid) {
+    if (!this._ledgerToSalesMap) {
+      this._ledgerToSalesMap = {};
+      const rows = this.db.prepare(`
+        SELECT c.id as ledger_cid, sc.id as sales_cid
+        FROM companies c
+        JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+      `).all();
+      for (const r of rows) {
+        this._ledgerToSalesMap[r.ledger_cid] = r.sales_cid;
+      }
+    }
+    return this._ledgerToSalesMap[ledgerCid] || ledgerCid;
+  }
+
+  /**
+   * M1 / F2: Unified cost center & journal condition across all reports
+   * Enforces pair identity: (company_id, cost_center_key)
+   * Supports tableAlias:
+   *  'fd' (fact_daily: fd.company_id, fd.cost_center_key)
+   *  'si' (sales_invoices / invoice_departments: si.company_id, id.cost_center_key)
+   *  'pa' (payment_allocations: pa.company_id, pa.cost_center_key)
+   *  'id' (invoice_departments: id.company_id, id.cost_center_key)
+   */
   _buildCostCenterCondition({ journalIds, costCenters, tableAlias = 'fd', prefix = 'jCC_', companyIds } = {}) {
     let sql = '';
     const params = {};
+    const pairs = [];
     const namesSet = new Set();
     const ccKeySet = new Set();
 
@@ -2679,64 +2748,37 @@ class ConsolidationEngine {
       const s = String(val).trim();
       if (!s || s === 'NaN' || s === 'null' || s === 'undefined') return;
 
-      if (s.startsWith('an:')) {
-        ccKeySet.add(s);
-        const namePart = s.slice(3).trim();
-        if (namePart) {
-          namesSet.add(namePart);
-          namesSet.add(namePart.replace(/\s+/g, ' '));
-        }
-      } else if (s.startsWith('j:') || s.startsWith('jn:')) {
-        ccKeySet.add(s);
-        const rest = s.startsWith('j:') ? s.slice(2).trim() : s.slice(3).trim();
-        if (rest) namesSet.add(rest);
-      } else if (!isNaN(Number(s)) && Number(s) > 0 && !s.includes(' ')) {
-        const numPart = Number(s);
-        try {
-          let coFilter = '';
-          const coParams = [numPart];
-          if (companyIds && companyIds.length > 0) {
-            const cList = (Array.isArray(companyIds) ? companyIds : [companyIds]).map(Number).filter(n => Number.isInteger(n) && n > 0);
-            if (cList.length > 0) {
-              coFilter = ` AND si.company_id IN (${cList.map(() => '?').join(',')})`;
-              coParams.push(...cList);
-            }
-          }
-          const row = this.db.prepare(`
-            SELECT id.cost_center_key, id.cost_center_name, COUNT(*) as cnt
-            FROM invoice_departments id
-            JOIN sales_invoices si ON si.id = id.sales_invoice_id
-            WHERE si.journal_id = ? AND id.cost_center_key IS NOT NULL ${coFilter}
-            GROUP BY id.cost_center_key
-            ORDER BY cnt DESC
-            LIMIT 1
-          `).get(...coParams);
-
-          if (row && row.cost_center_key) {
-            ccKeySet.add(row.cost_center_key);
-            if (row.cost_center_name) namesSet.add(row.cost_center_name.trim());
-          } else {
-            const mapped = this.db.prepare(`
-              SELECT analytic_account 
-              FROM analytic_group_mapping 
-              WHERE journal_id = ? AND analytic_account IS NOT NULL AND analytic_account != ''
-              LIMIT 1
-            `).get(numPart);
-            if (mapped && mapped.analytic_account) {
-              ccKeySet.add('an:' + mapped.analytic_account.trim());
-              namesSet.add(mapped.analytic_account.trim());
-            } else {
-              ccKeySet.add('j:' + numPart);
-            }
-          }
-        } catch (e) {
-          ccKeySet.add('j:' + numPart);
+      if (s.includes('|')) {
+        const pipeIdx = s.indexOf('|');
+        const coId = parseInt(s.slice(0, pipeIdx), 10);
+        const ccKey = s.slice(pipeIdx + 1).trim();
+        if (coId > 0 && ccKey) {
+          pairs.push({ companyId: coId, costCenterKey: ccKey });
+          ccKeySet.add(ccKey);
+          if (ccKey.startsWith('an:')) namesSet.add(ccKey.slice(3).trim());
+          else if (ccKey.startsWith('j:')) namesSet.add(ccKey.slice(2).trim());
         }
       } else {
-        namesSet.add(s);
-        namesSet.add(s.replace(/\s+/g, ' '));
-        ccKeySet.add('an:' + s);
-        ccKeySet.add('an:' + s.replace(/\s+/g, ' '));
+        let bareKey = s;
+        if (s.startsWith('an:') || s.startsWith('j:')) {
+          bareKey = s;
+        } else if (!isNaN(Number(s)) && Number(s) > 0 && !s.includes(' ')) {
+          bareKey = 'j:' + Number(s);
+        } else {
+          bareKey = 'an:' + s;
+        }
+        ccKeySet.add(bareKey);
+        if (bareKey.startsWith('an:')) namesSet.add(bareKey.slice(3).trim());
+        else if (bareKey.startsWith('j:')) namesSet.add(bareKey.slice(2).trim());
+
+        if (companyIds && companyIds.length > 0) {
+          const cList = (Array.isArray(companyIds) ? companyIds : [companyIds]).map(Number).filter(n => Number.isInteger(n) && n > 0);
+          for (const cid of cList) {
+            pairs.push({ companyId: cid, costCenterKey: bareKey });
+          }
+        } else {
+          pairs.push({ companyId: null, costCenterKey: bareKey });
+        }
       }
     };
 
@@ -2750,58 +2792,54 @@ class ConsolidationEngine {
       jArr.forEach(addCostCenter);
     }
 
-    const ccKeys = Array.from(ccKeySet);
-    const names = Array.from(namesSet);
-    const conditions = [];
+    const subConds = [];
 
-    if (ccKeys.length > 0 || names.length > 0) {
-      if (tableAlias === 'fd') {
-        const subConds = [];
-        if (ccKeys.length > 0) {
-          const phKeys = ccKeys.map((_, i) => `@${prefix}k_${i}`).join(',');
-          subConds.push(`${tableAlias}.cost_center_key IN (${phKeys})`);
-          ccKeys.forEach((k, i) => { params[`${prefix}k_${i}`] = k; });
+    if (pairs.length > 0) {
+      pairs.forEach((pair, i) => {
+        const kParam = `${prefix}k_${i}`;
+        params[kParam] = pair.costCenterKey;
+
+        if (tableAlias === 'fd') {
+          if (pair.companyId) {
+            const cParam = `${prefix}c_${i}`;
+            params[cParam] = pair.companyId;
+            subConds.push(`(${tableAlias}.company_id = @${cParam} AND ${tableAlias}.cost_center_key = @${kParam})`);
+          } else {
+            subConds.push(`(${tableAlias}.cost_center_key = @${kParam})`);
+          }
+        } else if (tableAlias === 'pa') {
+          if (pair.companyId) {
+            const cParam = `${prefix}c_${i}`;
+            params[cParam] = pair.companyId;
+            subConds.push(`(${tableAlias}.company_id = @${cParam} AND ${tableAlias}.cost_center_key = @${kParam})`);
+          } else {
+            subConds.push(`(${tableAlias}.cost_center_key = @${kParam})`);
+          }
+        } else if (tableAlias === 'si' || tableAlias === 'id') {
+          if (pair.companyId) {
+            const salesCid = this._getSalesCid(pair.companyId);
+            const scParam = `${prefix}sc_${i}`;
+            params[scParam] = salesCid;
+            const coCol = tableAlias === 'si' ? 'si.company_id' : 'id.company_id';
+            subConds.push(`(${coCol} = @${scParam} AND id.cost_center_key = @${kParam})`);
+          } else {
+            subConds.push(`(id.cost_center_key = @${kParam})`);
+          }
         }
-        if (names.length > 0) {
-          const phNames = names.map((_, i) => `@${prefix}n_${i}`).join(',');
-          subConds.push(`TRIM(${tableAlias}.analytic_account) IN (${phNames})`);
-          names.forEach((n, i) => { params[`${prefix}n_${i}`] = n; });
-        }
-        if (subConds.length > 0) conditions.push(`(${subConds.join(' OR ')})`);
-      } else if (tableAlias === 'si' || tableAlias === 'id') {
-        const subConds = [];
-        if (ccKeys.length > 0) {
-          const phKeys = ccKeys.map((_, i) => `@${prefix}k_${i}`).join(',');
-          subConds.push(`id.cost_center_key IN (${phKeys})`);
-          ccKeys.forEach((k, i) => { params[`${prefix}k_${i}`] = k; });
-        }
-        if (names.length > 0) {
-          const phNames = names.map((_, i) => `@${prefix}n_${i}`).join(',');
-          subConds.push(`TRIM(id.cost_center_name) IN (${phNames})`);
-          names.forEach((n, i) => { params[`${prefix}n_${i}`] = n; });
-        }
-        if (subConds.length > 0) conditions.push(`(${subConds.join(' OR ')})`);
-      } else if (tableAlias === 'pa') {
-        const subConds = [];
-        if (ccKeys.length > 0) {
-          const phKeys = ccKeys.map((_, i) => `@${prefix}k_${i}`).join(',');
-          subConds.push(`pa.cost_center_key IN (${phKeys})`);
-          ccKeys.forEach((k, i) => { params[`${prefix}k_${i}`] = k; });
-        }
-        if (names.length > 0) {
-          const phNames = names.map((_, i) => `@${prefix}n_${i}`).join(',');
-          subConds.push(`TRIM(pa.cost_center_name) IN (${phNames})`);
-          names.forEach((n, i) => { params[`${prefix}n_${i}`] = n; });
-        }
-        if (subConds.length > 0) conditions.push(`(${subConds.join(' OR ')})`);
-      }
+      });
     }
 
-    if (conditions.length > 0) {
-      sql = ` AND (${conditions.join(' OR ')})`;
+    if (subConds.length > 0) {
+      sql = ` AND (${subConds.join(' OR ')})`;
     }
 
-    return { sql, params, names, costCenterKeys: ccKeys };
+    return { 
+      sql, 
+      params, 
+      names: Array.from(namesSet), 
+      costCenterKeys: Array.from(ccKeySet), 
+      pairs 
+    };
   }
 
   /**
@@ -3822,8 +3860,10 @@ class ConsolidationEngine {
         };
       });
 
-      const totRev = accounts.reduce((s, a) => s + (a.revenue || 0), 0);
-      const totExp = accounts.reduce((s, a) => s + (a.expenses || 0), 0);
+      const rawTotRev = rawAccounts.reduce((s, a) => s + (a.revenue || 0), 0);
+      const rawTotExp = rawAccounts.reduce((s, a) => s + (a.expense || 0), 0);
+      const totRev = Math.round(rawTotRev);
+      const totExp = Math.round(rawTotExp);
       const totNet = totRev - totExp;
       const totMargin = totRev > 0 ? Math.round((totNet / totRev) * 1000) / 10 : 0;
       accountsSummary = {
@@ -3832,6 +3872,30 @@ class ConsolidationEngine {
         net_profit: totNet,
         margin: totMargin
       };
+
+      if (accounts.length > 0) {
+        const accRevSum = accounts.reduce((s, a) => s + a.revenue, 0);
+        const rDiff = totRev - accRevSum;
+        if (rDiff !== 0) {
+          let maxRevIdx = 0;
+          for (let i = 1; i < accounts.length; i++) {
+            if (Math.abs(accounts[i].revenue) > Math.abs(accounts[maxRevIdx].revenue)) maxRevIdx = i;
+          }
+          accounts[maxRevIdx].revenue += rDiff;
+          accounts[maxRevIdx].net_profit = accounts[maxRevIdx].revenue - accounts[maxRevIdx].expenses;
+        }
+
+        const accExpSum = accounts.reduce((s, a) => s + a.expenses, 0);
+        const eDiff = totExp - accExpSum;
+        if (eDiff !== 0) {
+          let maxExpIdx = 0;
+          for (let i = 1; i < accounts.length; i++) {
+            if (Math.abs(accounts[i].expenses) > Math.abs(accounts[maxExpIdx].expenses)) maxExpIdx = i;
+          }
+          accounts[maxExpIdx].expenses += eDiff;
+          accounts[maxExpIdx].net_profit = accounts[maxExpIdx].revenue - accounts[maxExpIdx].expenses;
+        }
+      }
     }
 
     return { clients, journals, accounts, clientsSummary, accountsSummary };
@@ -3868,8 +3932,11 @@ class ConsolidationEngine {
       invParams.did = did;
     }
     if (costCenterKey) {
+      const bareCcKey = (typeof costCenterKey === 'string' && costCenterKey.includes('|'))
+        ? costCenterKey.slice(costCenterKey.indexOf('|') + 1).trim()
+        : costCenterKey;
       invWhere += ' AND id.cost_center_key = @costCenterKey';
-      invParams.costCenterKey = costCenterKey;
+      invParams.costCenterKey = bareCcKey;
     } else if (jid !== null && !isNaN(jid)) {
       invWhere += ' AND si.journal_id = @jid';
       invParams.jid = jid;
@@ -6124,6 +6191,27 @@ class ConsolidationEngine {
       if (targetLedgerIds.length === 0) targetLedgerIds = [-1];
     }
 
+    // If cost center key or pairs contain explicit company IDs, restrict targetLedgerIds to those companies
+    const explicitCoIds = [];
+    if (costCenterKey && typeof costCenterKey === 'string' && costCenterKey.includes('|')) {
+      const pCid = parseInt(costCenterKey.slice(0, costCenterKey.indexOf('|')), 10);
+      if (pCid > 0) explicitCoIds.push(pCid);
+    }
+    if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
+      const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'dummy', prefix: 'chk_' });
+      if (ccFilter.pairs && ccFilter.pairs.length > 0) {
+        for (const p of ccFilter.pairs) {
+          if (p.companyId && !explicitCoIds.includes(p.companyId)) {
+            explicitCoIds.push(p.companyId);
+          }
+        }
+      }
+    }
+    if (explicitCoIds.length > 0) {
+      targetLedgerIds = targetLedgerIds.filter(id => explicitCoIds.includes(id));
+      if (targetLedgerIds.length === 0) targetLedgerIds = explicitCoIds;
+    }
+
     // Build dynamic WHERE clause for payment_allocations
     const params = {};
     const paCoPh = targetLedgerIds.map((_, i) => `@pa_cid_${i}`).join(',');
@@ -6145,8 +6233,22 @@ class ConsolidationEngine {
     }
 
     if (costCenterKey) {
-      whereClauses.push('pa.cost_center_key = @paramCcKey');
-      params.paramCcKey = costCenterKey;
+      if (typeof costCenterKey === 'string' && costCenterKey.includes('|')) {
+        const pipeIdx = costCenterKey.indexOf('|');
+        const coId = parseInt(costCenterKey.slice(0, pipeIdx), 10);
+        const k = costCenterKey.slice(pipeIdx + 1).trim();
+        if (coId > 0) {
+          whereClauses.push('(pa.company_id = @paramCoId AND pa.cost_center_key = @paramCcKey)');
+          params.paramCoId = coId;
+          params.paramCcKey = k;
+        } else {
+          whereClauses.push('pa.cost_center_key = @paramCcKey');
+          params.paramCcKey = costCenterKey;
+        }
+      } else {
+        whereClauses.push('pa.cost_center_key = @paramCcKey');
+        params.paramCcKey = costCenterKey;
+      }
     } else if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
       const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'pacc_' });
       if (ccFilter.sql) {
@@ -6540,15 +6642,28 @@ class ConsolidationEngine {
     } else if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
       const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'si', prefix: 'sec5si_' });
       const subConds = [];
-      if (ccFilter.costCenterKeys && ccFilter.costCenterKeys.length > 0) {
-        const ph = ccFilter.costCenterKeys.map(() => '?').join(',');
-        subConds.push(`id.cost_center_key IN (${ph})`);
-        invParams.push(...ccFilter.costCenterKeys);
-      }
-      if (ccFilter.names && ccFilter.names.length > 0) {
-        const placeholders = ccFilter.names.map(() => '?').join(',');
-        subConds.push(`TRIM(si.journal_name) IN (${placeholders})`);
-        invParams.push(...ccFilter.names);
+      if (ccFilter.pairs && ccFilter.pairs.length > 0) {
+        ccFilter.pairs.forEach((pair) => {
+          if (pair.companyId) {
+            const sc = this._getSalesCid(pair.companyId);
+            subConds.push(`(si.company_id = ? AND id.cost_center_key = ?)`);
+            invParams.push(sc, pair.costCenterKey);
+          } else {
+            subConds.push(`id.cost_center_key = ?`);
+            invParams.push(pair.costCenterKey);
+          }
+        });
+      } else {
+        if (ccFilter.costCenterKeys && ccFilter.costCenterKeys.length > 0) {
+          const ph = ccFilter.costCenterKeys.map(() => '?').join(',');
+          subConds.push(`id.cost_center_key IN (${ph})`);
+          invParams.push(...ccFilter.costCenterKeys);
+        }
+        if (ccFilter.names && ccFilter.names.length > 0) {
+          const placeholders = ccFilter.names.map(() => '?').join(',');
+          subConds.push(`TRIM(si.journal_name) IN (${placeholders})`);
+          invParams.push(...ccFilter.names);
+        }
       }
       if (subConds.length > 0) {
         invConditions.push(`(${subConds.join(' OR ')})`);
@@ -6635,13 +6750,31 @@ class ConsolidationEngine {
         paOtherParams.push(...jNamesList);
       } else if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
         const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'sec5pa_' });
-        if (ccFilter.names && ccFilter.names.length > 0) {
-          paOtherWhere += ` AND TRIM(pa.invoice_journal_name) NOT IN (${ccFilter.names.map(() => '?').join(',')})`;
-          paOtherParams.push(...ccFilter.names);
+        const excludeConds = [];
+        if (ccFilter.pairs && ccFilter.pairs.length > 0) {
+          ccFilter.pairs.forEach((pair) => {
+            if (pair.companyId) {
+              excludeConds.push(`(pa.company_id = ? AND pa.cost_center_key = ?)`);
+              paOtherParams.push(pair.companyId, pair.costCenterKey);
+            } else {
+              excludeConds.push(`pa.cost_center_key = ?`);
+              paOtherParams.push(pair.costCenterKey);
+            }
+          });
+        } else {
+          if (ccFilter.names && ccFilter.names.length > 0) {
+            const ph = ccFilter.names.map(() => '?').join(',');
+            excludeConds.push(`TRIM(pa.invoice_journal_name) IN (${ph})`);
+            paOtherParams.push(...ccFilter.names);
+          }
+          if (ccFilter.costCenterKeys && ccFilter.costCenterKeys.length > 0) {
+            const ph = ccFilter.costCenterKeys.map(() => '?').join(',');
+            excludeConds.push(`pa.cost_center_key IN (${ph})`);
+            paOtherParams.push(...ccFilter.costCenterKeys);
+          }
         }
-        if (ccFilter.costCenterKeys && ccFilter.costCenterKeys.length > 0) {
-          paOtherWhere += ` AND (pa.cost_center_key IS NULL OR pa.cost_center_key NOT IN (${ccFilter.costCenterKeys.map(() => '?').join(',')}))`;
-          paOtherParams.push(...ccFilter.costCenterKeys);
+        if (excludeConds.length > 0) {
+          paOtherWhere += ` AND NOT (${excludeConds.join(' OR ')})`;
         }
       }
       const paIdClause = scopePartnerIds.length > 0 ? ` OR pa.partner_id IN (${idPlaceholders})` : '';
@@ -6845,6 +6978,8 @@ class ConsolidationEngine {
       companyId,
       partnerId,
       journalId,
+      journalIds,
+      costCenters,
       costCenterKey,
       journalNames,
       invoiceName,
@@ -6867,9 +7002,27 @@ class ConsolidationEngine {
       whereClauses.push('pa.partner_id = @partnerId');
       params.partnerId = Number(partnerId);
     }
-    if (costCenterKey) {
-      whereClauses.push('pa.cost_center_key = @costCenterKey');
-      params.costCenterKey = costCenterKey;
+    if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
+      const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'paycc_' });
+      if (ccFilter.sql) {
+        whereClauses.push(ccFilter.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(params, ccFilter.params);
+      }
+    } else if (costCenterKey) {
+      if (typeof costCenterKey === 'string' && costCenterKey.includes('|')) {
+        const pipeIdx = costCenterKey.indexOf('|');
+        const coId = parseInt(costCenterKey.slice(0, pipeIdx), 10);
+        const k = costCenterKey.slice(pipeIdx + 1).trim();
+        if (coId > 0 && !companyId) {
+          whereClauses.push('pa.company_id = @ccCompanyId');
+          params.ccCompanyId = coId;
+        }
+        whereClauses.push('pa.cost_center_key = @costCenterKey');
+        params.costCenterKey = k;
+      } else {
+        whereClauses.push('pa.cost_center_key = @costCenterKey');
+        params.costCenterKey = costCenterKey;
+      }
     } else if (journalId) {
       whereClauses.push('pa.invoice_journal_id = @journalId');
       params.journalId = Number(journalId);

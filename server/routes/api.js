@@ -1707,26 +1707,31 @@ router.get('/actual-collections', async (req, res) => {
 
 router.get('/actual-collections/payments', async (req, res) => {
   try {
-    const { companyId, partnerId, journalId, costCenterKey, journalNames, invoiceName, dateFrom, dateTo, channel, page, limit } = req.query;
+    const { companyId, partnerId, journalId, journalIds, costCenters, costCenterKey, journalNames, invoiceName, dateFrom, dateTo, channel, page, limit } = req.query;
     const years = parseYearsParam(req);
     const jNames = journalNames
       ? (Array.isArray(journalNames) ? journalNames : String(journalNames).split(',').map(s => s.trim()).filter(Boolean))
       : undefined;
 
+    const jIds = journalIds ? (Array.isArray(journalIds) ? journalIds : String(journalIds).split(',')) : undefined;
+    const cCenters = costCenters ? (Array.isArray(costCenters) ? costCenters : String(costCenters).split(',')) : undefined;
+
     const cacheKey = CacheService.makeKey('actual-collections-payments', {
-      companyId, partnerId, journalId, costCenterKey,
+      companyId, partnerId, journalId, journalIds, costCenters, costCenterKey,
       journalNames: jNames ? [...jNames].sort().join(',') : undefined,
       invoiceName, years, dateFrom, dateTo, channel, page, limit
     });
 
     const result = await CacheService.getOrSet(cacheKey, () => {
       const engine = new ConsolidationEngine();
-      const resolvedCcKey = costCenterKey || (journalId && typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:')) ? journalId : undefined);
-      const resolvedJid = journalId ? (typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:')) ? undefined : Number(journalId)) : undefined;
+      const resolvedCcKey = costCenterKey || (journalId && typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:') || journalId.includes('|')) ? journalId : undefined);
+      const resolvedJid = journalId ? (typeof journalId === 'string' && (journalId.startsWith('an:') || journalId.startsWith('jn:') || journalId.startsWith('j:') || journalId.includes('|')) ? undefined : Number(journalId)) : undefined;
       return engine.getCollectionPayments({
         companyId: companyId ? Number(companyId) : undefined,
         partnerId: partnerId ? Number(partnerId) : undefined,
         journalId: resolvedJid,
+        journalIds: jIds,
+        costCenters: cCenters,
         costCenterKey: resolvedCcKey,
         journalNames: jNames,
         invoiceName: invoiceName || undefined,

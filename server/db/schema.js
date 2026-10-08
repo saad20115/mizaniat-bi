@@ -555,6 +555,54 @@ function initializeSchema() {
     console.warn('[DB] Migration of journal_id in analytic_group_mapping:', e.message);
   }
 
+  // U1 Migration: Map journal_id=65 'فواتير عملاء قسم الاشراف' to group 4 'قسم الاشراف' in company 2
+  try {
+    const existing = db.prepare(`SELECT id FROM analytic_group_mapping WHERE company_id = 2 AND journal_id = 65`).get();
+    if (!existing) {
+      db.prepare(`
+        INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name, journal_id)
+        VALUES (2, '', 4, 0, 'فواتير عملاء قسم الاشراف', 65)
+      `).run();
+      console.log('[DB] U1: Added analytic_group_mapping for company 2, journal_id 65 -> group 4 (قسم الاشراف)');
+    }
+  } catch (e) {
+    console.warn('[DB] U1 journal 65 mapping error:', e.message);
+  }
+
+  // U1 Migration: Update invoice_departments and fact_daily for journal_id=65 and zero-amount invoices of 'an:مشروع العقد الموحد مكه شركة الكهرباء'
+  try {
+    db.prepare(`
+      UPDATE invoice_departments
+      SET department_id = 4
+      WHERE company_id IN (SELECT id FROM sales_companies WHERE sales_company_id = 2)
+        AND cost_center_key = 'j:65' AND department_id = 0
+    `).run();
+
+    db.prepare(`
+      UPDATE invoice_departments
+      SET department_id = 15
+      WHERE company_id IN (SELECT id FROM sales_companies WHERE sales_company_id = 2)
+        AND cost_center_key = 'an:مشروع العقد الموحد مكه شركة الكهرباء' AND department_id = 0
+    `).run();
+
+    db.prepare(`
+      UPDATE fact_daily
+      SET department_id = 4
+      WHERE company_id = 2 AND journal_id = 65 AND (department_id = 0 OR department_id IS NULL)
+    `).run();
+  } catch (e) {
+    console.warn('[DB] U1 invoice_departments update error:', e.message);
+  }
+
+  // M1-R4: Normalize double spaces in Taif Lab cost center keys across all tables
+  try {
+    db.prepare(`UPDATE invoice_departments SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
+    db.prepare(`UPDATE payment_allocations SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
+    db.prepare(`UPDATE fact_daily SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
+  } catch (e) {
+    console.warn('[DB] M1-R4 Taif key normalization error:', e.message);
+  }
+
   // D5 VAT Migrations
   try {
     db.prepare(`ALTER TABLE companies ADD COLUMN vat_period TEXT DEFAULT 'quarterly'`).run();

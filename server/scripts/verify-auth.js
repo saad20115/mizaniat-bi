@@ -339,9 +339,11 @@ async function run() {
   await test('GET /api/actual-collections with costCenters=NaN (returns 400)', '/api/actual-collections?companyId=1&costCenters=NaN', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
   await test('GET /api/actual-collections with costCenterKey=NaN (returns 400)', '/api/actual-collections?companyId=1&costCenterKey=NaN', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
   await test('GET /api/customers-collection with SQL injection (returns 400)', '/api/customers-collection?companyIds=1&journalIds=1;%20DROP%20TABLE%20users;--', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
-  await test('GET /api/actual-collections with valid costCenters (returns 200)', '/api/actual-collections?companyId=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
-  await test('GET /api/executive with valid costCenters (returns 200)', '/api/executive?year=2026&companyIds=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
-  await test('GET /api/customers-collection with valid costCenters (returns 200)', '/api/customers-collection?companyIds=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('GET /api/actual-collections with bare costCenters (returns 400)', '/api/actual-collections?companyId=1&costCenters=an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  await test('GET /api/executive with bare numeric journalIds (returns 400)', '/api/executive?year=2026&companyIds=1&journalIds=65', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 400);
+  await test('GET /api/actual-collections with valid pair costCenters (returns 200)', '/api/actual-collections?companyId=1&costCenters=1|an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('GET /api/executive with valid pair costCenters (returns 200)', '/api/executive?year=2026&companyIds=1&costCenters=1|an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('GET /api/customers-collection with valid pair costCenters (returns 200)', '/api/customers-collection?companyIds=1&costCenters=1|an:%D9%85%D8%AE%D8%AA%D8%A8%D8%B1%20%D8%AC%D8%AF%D8%A9', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
 
   await stopServer();
 

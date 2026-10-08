@@ -1075,7 +1075,14 @@ function initMainTreeTable(treeContainer, displayTree) {
       const coMatch = pathKey.match(/co:(\d+)/);
       const deptMatch = pathKey.match(/dept:(\d+)/);
       const companyId = node.company_id != null ? Number(node.company_id) : (coMatch ? Number(coMatch[1]) : undefined);
-      const deptId = node.department_id != null ? Number(node.department_id) : (deptMatch ? Number(deptMatch[1]) : (typeof node.id === 'number' ? node.id : Number(String(node.id).replace(/^dept_\d+_/, '').replace(/^dept_?/, ''))));
+      let deptId = node.department_id != null ? Number(node.department_id) : (deptMatch ? Number(deptMatch[1]) : null);
+      if (deptId == null && typeof node.id === 'string' && node.id.startsWith('dept_')) {
+        const parsed = Number(node.id.replace(/^dept_\d+_/, '').replace(/^dept_?/, ''));
+        if (!isNaN(parsed)) deptId = parsed;
+      }
+      if (deptId == null || isNaN(deptId)) {
+        return node.children || [];
+      }
 
       const periodParams = getPeriodParamsFromFilter(currentTimeFilter);
       const childData = await api.getExecutiveChildren({

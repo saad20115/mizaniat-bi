@@ -71,11 +71,32 @@ function validateFilterQuery(req, res, next) {
         }
       }
 
-      // Cost centers / journalIds check
-      if (param === 'journalIds' || param === 'journalId' || param === 'costCenters' || param === 'costCenterKey') {
-        if (/[<>{}\\]/.test(s)) {
+      // Cost centers / journalIds check: enforce pair format companyId|key for filter parameters
+      if (param === 'journalIds' || param === 'costCenters') {
+        if (/[<>{}\\]/.test(s) || !/^\d+\|(?:an:|j:).+$/.test(s)) {
           return res.status(400).json({
-            error: `أحرف غير صالحة في معلمة التصفية ${param}`,
+            error: `معلمة ${param} تتطلب صيغة زوجية صالحة companyId|key (${s})`,
+            code: 'INVALID_FILTER_PARAM',
+            param
+          });
+        }
+      }
+
+      // Single journalId may be numeric (from tree node) or pair format
+      if (param === 'journalId') {
+        if (/[<>{}\\]/.test(s) || !/^(?:\d+|\d+\|(?:an:|j:).+)$/.test(s)) {
+          return res.status(400).json({
+            error: `معلمة ${param} تتطلب معرّفاً صالحاً (${s})`,
+            code: 'INVALID_FILTER_PARAM',
+            param
+          });
+        }
+      }
+
+      if (param === 'costCenterKey') {
+        if (/[<>{}\\]/.test(s) || !/^(?:\d+\|)?(?:an:|j:).+$/.test(s)) {
+          return res.status(400).json({
+            error: `معلمة ${param} تتطلب صيغة مركز تكلفة صالحة (${s})`,
             code: 'INVALID_FILTER_PARAM',
             param
           });

@@ -1351,21 +1351,49 @@ check('B2: no sales journal with positive invoices has zero revenue in fact_dail
 // ============================================================================
 console.log('\n── Section 25: Cost Center Direct Matching & Zero Difference (M1-R2 & M1-R1)');
 
-// 25a. Samir 2026 'an:مختبر جدة' direct matching test (barrier condition: 220 invoices, 2,749,851.15 net total)
-const condSi25 = engine._buildCostCenterCondition({ costCenters: ['an:مختبر جدة'], tableAlias: 'id', prefix: 'v25_' });
-const jeddahSi = db.prepare(`
+// 25a. Samir Co 1 2026 '1|an:مختبر جدة' direct matching test (barrier condition: 220 invoices, 2,749,851.15 net total)
+const condSi25_co1 = engine._buildCostCenterCondition({ journalIds: ['1|an:مختبر جدة'], tableAlias: 'si', prefix: 'v25_c1_' });
+const jeddahSi1 = db.prepare(`
   SELECT 
     COUNT(DISTINCT si.id) as inv_count,
     ROUND(SUM(si.amount_total * id.share), 2) as total_amount,
     ROUND(SUM(si.amount_untaxed * id.share), 2) as untaxed_amount
   FROM sales_invoices si
   JOIN invoice_departments id ON id.sales_invoice_id = si.id
-  WHERE strftime('%Y', si.date) = '2026' ${condSi25.sql}
-`).get(condSi25.params);
+  WHERE strftime('%Y', si.date) = '2026' ${condSi25_co1.sql}
+`).get(condSi25_co1.params);
 
-check('M1-R2: Samir 2026 an:مختبر جدة exactly 220 invoices and 2,749,851.15 net total (2,391,174.87 untaxed)',
-  jeddahSi.inv_count === 220 && Math.abs(jeddahSi.total_amount - 2749851.15) < 0.01,
-  `Count: ${jeddahSi.inv_count} (expected 220), Total: ${jeddahSi.total_amount} (expected 2749851.15), Untaxed: ${jeddahSi.untaxed_amount}`
+check('M1-R2 & F2: Co 1 (مكتب سمير) 1|an:مختبر جدة exactly 220 invoices and 2,749,851.15 net total',
+  jeddahSi1.inv_count === 220 && Math.abs(jeddahSi1.total_amount - 2749851.15) < 0.01,
+  `Count: ${jeddahSi1.inv_count} (expected 220), Total: ${jeddahSi1.total_amount} (expected 2749851.15), Untaxed: ${jeddahSi1.untaxed_amount}`
+);
+
+// 25a-2. F2: Samir Co 2 2026 '2|an:مختبر جدة' must return 0 invoices and independent collections (135,635.54 SAR)
+const condSi25_co2 = engine._buildCostCenterCondition({ journalIds: ['2|an:مختبر جدة'], tableAlias: 'si', prefix: 'v25_c2_' });
+const jeddahSi2 = db.prepare(`
+  SELECT 
+    COUNT(DISTINCT si.id) as inv_count,
+    ROUND(SUM(si.amount_total * id.share), 2) as total_amount
+  FROM sales_invoices si
+  JOIN invoice_departments id ON id.sales_invoice_id = si.id
+  WHERE strftime('%Y', si.date) = '2026' ${condSi25_co2.sql}
+`).get(condSi25_co2.params);
+
+const jeddahCol2 = engine.getCollections({ companyIds: [2], journalIds: ['2|an:مختبر جدة'], years: ['2026'] });
+const col2Amt = jeddahCol2?.cards?.total_collected || 0;
+
+check('F2: Co 2 (شركة سمير) 2|an:مختبر جدة exactly 0 invoices and 135,635.54 SAR collections (isolated from Co 1)',
+  jeddahSi2.inv_count === 0 && Math.abs(col2Amt - 135635.54) < 0.01,
+  `Co 2 Invoices: ${jeddahSi2.inv_count} (expected 0), Co 2 Collections: ${col2Amt} (expected 135635.54)`
+);
+
+// 25a-3. M1-R4 & F2: Taif Lab isolation (Co 1: 705,674.75 SAR vs Co 2: 701.50 SAR)
+const taifCol1 = engine.getCollections({ companyIds: [1], journalIds: ['1|an:مختبر الطائف'], years: ['2026'] })?.cards?.total_collected || 0;
+const taifCol2 = engine.getCollections({ companyIds: [2], journalIds: ['2|an:مختبر الطائف'], years: ['2026'] })?.cards?.total_collected || 0;
+
+check('M1-R4 & F2: Taif Lab collections isolated (Co 1: 705,674.75 SAR, Co 2: 701.50 SAR, 0 diff)',
+  Math.abs(taifCol1 - 705674.75) < 0.01 && Math.abs(taifCol2 - 701.50) < 0.01,
+  `Co 1 Taif: ${taifCol1} (expected 705674.75), Co 2 Taif: ${taifCol2} (expected 701.50)`
 );
 
 // 25b. Zero-difference sum identity across all companies and cost centers (2026)

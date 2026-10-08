@@ -1696,6 +1696,71 @@ async function runVerifyUI() {
     `);
     assert(isReset.isAll && isReset.isHidden, `F1 (4e): Deselect returns journal slicer to "الكل" and hides active filter chip`);
 
+    // 5b. F2 Isolation Test: Select «مختبر جدة» under Company 2 (شركة سمير)
+    console.log('  Testing F2 Company-Scoped Cost Center Isolation («مختبر جدة» under شركة سمير)...');
+    await cdp.eval('document.querySelector("#btn-journal-slicer")?.click()');
+    await sleep(400);
+
+    const f2SelectResult = await cdp.eval(`
+      (() => {
+        const portal = document.querySelector('.bi-portal-dropdown');
+        if (!portal) return { ok: false, error: 'portal missing' };
+
+        // Search for مختبر جدة
+        const searchInput = portal.querySelector('#drop-search-input');
+        if (searchInput) {
+          searchInput.value = 'مختبر جدة';
+          searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        // Find items for Co 1 (مكتب سمير) and Co 2 (شركة سمير)
+        const rows = Array.from(portal.querySelectorAll('.slicer-item-row'));
+        const co2Row = rows.find(r => r.dataset.id === '2|an:مختبر جدة' || (r.textContent.includes('مختبر جدة') && r.closest('.slicer-group-block')?.textContent.includes('شركة سمير')));
+        const co1Row = rows.find(r => r.dataset.id === '1|an:مختبر جدة' || (r.textContent.includes('مختبر جدة') && r.closest('.slicer-group-block')?.textContent.includes('مكتب سمير')));
+
+        if (!co2Row) return { ok: false, error: 'Company 2 مختبر جدة row not found' };
+
+        // Uncheck all first
+        portal.querySelector('#btn-drop-clear-all')?.click();
+
+        // Check ONLY Co 2 row
+        const co2Chk = co2Row.querySelector('.slicer-chk');
+        co2Chk?.click();
+
+        // Verify Co 1 row remains UNCHECKED
+        const co1Chk = co1Row ? co1Row.querySelector('.slicer-chk') : null;
+        const co1Unchecked = co1Chk ? !co1Chk.checked : true;
+
+        // Apply
+        portal.querySelector('#btn-drop-apply')?.click();
+
+        return {
+          ok: true,
+          co2Checked: co2Chk?.checked,
+          co1Unchecked
+        };
+      })()
+    `);
+    assert(f2SelectResult.ok && f2SelectResult.co1Unchecked, 'F2: Selecting مختبر جدة under شركة سمير leaves مكتب سمير unchecked');
+    await sleep(1000);
+
+    // Verify Active Filter Chip displays company name
+    const f2ChipCheck = await cdp.eval(`
+      (() => {
+        const chip = document.querySelector('.filter-chip-jrn');
+        const text = chip ? chip.textContent.trim() : '';
+        return {
+          ok: text.includes('مختبر جدة') && text.includes('شركة سمير'),
+          text
+        };
+      })()
+    `);
+    assert(f2ChipCheck.ok, `F2: Active filter chip displays company name: "${f2ChipCheck.text}"`);
+
+    // Reset filter
+    await cdp.eval('document.querySelector(".btn-clear-jrn")?.click()');
+    await sleep(800);
+
     // 6. Mobile Viewport (390x844) Bottom Sheet Rendering
     console.log('  Testing F1 Mobile (390px) Bottom Sheet rendering & elementFromPoint...');
     await cdp.send('Emulation.setDeviceMetricsOverride', {
