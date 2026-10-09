@@ -72,6 +72,20 @@ function initializeSchema() {
       FOREIGN KEY (company_id) REFERENCES companies(id)
     );
 
+    -- Odoo analytic accounts synced per instance (B3)
+    CREATE TABLE IF NOT EXISTS odoo_analytic_accounts (
+      instance_id INTEGER NOT NULL,
+      odoo_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      code TEXT,
+      plan_id INTEGER,
+      company_id INTEGER,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY(instance_id, odoo_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_odoo_analytic_inst_id ON odoo_analytic_accounts(instance_id, odoo_id);
+    CREATE INDEX IF NOT EXISTS idx_odoo_analytic_inst_name ON odoo_analytic_accounts(instance_id, name);
+
     -- Unified cost centers
     CREATE TABLE IF NOT EXISTS unified_cost_centers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -2284,13 +2284,88 @@ class ConsolidationEngine {
    * 2. If no income lines or none mapped to an analytic group -> journal_name via analytic_group_mapping.journal_name
    * 3. Otherwise unclassified (0)
    */
+  _getCompanyInfo(companyId, isSalesCompany = false) {
+    if (!companyId) return null;
+    const cacheKey = `${isSalesCompany ? 'sales:' : 'ledger:'}${companyId}`;
+    if (!this._companyInfoCache) this._companyInfoCache = new Map();
+    if (this._companyInfoCache.has(cacheKey)) {
+      return this._companyInfoCache.get(cacheKey);
+    }
+
+    let row = null;
+    if (isSalesCompany) {
+      row = this.db.prepare(`
+        SELECT 
+          c.id as ledger_cid,
+          c.odoo_instance_id as instance_id,
+          c.odoo_company_id as odoo_company_id,
+          sc.id as sales_cid
+        FROM sales_companies sc
+        JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+        WHERE sc.id = ?
+        LIMIT 1
+      `).get(companyId);
+    } else {
+      row = this.db.prepare(`
+        SELECT 
+          c.id as ledger_cid,
+          c.odoo_instance_id as instance_id,
+          c.odoo_company_id as odoo_company_id,
+          sc.id as sales_cid
+        FROM companies c
+        LEFT JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+        WHERE c.id = ?
+        LIMIT 1
+      `).get(companyId);
+    }
+
+    // Fallback if not found by preferred type
+    if (!row) {
+      row = this.db.prepare(`
+        SELECT 
+          c.id as ledger_cid,
+          c.odoo_instance_id as instance_id,
+          c.odoo_company_id as odoo_company_id,
+          sc.id as sales_cid
+        FROM companies c
+        LEFT JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+        WHERE c.id = ?
+        LIMIT 1
+      `).get(companyId) || this.db.prepare(`
+        SELECT 
+          c.id as ledger_cid,
+          c.odoo_instance_id as instance_id,
+          c.odoo_company_id as odoo_company_id,
+          sc.id as sales_cid
+        FROM sales_companies sc
+        JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+        WHERE sc.id = ?
+        LIMIT 1
+      `).get(companyId);
+    }
+
+    this._companyInfoCache.set(cacheKey, row);
+    return row;
+  }
+
+  _getCompanyInstanceId(companyId) {
+    const info = this._getCompanyInfo(companyId);
+    return info ? info.instance_id : null;
+  }
+
   /**
    * M1: Unified Cost Center Resolver
    * Priority: Analytic Account on revenue lines -> fallback to Journal ID / Journal Name
+   * Produces stable cost_center_key = an:<instance>:<analytic_id> when matched
    */
-  resolveCostCenter({ companyId, analyticAccount, journalId, journalName }) {
+  resolveCostCenter({ companyId, analyticAccount, journalId, journalName, costCenterId }) {
+    const compInfo = this._getCompanyInfo(companyId);
+    const instanceId = compInfo ? compInfo.instance_id : null;
+    const odooCompanyId = compInfo ? compInfo.odoo_company_id : null;
     let cleanAnalytic = (analyticAccount || '').replace(/\s+/g, ' ').trim();
-    if (!cleanAnalytic && journalId && companyId) {
+    let cleanCostCenterId = costCenterId || null;
+
+    if (!cleanAnalytic && !cleanCostCenterId && journalId && companyId) {
       try {
         const mapped = this.db.prepare(`
           SELECT analytic_account 
@@ -2303,16 +2378,56 @@ class ConsolidationEngine {
         }
       } catch (e) {}
     }
+
+    // Try resolving to stable odoo_analytic_accounts record
+    if (instanceId) {
+      let accRow = null;
+      if (cleanCostCenterId) {
+        accRow = this.db.prepare(`
+          SELECT odoo_id, name 
+          FROM odoo_analytic_accounts 
+          WHERE instance_id = ? AND odoo_id = ?
+        `).get(instanceId, cleanCostCenterId);
+      }
+      if (!accRow && cleanAnalytic) {
+        accRow = this.db.prepare(`
+          SELECT odoo_id, name 
+          FROM odoo_analytic_accounts 
+          WHERE instance_id = ? 
+            AND (company_id IS NULL OR company_id = 0 OR company_id = ?)
+            AND (name = ? OR REPLACE(name, '  ', ' ') = ?)
+          ORDER BY CASE WHEN company_id = ? THEN 0 ELSE 1 END, odoo_id ASC
+          LIMIT 1
+        `).get(instanceId, odooCompanyId, cleanAnalytic, cleanAnalytic.replace(/\s+/g, ' '), odooCompanyId);
+      }
+
+      if (accRow) {
+        return {
+          key: `an:${instanceId}:${accRow.odoo_id}`,
+          name: accRow.name,
+          type: 'analytic',
+          analytic_account: accRow.name,
+          cost_center_id: accRow.odoo_id,
+          instance_id: instanceId,
+          journal_id: journalId || 0,
+          journal_name: (journalName || '').trim()
+        };
+      }
+    }
+
     if (cleanAnalytic) {
       return {
-        key: 'an:' + cleanAnalytic,
+        key: instanceId ? `an:${instanceId}:${cleanAnalytic}` : `an:${cleanAnalytic}`,
         name: cleanAnalytic,
         type: 'analytic',
         analytic_account: cleanAnalytic,
+        cost_center_id: cleanCostCenterId,
+        instance_id: instanceId,
         journal_id: journalId || 0,
         journal_name: (journalName || '').trim()
       };
     }
+
     const cleanJName = (journalName || '').trim();
     const jId = journalId || 0;
     return {
@@ -2320,6 +2435,8 @@ class ConsolidationEngine {
       name: cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر'),
       type: 'journal',
       analytic_account: null,
+      cost_center_id: null,
+      instance_id: instanceId,
       journal_id: jId,
       journal_name: cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر')
     };
@@ -2376,7 +2493,7 @@ class ConsolidationEngine {
 
       // Preload income lines for this ledger company
       const incomeLines = this.db.prepare(`
-        SELECT ji.move_name, ji.analytic_account, ABS(ji.credit - ji.debit) as amt
+        SELECT ji.move_name, ji.analytic_account, ji.cost_center_id, ABS(ji.credit - ji.debit) as amt
         FROM journal_items ji
         ${this._sectionJoin('ji', 'o')}
         WHERE ji.company_id = ?
@@ -2389,6 +2506,7 @@ class ConsolidationEngine {
         if (!incomeByMove[l.move_name]) incomeByMove[l.move_name] = [];
         incomeByMove[l.move_name].push({
           analytic: (l.analytic_account || '').trim(),
+          costCenterId: l.cost_center_id || null,
           amt: l.amt || 0
         });
       }
@@ -2421,6 +2539,7 @@ class ConsolidationEngine {
                 const cc = this.resolveCostCenter({
                   companyId: ledgerCid,
                   analyticAccount: cleanAnalytic,
+                  costCenterId: line.costCenterId,
                   journalId: inv.journal_id,
                   journalName: inv.journal_name
                 });
@@ -2474,6 +2593,7 @@ class ConsolidationEngine {
             const cc = this.resolveCostCenter({
               companyId: ledgerCid,
               analyticAccount: lines && lines[0] && lines[0].analytic ? lines[0].analytic : null,
+              costCenterId: lines && lines[0] && lines[0].costCenterId ? lines[0].costCenterId : null,
               journalId: inv.journal_id,
               journalName: inv.journal_name
             });
@@ -2508,17 +2628,24 @@ class ConsolidationEngine {
           SELECT MAX(id2.department_id)
           FROM invoice_departments id2
           WHERE id2.company_id = invoice_departments.company_id
-            AND id2.cost_center_key = invoice_departments.cost_center_key
+            AND (id2.cost_center_key = invoice_departments.cost_center_key OR id2.cost_center_name = invoice_departments.cost_center_name)
             AND id2.department_id > 0
         )
         WHERE company_id = ?
           AND department_id = 0
-          AND cost_center_key IN (
-            SELECT cost_center_key
-            FROM invoice_departments
-            WHERE company_id = ? AND department_id > 0
+          AND (
+            cost_center_key IN (
+              SELECT cost_center_key
+              FROM invoice_departments
+              WHERE company_id = ? AND department_id > 0
+            )
+            OR cost_center_name IN (
+              SELECT cost_center_name
+              FROM invoice_departments
+              WHERE company_id = ? AND department_id > 0
+            )
           )
-      `).run(scId, scId);
+      `).run(scId, scId, scId);
     }
 
     return totalAllocations;
@@ -2799,32 +2926,99 @@ class ConsolidationEngine {
         const kParam = `${prefix}k_${i}`;
         params[kParam] = pair.costCenterKey;
 
+        // Resolve dual matching (stable key, legacy name key, and display name)
+        let altKey = null;
+        let altName = null;
+        if (pair.costCenterKey.startsWith('an:')) {
+          const sub = pair.costCenterKey.slice(3).trim();
+          const coId = pair.companyId;
+          const compInfo = coId ? this._getCompanyInfo(coId) : null;
+          const instId = compInfo ? compInfo.instance_id : null;
+          const odooCompanyId = compInfo ? compInfo.odoo_company_id : null;
+
+          if (/^\d+:\d+$/.test(sub)) {
+            // sub is "instanceId:odooId", e.g. "7:27"
+            const [iId, oId] = sub.split(':').map(Number);
+            const row = this.db.prepare('SELECT name FROM odoo_analytic_accounts WHERE instance_id = ? AND odoo_id = ?').get(iId, oId);
+            if (row) {
+              altName = row.name;
+              altKey = 'an:' + row.name;
+            }
+          } else {
+            // sub is text name, e.g. "مختبر جدة"
+            altName = sub;
+            if (instId) {
+              const row = this.db.prepare(`
+                SELECT odoo_id, name 
+                FROM odoo_analytic_accounts 
+                WHERE instance_id = ? 
+                  AND (company_id IS NULL OR company_id = 0 OR company_id = ?)
+                  AND (name = ? OR REPLACE(name, '  ', ' ') = ?)
+                ORDER BY CASE WHEN company_id = ? THEN 0 ELSE 1 END, odoo_id ASC
+                LIMIT 1
+              `).get(instId, odooCompanyId, sub, sub.replace(/\s+/g, ' '), odooCompanyId);
+              if (row) {
+                altKey = `an:${instId}:${row.odoo_id}`;
+                altName = row.name;
+              }
+            } else {
+              const row = this.db.prepare(`SELECT instance_id, odoo_id, name FROM odoo_analytic_accounts WHERE name = ? OR REPLACE(name, '  ', ' ') = ? LIMIT 1`).get(sub, sub.replace(/\s+/g, ' '));
+              if (row) {
+                altKey = `an:${row.instance_id}:${row.odoo_id}`;
+                altName = row.name;
+              }
+            }
+          }
+        }
+
+        if (altKey) ccKeySet.add(altKey);
+        if (altName) namesSet.add(altName);
+
+        // Determine column names based on tableAlias
+        let ccCol = 'id.cost_center_key';
+        let nameCol = 'id.cost_center_name';
+        let coCol = 'id.company_id';
+        let cidVal = pair.companyId;
+
         if (tableAlias === 'fd') {
-          if (pair.companyId) {
-            const cParam = `${prefix}c_${i}`;
-            params[cParam] = pair.companyId;
-            subConds.push(`(${tableAlias}.company_id = @${cParam} AND ${tableAlias}.cost_center_key = @${kParam})`);
-          } else {
-            subConds.push(`(${tableAlias}.cost_center_key = @${kParam})`);
-          }
+          ccCol = 'fd.cost_center_key';
+          nameCol = 'fd.cost_center_name';
+          coCol = 'fd.company_id';
         } else if (tableAlias === 'pa') {
-          if (pair.companyId) {
-            const cParam = `${prefix}c_${i}`;
-            params[cParam] = pair.companyId;
-            subConds.push(`(${tableAlias}.company_id = @${cParam} AND ${tableAlias}.cost_center_key = @${kParam})`);
-          } else {
-            subConds.push(`(${tableAlias}.cost_center_key = @${kParam})`);
-          }
-        } else if (tableAlias === 'si' || tableAlias === 'id') {
-          if (pair.companyId) {
-            const salesCid = this._getSalesCid(pair.companyId);
-            const scParam = `${prefix}sc_${i}`;
-            params[scParam] = salesCid;
-            const coCol = tableAlias === 'si' ? 'si.company_id' : 'id.company_id';
-            subConds.push(`(${coCol} = @${scParam} AND id.cost_center_key = @${kParam})`);
-          } else {
-            subConds.push(`(id.cost_center_key = @${kParam})`);
-          }
+          ccCol = 'pa.cost_center_key';
+          nameCol = 'pa.cost_center_name';
+          coCol = 'pa.company_id';
+        } else if (tableAlias === 'si') {
+          ccCol = 'id.cost_center_key';
+          nameCol = 'id.cost_center_name';
+          coCol = 'si.company_id';
+          if (pair.companyId) cidVal = this._getSalesCid(pair.companyId);
+        } else if (tableAlias === 'id') {
+          ccCol = 'id.cost_center_key';
+          nameCol = 'id.cost_center_name';
+          coCol = 'id.company_id';
+          if (pair.companyId) cidVal = this._getSalesCid(pair.companyId);
+        }
+
+        const matchClauses = [`${ccCol} = @${kParam}`];
+        if (altKey && altKey !== pair.costCenterKey) {
+          const altParam = `${prefix}alt_${i}`;
+          params[altParam] = altKey;
+          matchClauses.push(`${ccCol} = @${altParam}`);
+        }
+        if (altName) {
+          const nameParam = `${prefix}n_${i}`;
+          params[nameParam] = altName;
+          matchClauses.push(`${nameCol} = @${nameParam}`);
+        }
+        const matchExpr = matchClauses.length > 1 ? `(${matchClauses.join(' OR ')})` : matchClauses[0];
+
+        if (cidVal) {
+          const cParam = `${prefix}c_${i}`;
+          params[cParam] = cidVal;
+          subConds.push(`(${coCol} = @${cParam} AND ${matchExpr})`);
+        } else {
+          subConds.push(`(${matchExpr})`);
         }
       });
     }
@@ -6233,21 +6427,10 @@ class ConsolidationEngine {
     }
 
     if (costCenterKey) {
-      if (typeof costCenterKey === 'string' && costCenterKey.includes('|')) {
-        const pipeIdx = costCenterKey.indexOf('|');
-        const coId = parseInt(costCenterKey.slice(0, pipeIdx), 10);
-        const k = costCenterKey.slice(pipeIdx + 1).trim();
-        if (coId > 0) {
-          whereClauses.push('(pa.company_id = @paramCoId AND pa.cost_center_key = @paramCcKey)');
-          params.paramCoId = coId;
-          params.paramCcKey = k;
-        } else {
-          whereClauses.push('pa.cost_center_key = @paramCcKey');
-          params.paramCcKey = costCenterKey;
-        }
-      } else {
-        whereClauses.push('pa.cost_center_key = @paramCcKey');
-        params.paramCcKey = costCenterKey;
+      const ccFilter = this._buildCostCenterCondition({ journalIds: [costCenterKey], tableAlias: 'pa', prefix: 'pacc_single_' });
+      if (ccFilter.sql) {
+        whereClauses.push(ccFilter.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(params, ccFilter.params);
       }
     } else if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
       const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'pacc_' });
@@ -6644,13 +6827,25 @@ class ConsolidationEngine {
       const subConds = [];
       if (ccFilter.pairs && ccFilter.pairs.length > 0) {
         ccFilter.pairs.forEach((pair) => {
+          const matchParts = ['id.cost_center_key = ?'];
+          const matchVals = [pair.costCenterKey];
+          if (pair.altKey && pair.altKey !== pair.costCenterKey) {
+            matchParts.push('id.cost_center_key = ?');
+            matchVals.push(pair.altKey);
+          }
+          if (pair.name) {
+            matchParts.push('id.cost_center_name = ?');
+            matchVals.push(pair.name);
+          }
+          const matchExpr = matchParts.length > 1 ? `(${matchParts.join(' OR ')})` : matchParts[0];
+
           if (pair.companyId) {
             const sc = this._getSalesCid(pair.companyId);
-            subConds.push(`(si.company_id = ? AND id.cost_center_key = ?)`);
-            invParams.push(sc, pair.costCenterKey);
+            subConds.push(`(si.company_id = ? AND ${matchExpr})`);
+            invParams.push(sc, ...matchVals);
           } else {
-            subConds.push(`id.cost_center_key = ?`);
-            invParams.push(pair.costCenterKey);
+            subConds.push(matchExpr);
+            invParams.push(...matchVals);
           }
         });
       } else {
@@ -6753,12 +6948,24 @@ class ConsolidationEngine {
         const excludeConds = [];
         if (ccFilter.pairs && ccFilter.pairs.length > 0) {
           ccFilter.pairs.forEach((pair) => {
+            const matchParts = ['pa.cost_center_key = ?'];
+            const matchVals = [pair.costCenterKey];
+            if (pair.altKey && pair.altKey !== pair.costCenterKey) {
+              matchParts.push('pa.cost_center_key = ?');
+              matchVals.push(pair.altKey);
+            }
+            if (pair.name) {
+              matchParts.push('pa.cost_center_name = ?');
+              matchVals.push(pair.name);
+            }
+            const matchExpr = matchParts.length > 1 ? `(${matchParts.join(' OR ')})` : matchParts[0];
+
             if (pair.companyId) {
-              excludeConds.push(`(pa.company_id = ? AND pa.cost_center_key = ?)`);
-              paOtherParams.push(pair.companyId, pair.costCenterKey);
+              excludeConds.push(`(pa.company_id = ? AND ${matchExpr})`);
+              paOtherParams.push(pair.companyId, ...matchVals);
             } else {
-              excludeConds.push(`pa.cost_center_key = ?`);
-              paOtherParams.push(pair.costCenterKey);
+              excludeConds.push(matchExpr);
+              paOtherParams.push(...matchVals);
             }
           });
         } else {
@@ -7009,19 +7216,10 @@ class ConsolidationEngine {
         Object.assign(params, ccFilter.params);
       }
     } else if (costCenterKey) {
-      if (typeof costCenterKey === 'string' && costCenterKey.includes('|')) {
-        const pipeIdx = costCenterKey.indexOf('|');
-        const coId = parseInt(costCenterKey.slice(0, pipeIdx), 10);
-        const k = costCenterKey.slice(pipeIdx + 1).trim();
-        if (coId > 0 && !companyId) {
-          whereClauses.push('pa.company_id = @ccCompanyId');
-          params.ccCompanyId = coId;
-        }
-        whereClauses.push('pa.cost_center_key = @costCenterKey');
-        params.costCenterKey = k;
-      } else {
-        whereClauses.push('pa.cost_center_key = @costCenterKey');
-        params.costCenterKey = costCenterKey;
+      const ccFilter = this._buildCostCenterCondition({ journalIds: [costCenterKey], tableAlias: 'pa', prefix: 'paycc_single_' });
+      if (ccFilter.sql) {
+        whereClauses.push(ccFilter.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(params, ccFilter.params);
       }
     } else if (journalId) {
       whereClauses.push('pa.invoice_journal_id = @journalId');

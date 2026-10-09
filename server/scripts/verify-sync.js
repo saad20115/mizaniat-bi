@@ -218,6 +218,137 @@ async function runVerifySync() {
       earliest !== null && earliest <= s1 && earliest <= s2 && earliest <= s3,
       `earliest: ${earliest} (s1: ${s1}, s2: ${s2}, s3: ${s3})`
     );
+
+    // ── TEST 8: Cross-Server Outsider Invariant (B3-4)
+    console.log('\n── Test 8: Cross-Server Outsider Invariant Check');
+    const jiOutsiders = db.prepare(`
+      SELECT COUNT(*) as cnt 
+      FROM journal_items ji 
+      JOIN companies c ON c.id = ji.company_id 
+      WHERE (
+        ji.cost_center_id IS NOT NULL 
+        AND NOT EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts oaa 
+          WHERE oaa.instance_id = c.odoo_instance_id AND oaa.odoo_id = ji.cost_center_id
+        )
+      ) OR (
+        ji.analytic_account IS NOT NULL 
+        AND TRIM(ji.analytic_account) != '' 
+        AND ji.analytic_account NOT LIKE '%,%' 
+        AND ji.analytic_account NOT GLOB '[0-9]*' 
+        AND EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts other 
+          WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(ji.analytic_account)
+        ) 
+        AND NOT EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts own 
+          WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(ji.analytic_account)
+        )
+      )
+    `).get().cnt;
+
+    const fdOutsiders = db.prepare(`
+      SELECT COUNT(*) as cnt 
+      FROM fact_daily fd 
+      JOIN companies c ON c.id = fd.company_id 
+      WHERE (
+        fd.cost_center_key GLOB 'an:[0-9]*:*' 
+        AND fd.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+      ) OR (
+        fd.cost_center_name IS NOT NULL 
+        AND TRIM(fd.cost_center_name) != '' 
+        AND fd.cost_center_name NOT LIKE '%,%' 
+        AND fd.cost_center_name NOT GLOB '[0-9]*' 
+        AND EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts other 
+          WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(fd.cost_center_name)
+        ) 
+        AND NOT EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts own 
+          WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(fd.cost_center_name)
+        )
+      )
+    `).get().cnt;
+
+    const idOutsiders = db.prepare(`
+      SELECT COUNT(*) as cnt 
+      FROM invoice_departments id 
+      JOIN sales_invoices si ON si.id = id.sales_invoice_id 
+      JOIN sales_companies sc ON sc.id = si.company_id 
+      JOIN companies c ON c.odoo_company_id = sc.sales_company_id 
+      WHERE (
+        id.cost_center_key GLOB 'an:[0-9]*:*' 
+        AND id.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+      ) OR (
+        id.cost_center_name IS NOT NULL 
+        AND TRIM(id.cost_center_name) != '' 
+        AND id.cost_center_name NOT LIKE '%,%' 
+        AND id.cost_center_name NOT GLOB '[0-9]*' 
+        AND EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts other 
+          WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(id.cost_center_name)
+        ) 
+        AND NOT EXISTS (
+          SELECT 1 FROM odoo_analytic_accounts own 
+          WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(id.cost_center_name)
+        )
+      )
+    `).get().cnt;
+
+    const paOutsiders = db.prepare(`
+      SELECT COUNT(*) as cnt 
+      FROM payment_allocations pa 
+      JOIN companies c ON c.id = pa.company_id 
+      WHERE pa.cost_center_key GLOB 'an:[0-9]*:*' 
+        AND pa.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+    `).get().cnt;
+
+    check('B3-4: 0 cross-server outsider analytic accounts across all companies (journal_items, fact_daily, invoice_departments, payment_allocations)',
+      jiOutsiders === 0 && fdOutsiders === 0 && idOutsiders === 0 && paOutsiders === 0,
+      `ji: ${jiOutsiders}, fd: ${fdOutsiders}, id: ${idOutsiders}, pa: ${paOutsiders}`
+    );
+
+    // ── TEST 9: Dominant Cost Center per Sales Journal
+    console.log('\n── Test 9: Sales Journal Dominant Cost Center Check');
+    const journals = db.prepare(`
+      SELECT DISTINCT si.company_id as sales_co_id, si.journal_id, si.journal_name
+      FROM sales_invoices si
+      WHERE si.journal_id IS NOT NULL AND si.journal_id > 0
+    `).all();
+
+    let dominantOk = true;
+    let checkedCount = 0;
+    for (const j of journals) {
+      const counts = db.prepare(`
+        SELECT id.cost_center_key, id.cost_center_name, COUNT(*) as cnt
+        FROM sales_invoices si
+        JOIN invoice_departments id ON id.sales_invoice_id = si.id
+        WHERE si.company_id = ? AND si.journal_id = ?
+        GROUP BY id.cost_center_key, id.cost_center_name
+        ORDER BY cnt DESC
+      `).all(j.sales_co_id, j.journal_id);
+
+      if (counts.length > 0) {
+        checkedCount++;
+        const dom = counts[0];
+        const coRow = db.prepare(`
+          SELECT c.odoo_instance_id FROM companies c
+          JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
+          WHERE sc.id = ?
+        `).get(j.sales_co_id);
+        if (dom.cost_center_key && dom.cost_center_key.startsWith('an:')) {
+          const parts = dom.cost_center_key.split(':');
+          if (parts.length >= 3 && parts[1] !== String(coRow.odoo_instance_id)) {
+            dominantOk = false;
+          }
+        }
+      }
+    }
+
+    check('B3-4: Every active sales journal has a valid dominant cost center matching its instance',
+      dominantOk && checkedCount > 0,
+      `${checkedCount} journals verified`
+    );
   } finally {
     // ── TEARDOWN / RESTORE: Restore original sales_invoices and sequence
     console.log('\n── Teardown: Restoring original database state...');
@@ -278,12 +409,60 @@ async function runVerifySync() {
       const SyncEngine = require('../services/sync-engine');
       const syncEngine = new SyncEngine(liveDb);
 
-      console.log('  Triggering syncAllUnified()...');
-      const syncRes = await syncEngine.syncAllUnified();
+      console.log('  Triggering syncAllUnified() Cycle 1...');
+      const syncRes1 = await syncEngine.syncAllUnified();
 
-      check('LIVE-1: syncAllUnified completes successfully without runtime error',
-        syncRes && syncRes.success,
-        `duration: ${syncRes?.duration}s`
+      check('LIVE-1: syncAllUnified cycle 1 completes successfully without runtime error',
+        syncRes1 && syncRes1.success,
+        `duration: ${syncRes1?.duration}s`
+      );
+
+      const getCCSet = (database) => {
+        const set1 = database.prepare("SELECT DISTINCT company_id || '|' || cost_center_key as k FROM fact_daily WHERE cost_center_key IS NOT NULL").all().map(r => r.k);
+        const set2 = database.prepare("SELECT DISTINCT si.company_id || '|' || id.cost_center_key as k FROM invoice_departments id JOIN sales_invoices si ON si.id = id.sales_invoice_id WHERE id.cost_center_key IS NOT NULL").all().map(r => r.k);
+        const set3 = database.prepare("SELECT DISTINCT company_id || '|' || cost_center_key as k FROM payment_allocations WHERE cost_center_key IS NOT NULL").all().map(r => r.k);
+        return Array.from(new Set([...set1, ...set2, ...set3])).sort();
+      };
+
+      const getDominantCCMap = (database) => {
+        return database.prepare(`
+          SELECT si.company_id as sales_co_id, si.journal_id, id.cost_center_key, COUNT(*) as cnt
+          FROM sales_invoices si
+          JOIN invoice_departments id ON id.sales_invoice_id = si.id
+          WHERE si.journal_id IS NOT NULL AND si.journal_id > 0
+          GROUP BY si.company_id, si.journal_id, id.cost_center_key
+          ORDER BY si.company_id, si.journal_id, cnt DESC
+        `).all().reduce((acc, row) => {
+          const k = `${row.sales_co_id}|${row.journal_id}`;
+          if (!acc[k]) acc[k] = row.cost_center_key;
+          return acc;
+        }, {});
+      };
+
+      const snapCC1 = getCCSet(liveDb);
+      const snapDom1 = getDominantCCMap(liveDb);
+
+      console.log('  Triggering syncAllUnified() Cycle 2 (consecutive sync stability test)...');
+      const syncRes2 = await syncEngine.syncAllUnified();
+
+      check('LIVE-2: syncAllUnified cycle 2 completes successfully without runtime error',
+        syncRes2 && syncRes2.success,
+        `duration: ${syncRes2?.duration}s`
+      );
+
+      const snapCC2 = getCCSet(liveDb);
+      const snapDom2 = getDominantCCMap(liveDb);
+
+      const ccEqual = JSON.stringify(snapCC1) === JSON.stringify(snapCC2);
+      check('LIVE-3: Consecutive syncAllUnified yields exact same (company, cost_center_key) set',
+        ccEqual,
+        `cycle 1: ${snapCC1.length} keys, cycle 2: ${snapCC2.length} keys`
+      );
+
+      const domEqual = JSON.stringify(snapDom1) === JSON.stringify(snapDom2);
+      check('LIVE-4: Dominant cost center per sales journal remains stable across consecutive syncs',
+        domEqual,
+        `${Object.keys(snapDom1).length} journals matched`
       );
 
       // Verify invariants on the synced live DB
@@ -304,7 +483,7 @@ async function runVerifySync() {
           AND ROUND(ABS((si.amount_total - si.amount_residual_signed) - COALESCE(pa.paid, 0)), 2) > 0.01
       `).all();
 
-      check('LIVE-2: C1-a holds on live synced data (total - residual = payment_allocations)',
+      check('LIVE-5: C1-a holds on live synced data (total - residual = payment_allocations)',
         liveC1Mismatches.length === 0,
         `0 mismatches found (found ${liveC1Mismatches.length})`
       );
@@ -321,9 +500,26 @@ async function runVerifySync() {
         }
       }
 
-      check('LIVE-3: D1 Customers & Collection matches Receivables after live sync',
+      check('LIVE-6: D1 Customers & Collection matches Receivables after live sync',
         liveD1Ok,
         'Net, Collected, Residual match'
+      );
+
+      // 0 outsiders check on live DB
+      const liveOutsiders = liveDb.prepare(`
+        SELECT COUNT(*) as cnt 
+        FROM journal_items ji 
+        JOIN companies c ON c.id = ji.company_id 
+        WHERE ji.cost_center_id IS NOT NULL 
+          AND NOT EXISTS (
+            SELECT 1 FROM odoo_analytic_accounts oaa 
+            WHERE oaa.instance_id = c.odoo_instance_id AND oaa.odoo_id = ji.cost_center_id
+          )
+      `).get().cnt;
+
+      check('LIVE-7: 0 cross-server outsider accounts on live database after consecutive syncs',
+        liveOutsiders === 0,
+        `0 outsider IDs found`
       );
     } catch (err) {
       console.error('Live sync error:', err);

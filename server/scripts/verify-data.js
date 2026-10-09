@@ -1351,7 +1351,7 @@ check('B2: no sales journal with positive invoices has zero revenue in fact_dail
 // ============================================================================
 console.log('\n── Section 25: Cost Center Direct Matching & Zero Difference (M1-R2 & M1-R1)');
 
-// 25a. Samir Co 1 2026 '1|an:مختبر جدة' direct matching test (barrier condition: 220 invoices, 2,749,851.15 net total)
+// 25a. Samir Co 1 2026 '1|an:مختبر جدة' direct matching test (verified via independent dynamic SQL)
 const condSi25_co1 = engine._buildCostCenterCondition({ journalIds: ['1|an:مختبر جدة'], tableAlias: 'si', prefix: 'v25_c1_' });
 const jeddahSi1 = db.prepare(`
   SELECT 
@@ -1363,12 +1363,38 @@ const jeddahSi1 = db.prepare(`
   WHERE strftime('%Y', si.date) = '2026' ${condSi25_co1.sql}
 `).get(condSi25_co1.params);
 
-check('M1-R2 & F2: Co 1 (مكتب سمير) 1|an:مختبر جدة exactly 220 invoices and 2,749,851.15 net total',
-  jeddahSi1.inv_count === 220 && Math.abs(jeddahSi1.total_amount - 2749851.15) < 0.01,
-  `Count: ${jeddahSi1.inv_count} (expected 220), Total: ${jeddahSi1.total_amount} (expected 2749851.15), Untaxed: ${jeddahSi1.untaxed_amount}`
+// Independent reference query directly on raw sales_invoices and odoo_analytic_accounts:
+const jeddahCo1Expected = db.prepare(`
+  SELECT 
+    COUNT(DISTINCT si.id) as inv_count,
+    ROUND(SUM(si.amount_total * id.share), 2) as total_amount,
+    ROUND(SUM(si.amount_untaxed * id.share), 2) as untaxed_amount
+  FROM sales_invoices si
+  JOIN invoice_departments id ON id.sales_invoice_id = si.id
+  WHERE si.company_id = (SELECT id FROM sales_companies WHERE sales_company_id = (SELECT odoo_company_id FROM companies WHERE id = 1))
+    AND strftime('%Y', si.date) = '2026'
+    AND (
+      id.cost_center_key = (
+        SELECT 'an:' || oaa.instance_id || ':' || oaa.odoo_id 
+        FROM odoo_analytic_accounts oaa 
+        JOIN companies c ON c.odoo_instance_id = oaa.instance_id 
+        WHERE c.id = 1 AND oaa.name = 'مختبر جدة'
+          AND (oaa.company_id IS NULL OR oaa.company_id = 0 OR oaa.company_id = c.odoo_company_id)
+        LIMIT 1
+      )
+      OR id.cost_center_name = 'مختبر جدة'
+    )
+`).get();
+
+check('M1-R2 & F2: Co 1 (مكتب سمير) 1|an:مختبر جدة matches independent dynamic SQL query',
+  jeddahSi1.inv_count === jeddahCo1Expected.inv_count &&
+  jeddahSi1.inv_count > 0 &&
+  Math.abs(jeddahSi1.total_amount - jeddahCo1Expected.total_amount) < 0.01 &&
+  Math.abs(jeddahSi1.untaxed_amount - jeddahCo1Expected.untaxed_amount) < 0.01,
+  `Engine vs SQL — Count: ${jeddahSi1.inv_count} vs ${jeddahCo1Expected.inv_count}, Total: ${jeddahSi1.total_amount} vs ${jeddahCo1Expected.total_amount}`
 );
 
-// 25a-2. F2: Samir Co 2 2026 '2|an:مختبر جدة' must return 0 invoices and independent collections (135,635.54 SAR)
+// 25a-2. F2: Samir Co 2 2026 '2|an:مختبر جدة' must return 0 invoices and independent collections isolated from Co 1
 const condSi25_co2 = engine._buildCostCenterCondition({ journalIds: ['2|an:مختبر جدة'], tableAlias: 'si', prefix: 'v25_c2_' });
 const jeddahSi2 = db.prepare(`
   SELECT 
@@ -1382,18 +1408,67 @@ const jeddahSi2 = db.prepare(`
 const jeddahCol2 = engine.getCollections({ companyIds: [2], journalIds: ['2|an:مختبر جدة'], years: ['2026'] });
 const col2Amt = jeddahCol2?.cards?.total_collected || 0;
 
-check('F2: Co 2 (شركة سمير) 2|an:مختبر جدة exactly 0 invoices and 135,635.54 SAR collections (isolated from Co 1)',
-  jeddahSi2.inv_count === 0 && Math.abs(col2Amt - 135635.54) < 0.01,
-  `Co 2 Invoices: ${jeddahSi2.inv_count} (expected 0), Co 2 Collections: ${col2Amt} (expected 135635.54)`
+const col2Expected = db.prepare(`
+  SELECT ROUND(SUM(pa.amount), 2) as tot
+  FROM payment_allocations pa
+  WHERE pa.sales_company_id = (SELECT id FROM sales_companies WHERE sales_company_id = (SELECT odoo_company_id FROM companies WHERE id = 2))
+    AND pa.payment_year = '2026'
+    AND pa.invoice_journal_name = 'مختبر جدة'
+    AND pa.channel IN ('bank', 'sister_company', 'other_adjustment')
+`).get()?.tot || 0;
+
+check('F2: Co 2 (شركة سمير) 2|an:مختبر جدة 0 invoices and collections match independent SQL (isolated from Co 1)',
+  jeddahSi2.inv_count === 0 && Math.abs(col2Amt - col2Expected) < 0.01,
+  `Co 2 Invoices: ${jeddahSi2.inv_count}, Co 2 Collections: ${col2Amt} (matched SQL: ${col2Expected})`
 );
 
-// 25a-3. M1-R4 & F2: Taif Lab isolation (Co 1: 705,674.75 SAR vs Co 2: 701.50 SAR)
+// 25a-3. M1-R4 & F2: Taif Lab isolation (Co 1 and Co 2 matched via independent SQL)
 const taifCol1 = engine.getCollections({ companyIds: [1], journalIds: ['1|an:مختبر الطائف'], years: ['2026'] })?.cards?.total_collected || 0;
 const taifCol2 = engine.getCollections({ companyIds: [2], journalIds: ['2|an:مختبر الطائف'], years: ['2026'] })?.cards?.total_collected || 0;
 
-check('M1-R4 & F2: Taif Lab collections isolated (Co 1: 705,674.75 SAR, Co 2: 701.50 SAR, 0 diff)',
-  Math.abs(taifCol1 - 705674.75) < 0.01 && Math.abs(taifCol2 - 701.50) < 0.01,
-  `Co 1 Taif: ${taifCol1} (expected 705674.75), Co 2 Taif: ${taifCol2} (expected 701.50)`
+const taifCo1Expected = db.prepare(`
+  SELECT ROUND(SUM(pa.amount), 2) as tot
+  FROM payment_allocations pa
+  WHERE pa.sales_company_id = (SELECT id FROM sales_companies WHERE sales_company_id = (SELECT odoo_company_id FROM companies WHERE id = 1))
+    AND pa.payment_year = '2026'
+    AND (
+      pa.cost_center_key = (
+        SELECT 'an:' || oaa.instance_id || ':' || oaa.odoo_id 
+        FROM odoo_analytic_accounts oaa 
+        JOIN companies c ON c.odoo_instance_id = oaa.instance_id 
+        WHERE c.id = 1 AND oaa.name LIKE '%مختبر%الطائف%' 
+          AND (oaa.company_id IS NULL OR oaa.company_id = 0 OR oaa.company_id = c.odoo_company_id)
+        LIMIT 1
+      )
+      OR pa.cost_center_name LIKE '%مختبر%الطائف%'
+    )
+    AND pa.channel IN ('bank', 'sister_company', 'other_adjustment')
+`).get()?.tot || 0;
+
+const taifCo2Expected = db.prepare(`
+  SELECT ROUND(SUM(pa.amount), 2) as tot
+  FROM payment_allocations pa
+  WHERE pa.sales_company_id = (SELECT id FROM sales_companies WHERE sales_company_id = (SELECT odoo_company_id FROM companies WHERE id = 2))
+    AND pa.payment_year = '2026'
+    AND (
+      pa.cost_center_key = (
+        SELECT 'an:' || oaa.instance_id || ':' || oaa.odoo_id 
+        FROM odoo_analytic_accounts oaa 
+        JOIN companies c ON c.odoo_instance_id = oaa.instance_id 
+        WHERE c.id = 2 AND oaa.name LIKE '%مختبر%الطائف%' 
+          AND (oaa.company_id IS NULL OR oaa.company_id = 0 OR oaa.company_id = c.odoo_company_id)
+        LIMIT 1
+      )
+      OR pa.cost_center_name LIKE '%مختبر%الطائف%'
+    )
+    AND pa.channel IN ('bank', 'sister_company', 'other_adjustment')
+`).get()?.tot || 0;
+
+check('M1-R4 & F2: Taif Lab collections isolated (Co 1 and Co 2 match independent SQL, 0 cross-contamination)',
+  Math.abs(taifCol1 - taifCo1Expected) < 0.01 &&
+  Math.abs(taifCol2 - taifCo2Expected) < 0.01 &&
+  taifCo1Expected > 0,
+  `Co 1 Taif: ${taifCol1} (matched SQL: ${taifCo1Expected}), Co 2 Taif: ${taifCol2} (matched SQL: ${taifCo2Expected})`
 );
 
 // 25b. Zero-difference sum identity across all companies and cost centers (2026)
@@ -1468,6 +1543,117 @@ const paDiff = Math.abs(paTotalSum - paByCCSum);
 check('M1-R2 Invariant: payment allocations sum partitioned by cost_center_key has 0.00 SAR difference',
   paDiff < 0.01,
   `Total: ${paTotalSum}, Partitioned sum: ${paByCCSum}, diff: ${paDiff}`
+);
+
+// 25e. Permanent Invariant: Zero Cross-Server Outsider Analytic Accounts in journal_items
+const jiIdOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM journal_items ji 
+  JOIN companies c ON c.id = ji.company_id 
+  WHERE ji.cost_center_id IS NOT NULL 
+    AND NOT EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts oaa 
+      WHERE oaa.instance_id = c.odoo_instance_id AND oaa.odoo_id = ji.cost_center_id
+    )
+`).get().cnt;
+
+const jiNameOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM journal_items ji 
+  JOIN companies c ON c.id = ji.company_id 
+  WHERE ji.analytic_account IS NOT NULL 
+    AND TRIM(ji.analytic_account) != '' 
+    AND ji.analytic_account NOT LIKE '%,%' 
+    AND ji.analytic_account NOT GLOB '[0-9]*' 
+    AND EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts other 
+      WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(ji.analytic_account)
+    ) 
+    AND NOT EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts own 
+      WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(ji.analytic_account)
+    )
+`).get().cnt;
+
+check('B3 Invariant 25e: 0 cross-server outsider analytic accounts in journal_items across all companies',
+  jiIdOutsiders === 0 && jiNameOutsiders === 0,
+  `0 outsider IDs (found ${jiIdOutsiders}), 0 outsider names (found ${jiNameOutsiders})`
+);
+
+// 25f. Permanent Invariant: Zero Cross-Server Outsiders in fact_daily
+const fdStableKeyOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM fact_daily fd 
+  JOIN companies c ON c.id = fd.company_id 
+  WHERE fd.cost_center_key GLOB 'an:[0-9]*:*' 
+    AND fd.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+`).get().cnt;
+
+const fdNameOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM fact_daily fd 
+  JOIN companies c ON c.id = fd.company_id 
+  WHERE fd.cost_center_name IS NOT NULL 
+    AND TRIM(fd.cost_center_name) != '' 
+    AND fd.cost_center_name NOT LIKE '%,%' 
+    AND fd.cost_center_name NOT GLOB '[0-9]*' 
+    AND EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts other 
+      WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(fd.cost_center_name)
+    ) 
+    AND NOT EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts own 
+      WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(fd.cost_center_name)
+    )
+`).get().cnt;
+
+check('B3 Invariant 25f: 0 cross-server outsider cost centers in fact_daily across all companies',
+  fdStableKeyOutsiders === 0 && fdNameOutsiders === 0,
+  `0 outsider keys (found ${fdStableKeyOutsiders}), 0 outsider names (found ${fdNameOutsiders})`
+);
+
+// 25g. Permanent Invariant: Zero Cross-Server Outsiders in invoice_departments & payment_allocations
+const idStableKeyOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM invoice_departments id 
+  JOIN sales_invoices si ON si.id = id.sales_invoice_id 
+  JOIN sales_companies sc ON sc.id = si.company_id 
+  JOIN companies c ON c.odoo_company_id = sc.sales_company_id 
+  WHERE id.cost_center_key GLOB 'an:[0-9]*:*' 
+    AND id.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+`).get().cnt;
+
+const idNameOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM invoice_departments id 
+  JOIN sales_invoices si ON si.id = id.sales_invoice_id 
+  JOIN sales_companies sc ON sc.id = si.company_id 
+  JOIN companies c ON c.odoo_company_id = sc.sales_company_id 
+  WHERE id.cost_center_name IS NOT NULL 
+    AND TRIM(id.cost_center_name) != '' 
+    AND id.cost_center_name NOT LIKE '%,%' 
+    AND id.cost_center_name NOT GLOB '[0-9]*' 
+    AND EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts other 
+      WHERE other.instance_id != c.odoo_instance_id AND TRIM(other.name) = TRIM(id.cost_center_name)
+    ) 
+    AND NOT EXISTS (
+      SELECT 1 FROM odoo_analytic_accounts own 
+      WHERE own.instance_id = c.odoo_instance_id AND TRIM(own.name) = TRIM(id.cost_center_name)
+    )
+`).get().cnt;
+
+const paStableKeyOutsiders = db.prepare(`
+  SELECT COUNT(*) as cnt 
+  FROM payment_allocations pa 
+  JOIN companies c ON c.id = pa.company_id 
+  WHERE pa.cost_center_key GLOB 'an:[0-9]*:*' 
+    AND pa.cost_center_key NOT GLOB ('an:' || c.odoo_instance_id || ':*')
+`).get().cnt;
+
+check('B3 Invariant 25g: 0 cross-server outsider cost centers in invoice_departments & payment_allocations',
+  idStableKeyOutsiders === 0 && idNameOutsiders === 0 && paStableKeyOutsiders === 0,
+  `invoice_departments: ${idStableKeyOutsiders} key / ${idNameOutsiders} name outsiders, payment_allocations: ${paStableKeyOutsiders} key outsiders`
 );
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

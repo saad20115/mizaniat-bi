@@ -5,6 +5,54 @@ class SyncEngine {
   constructor() {
     this.db = getDb();
     this._progress = {}; // track progress per company
+    this._instanceAnalyticCache = new Map();
+  }
+
+  /**
+   * Fetch and persist analytic accounts scoped per Odoo instance
+   */
+  async getOrFetchAnalyticAccounts(instance, connector) {
+    if (this._instanceAnalyticCache.has(instance.id)) {
+      return this._instanceAnalyticCache.get(instance.id);
+    }
+
+    const analyticData = await connector.fetchAnalyticAccounts();
+    const records = analyticData.records || [];
+    const map = {};
+    for (const r of records) {
+      map[r.id] = (r.name || '').trim();
+    }
+
+    const insAnalytic = this.db.prepare(`
+      INSERT INTO odoo_analytic_accounts (instance_id, odoo_id, name, code, plan_id, company_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(instance_id, odoo_id) DO UPDATE SET
+        name = excluded.name,
+        code = excluded.code,
+        plan_id = excluded.plan_id,
+        company_id = excluded.company_id
+    `);
+
+    const saveTx = this.db.transaction(() => {
+      for (const r of records) {
+        const planId = Array.isArray(r.plan_id) ? r.plan_id[0] : (r.plan_id || null);
+        const compId = Array.isArray(r.company_id) ? r.company_id[0] : (r.company_id || null);
+        insAnalytic.run(
+          instance.id,
+          r.id,
+          (r.name || '').trim(),
+          r.code ? String(r.code).trim() : null,
+          planId,
+          compId
+        );
+      }
+    });
+    saveTx();
+    console.log(`[Sync] Synced ${records.length} analytic accounts for instance ${instance.id}`);
+
+    const res = { map, records };
+    this._instanceAnalyticCache.set(instance.id, res);
+    return res;
   }
 
   /**
@@ -100,12 +148,13 @@ class SyncEngine {
       // Initialize for normalizer company detection
       this._detectedCompanyName = null;
 
-      // Fetch analytic account names for RPC data (IDs -> names)
-      this._analyticMap = {};
+      // Fetch analytic account names for RPC data (IDs -> names) strictly scoped per instance
+      let companyAnalyticMap = {};
       if (dataSource === 'rpc') {
         try {
           this._progress[companyId].phase = 'جاري جلب أسماء الحسابات التحليلية...';
-          this._analyticMap = await connector.fetchAnalyticAccounts();
+          const analyticRes = await this.getOrFetchAnalyticAccounts(instance, connector);
+          companyAnalyticMap = analyticRes.map || {};
         } catch (e) {
           console.log(`[Sync] Could not fetch analytic accounts: ${e.message}`);
         }
@@ -133,25 +182,33 @@ class SyncEngine {
         }
       }
       
-      this._journalMappings = {};
+      const companyJournalMappings = {};
       const mappings = this.db.prepare('SELECT original_name, mapped_name FROM journal_name_mappings WHERE company_id = ?').all(companyId);
       for (const m of mappings) {
-        this._journalMappings[m.original_name] = m.mapped_name;
+        companyJournalMappings[m.original_name] = m.mapped_name;
       }
+
+      const companyContext = {
+        companyId,
+        instanceId: instance.id,
+        analyticMap: companyAnalyticMap,
+        journalMappings: companyJournalMappings,
+        detectedCompanyName: null
+      };
       
       this._progress[companyId] = { status: 'processing', fetched: totalItems, inserted: 0, total: totalItems, phase: `تم جلب ${totalItems} سجل. جاري المعالجة...` };
 
       const insertItem = this.db.prepare(`
         INSERT INTO journal_items (
           company_id, odoo_line_id, account_code, account_name, account_type,
-          partner_name, partner_id, analytic_account, label,
+          partner_name, partner_id, analytic_account, cost_center_id, label,
           debit, credit, balance, amount_residual, currency, date,
           journal_id, journal_name, journal_type, move_name, move_ref, move_state,
           fiscal_year, period,
           tax_id, tax_name, tax_base_amount, tax_ids, move_type
         ) VALUES (
           @company_id, @odoo_line_id, @account_code, @account_name, @account_type,
-          @partner_name, @partner_id, @analytic_account, @label,
+          @partner_name, @partner_id, @analytic_account, @cost_center_id, @label,
           @debit, @credit, @balance, @amount_residual, @currency, @date,
           @journal_id, @journal_name, @journal_type, @move_name, @move_ref, @move_state,
           @fiscal_year, @period,
@@ -189,7 +246,7 @@ class SyncEngine {
         this.db.prepare('DELETE FROM company_accounts WHERE company_id = ?').run(companyId);
 
         for (const item of items) {
-          const normalized = this._normalizeItem(item, companyId);
+          const normalized = this._normalizeItem(item, companyContext);
           insertItem.run(normalized);
           totalInserted++;
 
@@ -342,7 +399,12 @@ class SyncEngine {
    *    move_id=[id,"name"], partner_id=[id,"name"] or false, name, ref, balance, etc.
    * 2) Custom API: account_id="code name", partner_id="name string", company_id="name string"
    */
-  _normalizeItem(item, companyId) {
+  _normalizeItem(item, contextOrCompanyId) {
+    const isContext = typeof contextOrCompanyId === 'object' && contextOrCompanyId !== null;
+    const companyId = isContext ? contextOrCompanyId.companyId : contextOrCompanyId;
+    const analyticMap = isContext ? contextOrCompanyId.analyticMap : (this._analyticMap || {});
+    const journalMappings = isContext ? contextOrCompanyId.journalMappings : (this._journalMappings || {});
+
     const date = item.date || '';
     const year = date ? date.substring(0, 4) : '';
     const month = date ? date.substring(5, 7) : '';
@@ -378,8 +440,8 @@ class SyncEngine {
     journalName = journalName.replace(/\uFFFD/g, '');
     
     // Apply manual mappings if any
-    if (this._journalMappings && this._journalMappings[journalName]) {
-      journalName = this._journalMappings[journalName];
+    if (journalMappings && journalMappings[journalName]) {
+      journalName = journalMappings[journalName];
     }
 
 
@@ -394,6 +456,7 @@ class SyncEngine {
 
     // --- Analytic ---
     let analyticAccount = '';
+    let costCenterId = null;
     if (item.analytic && item.analytic !== '' && item.analytic !== 'False' && item.analytic !== false) {
       analyticAccount = String(item.analytic);
     }
@@ -403,8 +466,11 @@ class SyncEngine {
       if (typeof item.analytic_distribution === 'object') {
         // RPC format: {analytic_account_id: percentage} — resolve IDs to names
         const ids = Object.keys(item.analytic_distribution);
+        if (ids.length > 0) {
+          costCenterId = parseInt(ids[0], 10) || null;
+        }
         const names = ids.map(id => {
-          if (this._analyticMap && this._analyticMap[id]) return this._analyticMap[id];
+          if (analyticMap && analyticMap[id]) return analyticMap[id];
           return id; // fallback to ID if name not found
         });
         analyticAccount = names.join(', ');
@@ -457,6 +523,7 @@ class SyncEngine {
       partner_name: partnerName,
       partner_id: null,
       analytic_account: analyticAccount,
+      cost_center_id: costCenterId,
       label: label,
       debit: debit,
       credit: credit,
@@ -576,9 +643,15 @@ class SyncEngine {
             (SELECT m1.group_id 
              FROM analytic_group_mapping m1 
              WHERE m1.company_id = ji.company_id 
-               AND m1.analytic_account = ji.analytic_account 
-               AND ji.analytic_account IS NOT NULL 
-               AND ji.analytic_account != '' 
+               AND (
+                 (ji.analytic_account IS NOT NULL AND ji.analytic_account != '' AND (m1.analytic_account = ji.analytic_account OR REPLACE(m1.analytic_account, '  ', ' ') = REPLACE(ji.analytic_account, '  ', ' ')))
+                 OR
+                 (ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0 AND EXISTS (
+                   SELECT 1 FROM companies c 
+                   JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id AND oa.odoo_id = ji.cost_center_id
+                   WHERE c.id = ji.company_id AND (oa.name = m1.analytic_account OR REPLACE(oa.name, '  ', ' ') = REPLACE(m1.analytic_account, '  ', ' '))
+                 ))
+               )
              ORDER BY m1.id ASC
              LIMIT 1),
             (SELECT m0.group_id 
@@ -604,10 +677,32 @@ class SyncEngine {
           COALESCE(ji.journal_id, 0) as journal_id,
           COALESCE(
             CASE 
+              WHEN ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0
+              THEN 'an:' || (SELECT odoo_instance_id FROM companies WHERE id = ji.company_id) || ':' || ji.cost_center_id
               WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
-              THEN 'an:' || TRIM(ji.analytic_account)
+              THEN COALESCE(
+                (SELECT 'an:' || oa.instance_id || ':' || oa.odoo_id
+                 FROM companies c
+                 JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id 
+                   AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
+                   AND (oa.name = TRIM(ji.analytic_account) OR REPLACE(oa.name, '  ', ' ') = REPLACE(TRIM(ji.analytic_account), '  ', ' '))
+                 WHERE c.id = ji.company_id
+                 ORDER BY CASE WHEN oa.company_id = c.odoo_company_id THEN 0 ELSE 1 END, oa.odoo_id ASC
+                 LIMIT 1),
+                'an:' || TRIM(ji.analytic_account)
+              )
               ELSE (
-                SELECT 'an:' || TRIM(m.analytic_account)
+                SELECT COALESCE(
+                  (SELECT 'an:' || oa.instance_id || ':' || oa.odoo_id
+                   FROM companies c
+                   JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id 
+                     AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
+                     AND (oa.name = TRIM(m.analytic_account) OR REPLACE(oa.name, '  ', ' ') = REPLACE(TRIM(m.analytic_account), '  ', ' '))
+                   WHERE c.id = ji.company_id
+                   ORDER BY CASE WHEN oa.company_id = c.odoo_company_id THEN 0 ELSE 1 END, oa.odoo_id ASC
+                   LIMIT 1),
+                  'an:' || TRIM(m.analytic_account)
+                )
                 FROM analytic_group_mapping m
                 WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
                 LIMIT 1
@@ -617,6 +712,14 @@ class SyncEngine {
           ) as cost_center_key,
           COALESCE(
             CASE 
+              WHEN ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0
+              THEN (
+                SELECT oa.name 
+                FROM companies c 
+                JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id AND oa.odoo_id = ji.cost_center_id
+                WHERE c.id = ji.company_id
+                LIMIT 1
+              )
               WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
               THEN TRIM(ji.analytic_account)
               ELSE (
@@ -709,6 +812,11 @@ class SyncEngine {
         records: salesResults.reduce((s, r) => s + (r.records_synced || 0), 0)
       };
 
+      // Stage 2.5: Rebuild invoice departments for newly synced sales invoices
+      const ConsolidationEngine = require('./consolidation');
+      const consolidation = new ConsolidationEngine(this.db);
+      consolidation.resolveInvoiceDepartments();
+
       // Stage 3: Payment allocations
       if (progressCallback) progressCallback({ stage: 3, name: 'تسويات السداد', progress: 70 });
       console.log('[UnifiedSync] Stage 3/4: Syncing payment allocations...');
@@ -719,11 +827,9 @@ class SyncEngine {
         totalAllocations: paResult.totalAllocations
       };
 
-      // Stage 4: Invoice departments resolution
+      // Stage 4: Invoice departments reconciliation
       if (progressCallback) progressCallback({ stage: 4, name: 'إعادة بناء الأقسام', progress: 85 });
       console.log('[UnifiedSync] Stage 4/4: Rebuilding invoice departments...');
-      const ConsolidationEngine = require('./consolidation');
-      const consolidation = new ConsolidationEngine(this.db);
       const deptAllocations = consolidation.resolveInvoiceDepartments();
       results.stages.invoice_departments = {
         success: true,

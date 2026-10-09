@@ -150,6 +150,7 @@ class OdooConnector {
 
   /**
    * Fetch all analytic account names to resolve IDs from analytic_distribution
+   * Returns records and ID -> name map (B3)
    */
   async fetchAnalyticAccounts() {
     try {
@@ -158,21 +159,33 @@ class OdooConnector {
         'search_read',
         [[]],
         {
-          fields: ['id', 'name', 'code'],
-          limit: 5000
+          fields: ['id', 'name', 'code', 'plan_id', 'company_id'],
+          limit: 5000,
+          order: 'id'
         }
       );
       
-      // Build ID -> name map
       const map = {};
+      const parsedRecords = [];
       for (const r of (records || [])) {
-        map[String(r.id)] = r.code ? `${r.code} ${r.name}` : r.name;
+        const cleanName = r.code ? `${r.code} ${r.name}` : r.name;
+        map[String(r.id)] = cleanName;
+        parsedRecords.push({
+          id: r.id,
+          name: r.name || cleanName,
+          code: r.code ? String(r.code) : null,
+          plan_id: Array.isArray(r.plan_id) ? r.plan_id[0] : (r.plan_id || null),
+          company_id: Array.isArray(r.company_id) ? r.company_id[0] : (r.company_id || null)
+        });
       }
-      console.log(`[OdooConnector] Fetched ${Object.keys(map).length} analytic accounts`);
-      return map;
+      console.log(`[OdooConnector] Fetched ${parsedRecords.length} analytic accounts`);
+      const result = { map, records: parsedRecords };
+      Object.assign(result, map);
+      return result;
     } catch (err) {
       console.log(`[OdooConnector] Failed to fetch analytic accounts: ${err.message}`);
-      return {};
+      const fallback = { map: {}, records: [] };
+      return fallback;
     }
   }
 
