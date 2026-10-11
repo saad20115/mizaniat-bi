@@ -1,0 +1,775 @@
+{
+  "version": "1.0.0",
+  "exported_at": "2026-10-11T09:57:08.149Z",
+  "odoo_instances": [
+    {
+      "id": 7,
+      "db_name": "second_odoo_17"
+    },
+    {
+      "id": 8,
+      "db_name": "first_odoo_17"
+    }
+  ],
+  "companies": [
+    {
+      "id": 1,
+      "odoo_instance_id": 7,
+      "odoo_company_id": 1,
+      "name": "مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية",
+      "short_name": "مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية",
+      "vat_period": "quarterly"
+    },
+    {
+      "id": 2,
+      "odoo_instance_id": 7,
+      "odoo_company_id": 2,
+      "name": "شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد",
+      "short_name": "شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد",
+      "vat_period": "monthly"
+    },
+    {
+      "id": 3,
+      "odoo_instance_id": 8,
+      "odoo_company_id": 4,
+      "name": "شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد",
+      "short_name": "شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد",
+      "vat_period": "quarterly"
+    },
+    {
+      "id": 4,
+      "odoo_instance_id": 8,
+      "odoo_company_id": 5,
+      "name": "شركة جمال بكر حريري للاستشارات الهندسية",
+      "short_name": "شركة جمال بكر حريري للاستشارات الهندسية",
+      "vat_period": "quarterly"
+    }
+  ],
+  "account_section_overrides": [
+    {
+      "company_id": 1,
+      "account_code": "200002",
+      "section": "equity"
+    },
+    {
+      "company_id": 2,
+      "account_code": "200002",
+      "section": "equity"
+    },
+    {
+      "company_id": 2,
+      "account_code": "200003",
+      "section": "equity"
+    },
+    {
+      "company_id": 3,
+      "account_code": "290001",
+      "section": "equity"
+    },
+    {
+      "company_id": 3,
+      "account_code": "290011",
+      "section": "equity"
+    },
+    {
+      "company_id": 4,
+      "account_code": "201033",
+      "section": "equity"
+    }
+  ],
+  "account_tags": [
+    {
+      "company_id": 2,
+      "account_code": "14110002",
+      "tag": "guarantee"
+    },
+    {
+      "company_id": 3,
+      "account_code": "0110012",
+      "tag": "guarantee"
+    },
+    {
+      "company_id": 1,
+      "account_code": "201017",
+      "tag": "vat_output"
+    },
+    {
+      "company_id": 1,
+      "account_code": "104041",
+      "tag": "vat_input"
+    },
+    {
+      "company_id": 1,
+      "account_code": "202003",
+      "tag": "vat_settlement"
+    },
+    {
+      "company_id": 2,
+      "account_code": "201017",
+      "tag": "vat_output"
+    },
+    {
+      "company_id": 2,
+      "account_code": "14110006",
+      "tag": "vat_input"
+    },
+    {
+      "company_id": 3,
+      "account_code": "201017",
+      "tag": "vat_output"
+    },
+    {
+      "company_id": 3,
+      "account_code": "104041",
+      "tag": "vat_input"
+    },
+    {
+      "company_id": 4,
+      "account_code": "201017",
+      "tag": "vat_output"
+    },
+    {
+      "company_id": 4,
+      "account_code": "111053",
+      "tag": "vat_input"
+    }
+  ],
+  "sister_company_partners": [
+    {
+      "company_id": 1,
+      "partner_id": 7,
+      "partner_name": "شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد",
+      "sister_company_name": "شركة سمير صالح سليمان ابو غلية"
+    },
+    {
+      "company_id": 2,
+      "partner_id": 1,
+      "partner_name": "مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية",
+      "sister_company_name": "مكتب المهندس سمير صالح ابو غلية"
+    },
+    {
+      "company_id": 3,
+      "partner_id": 11,
+      "partner_name": "شركة جمال بكر حريري للاستشارات الهندسية",
+      "sister_company_name": "شركة جمال بكر حريري للاستشارات الهندسية"
+    },
+    {
+      "company_id": 4,
+      "partner_id": 10,
+      "partner_name": "شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد",
+      "sister_company_name": "شركة جمال بكر حريري للاستشارات الهندسية مهنية"
+    }
+  ],
+  "analytic_groups": [
+    {
+      "id": 1,
+      "name": "المختبرات",
+      "color": "#10b981",
+      "sort_order": 0
+    },
+    {
+      "id": 2,
+      "name": "مشاريع الحج",
+      "color": "#ef4444",
+      "sort_order": 0
+    },
+    {
+      "id": 3,
+      "name": "المختبر البيئي",
+      "color": "#06b6d4",
+      "sort_order": 0
+    },
+    {
+      "id": 4,
+      "name": "قسم الاشراف",
+      "color": "#6366f1",
+      "sort_order": 0
+    },
+    {
+      "id": 5,
+      "name": "الادارة",
+      "color": "#ec4899",
+      "sort_order": 0
+    },
+    {
+      "id": 6,
+      "name": "التصميم والامن والسلامه",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 7,
+      "name": "الاتفاقية الاطارية",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 8,
+      "name": "قسم المساحة والمخططات الخاصة",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 9,
+      "name": "الاقسام الاخري",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 10,
+      "name": "الدراسات الهيدرولوجية",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 11,
+      "name": "ادارة المشاريع",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 12,
+      "name": "الدراسات الجيوتقنية والبيئيه",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 13,
+      "name": "المشاريع الكبرى",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 14,
+      "name": "المشاريع الحكومية",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 15,
+      "name": "العقد الموحد",
+      "color": "#3b82f6",
+      "sort_order": 0
+    },
+    {
+      "id": 16,
+      "name": "نشاط التفتيش",
+      "color": "#3b82f6",
+      "sort_order": 0
+    }
+  ],
+  "analytic_group_mapping": [
+    {
+      "company_id": 4,
+      "analytic_account": "20",
+      "group_id": 5,
+      "redistributable": 1,
+      "journal_name": "المختبر البيئي",
+      "journal_id": 101
+    },
+    {
+      "company_id": 4,
+      "analytic_account": "الاداره",
+      "group_id": 3,
+      "redistributable": 1,
+      "journal_name": "المختبر البيئي",
+      "journal_id": 101
+    },
+    {
+      "company_id": 4,
+      "analytic_account": "تشغيلي",
+      "group_id": 3,
+      "redistributable": 0,
+      "journal_name": "المختبر البيئي",
+      "journal_id": 101
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "الاداره",
+      "group_id": 5,
+      "redistributable": 1,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "المجلس التنسيقي لشركات أرباب الطوائف ومقدمي خدمة حجاج الخارج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "جنوب اسيا",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "رخص السكن الجماعي والرخص التجاريه",
+      "group_id": 4,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة إكرام الضيف",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة اسناد المستقبل",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة الخطوط السعودية",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة الراجحي",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة الرفادة لخدمات الحجاج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة الشعاع الصاعد",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة بشرى الضيافة لخدمات الحجاج والمعتمرين",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة حجاج الدول الافريقية غير العربية",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة دليل الزوار لخدمات الحجاج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة رحلات ومنافع",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة رفاد لخدمات الحجاج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة رواف منى لخدمات الحجاج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة فندق هوليدي إن بكة",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة مشارق الماسية",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة مكة",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة مناسك المشاعر لخدمات الحجاج",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "شركة موفبيك ذاخر",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "قسم الامن والسلامه",
+      "group_id": 6,
+      "redistributable": 0,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "قسم التصميم",
+      "group_id": 6,
+      "redistributable": 0,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "مشاريع المكتب الفني",
+      "group_id": 2,
+      "redistributable": 1,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 3,
+      "analytic_account": "مشروع الجازع",
+      "group_id": 2,
+      "redistributable": 0,
+      "journal_name": "شركة م جمال المهنية",
+      "journal_id": 111
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "أعمال الكهرباء والبنية التحتية",
+      "group_id": 8,
+      "redistributable": 0,
+      "journal_name": "أعمال الكهرباء والمخططات الخاصة",
+      "journal_id": 76
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "االشراف على األعمال الميكانيكية والكهربائية وترحيل الخدمات",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "ادارة المشاريع",
+      "group_id": 11,
+      "redistributable": 0,
+      "journal_name": "ادارة المشاريع",
+      "journal_id": 43
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الاتفاقية الاطارية الجهد النخفض",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الاتفاقية الاطارية الرفع المساحي",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الاتفاقية الاطارية سكادا",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الاتفاقية الاطارية مربع 38",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الاتفاقية الاطاريه العامه",
+      "group_id": 7,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الاتفاقية الاطارية",
+      "journal_id": 58
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الادارة",
+      "group_id": 5,
+      "redistributable": 1,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الدراسات المرورية",
+      "group_id": 9,
+      "redistributable": 0,
+      "journal_name": "فواتيرعملاء الدراسات المروريه",
+      "journal_id": 57
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "الدراسات الهيدرولوجيه",
+      "group_id": 10,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء الدراسات الهيدرولوجيه",
+      "journal_id": 62
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "المجلس التنسيقي",
+      "group_id": 13,
+      "redistributable": 0,
+      "journal_name": "المجلس التنسيقي",
+      "journal_id": 84
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "ايراد مشروع الطازج - سنابل جدة",
+      "group_id": 11,
+      "redistributable": 0,
+      "journal_name": "ادارة المشاريع",
+      "journal_id": 43
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "ايراد مشروع رابغ",
+      "group_id": 11,
+      "redistributable": 0,
+      "journal_name": "ادارة المشاريع",
+      "journal_id": 43
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "تحريات جيوتقنية بالجسة",
+      "group_id": 12,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء تحريات جيوتقنية بالجسة",
+      "journal_id": 61
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "قسم الاشراف",
+      "group_id": 4,
+      "redistributable": 0,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "قسم الامن والسلامة",
+      "group_id": 6,
+      "redistributable": 0,
+      "journal_name": "فواتير العملاء- الامن والسلامه",
+      "journal_id": 67
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "قسم الدراسات البيئية",
+      "group_id": 12,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء قسم الدراسات البيئية",
+      "journal_id": 63
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "قسم الدراسات والتصاميم",
+      "group_id": 6,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء قسم الدراسات والتصاميم",
+      "journal_id": 64
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "قسم المساحة",
+      "group_id": 8,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء قسم المساحة",
+      "journal_id": 66
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "كدانة - مشروع دورات المياه الإضافية",
+      "group_id": 13,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء كدانة - مشروع دورات المياه الإضافية",
+      "journal_id": 59
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مختبر الطائف",
+      "group_id": 1,
+      "redistributable": 0,
+      "journal_name": "مختبر الطائف",
+      "journal_id": 55
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مختبر جدة",
+      "group_id": 1,
+      "redistributable": 0,
+      "journal_name": "مختبر جدة",
+      "journal_id": 54
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مختبر مكة",
+      "group_id": 1,
+      "redistributable": 0,
+      "journal_name": "مختبر مكة",
+      "journal_id": 44
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مشروع الرفع المساحي ارض وزارة الإسكان",
+      "group_id": 14,
+      "redistributable": 0,
+      "journal_name": "امانة العاصمة المقدسة وكالة التعمير - ادارة الممتلكات والاصول",
+      "journal_id": 70
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مشروع العقد الموحد المدينه شركة الكهرباء",
+      "group_id": 15,
+      "redistributable": 0,
+      "journal_name": "العقد الموحد المدينه",
+      "journal_id": 79
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مشروع العقد الموحد مكه شركة الكهرباء",
+      "group_id": 15,
+      "redistributable": 0,
+      "journal_name": "العقد الموحد مكه",
+      "journal_id": 45
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مشروع جامعة ام القري العابديه",
+      "group_id": 14,
+      "redistributable": 0,
+      "journal_name": "مشروع الجامعه",
+      "journal_id": 69
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "مشروع منى كدانة",
+      "group_id": 13,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء مشروع منى كدانة",
+      "journal_id": 60
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "منصة خبرة للتحكيم الهندسي",
+      "group_id": 4,
+      "redistributable": 0,
+      "journal_name": "فواتير العملاء- منصة خبره",
+      "journal_id": 28
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "نشاط التفتيش",
+      "group_id": 16,
+      "redistributable": 0,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 1,
+      "analytic_account": "الادارة",
+      "group_id": 1,
+      "redistributable": 1,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 1,
+      "analytic_account": "جسور البيت",
+      "group_id": 1,
+      "redistributable": 1,
+      "journal_name": null,
+      "journal_id": null
+    },
+    {
+      "company_id": 1,
+      "analytic_account": "مختبر  الطائف",
+      "group_id": 1,
+      "redistributable": 0,
+      "journal_name": "مختبر الطائف",
+      "journal_id": 38
+    },
+    {
+      "company_id": 1,
+      "analytic_account": "مختبر جدة",
+      "group_id": 1,
+      "redistributable": 0,
+      "journal_name": "مختبر جدة",
+      "journal_id": 8
+    },
+    {
+      "company_id": 2,
+      "analytic_account": "",
+      "group_id": 4,
+      "redistributable": 0,
+      "journal_name": "فواتير عملاء قسم الاشراف",
+      "journal_id": 65
+    }
+  ]
+}

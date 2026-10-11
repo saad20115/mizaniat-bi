@@ -1250,6 +1250,47 @@ async function runVerifyUI() {
     assert(r2_9_check.ok, `R2-9: Contribution column verified (coCount: ${r2_9_check.coCount}, totalCoContrib: ${r2_9_check.totalCoContrib}%, reason: ${r2_9_check.reason || 'ok'})`);
 
     // ──────────────────────────────────────────
+    // UC1: UI Verification: Zero 'غير مصنّف' in Profitability and Executive for All Companies & All Years
+    // ──────────────────────────────────────────
+    console.log('  Testing UC1: No "غير مصنّف" in Profitability and Executive tables for All Companies & All Years...');
+    await cdp.eval(`(() => {
+      const coAll = document.querySelector("#co-slicer .co-all");
+      if (coAll && !coAll.classList.contains("active")) coAll.click();
+      const yrAll = document.querySelector("#yr-slicer .yr-all");
+      if (yrAll && !yrAll.classList.contains("active")) yrAll.click();
+    })()`);
+    await sleep(2500);
+
+    // Expand all in Profitability
+    await cdp.eval('document.querySelector("#prof-btn-expand-all")?.click()');
+    await sleep(1000);
+    const profHasUnclassified = await cdp.eval(`(() => {
+      const text = document.querySelector('#prof-tree-container')?.textContent || '';
+      return text.includes('غير مصنّف') || text.includes('غير مصنف');
+    })()`);
+    assert(!profHasUnclassified, 'UC1: No "غير مصنّف" in Profitability table for all companies & all years');
+
+    // Switch to Executive and check
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"executive\\"]")?.click()');
+    await waitForTabReady(cdp, 'executive', 20000);
+    await sleep(2000);
+    // Expand all company rows in Executive
+    await cdp.eval(`(() => {
+      const coRows = document.querySelectorAll('#exec-tree-table-container [data-path-key^="co:"]');
+      coRows.forEach(r => r.click());
+    })()`);
+    await sleep(1500);
+    const execHasUnclassified = await cdp.eval(`(() => {
+      const text = document.querySelector('#exec-tree-table-container')?.textContent || '';
+      return text.includes('غير مصنّف') || text.includes('غير مصنف');
+    })()`);
+    assert(!execHasUnclassified, 'UC1: No "غير مصنّف" in Executive table for all companies & all years');
+
+    // Reset back to 2026 for subsequent tests
+    await cdp.eval('document.querySelector("#yr-slicer .yr-chip[data-year=\\"2026\\"]")?.click()');
+    await sleep(1000);
+
+    // ──────────────────────────────────────────
     // TEST 6.7: D3 — Bank Guarantees Tab (الضمانات البنكية)
     // ──────────────────────────────────────────
     console.log('\n--- 6.7. D3: Bank Guarantees Tab Interactive Test ---');

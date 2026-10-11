@@ -7,7 +7,8 @@ node_modules/
 *.sqlite3
 *.db-shm
 *.db-wal
-data/
+/data/
+!server/data/
 
 # Build output
 # client/dist/

@@ -16,8 +16,25 @@ class SyncEngine {
       return this._instanceAnalyticCache.get(instance.id);
     }
 
-    const analyticData = await connector.fetchAnalyticAccounts();
-    const records = analyticData.records || [];
+    const prevCount = this.db.prepare(
+      'SELECT COUNT(*) as cnt FROM odoo_analytic_accounts WHERE instance_id = ?'
+    ).get(instance.id)?.cnt || 0;
+
+    let analyticData;
+    try {
+      analyticData = await connector.fetchAnalyticAccounts();
+    } catch (err) {
+      if (prevCount > 0) {
+        throw new Error(`فشل جلب الحسابات التحليلية للخادم ${instance.id} (يوجد ${prevCount} حساب مسجل سابقاً): ${err.message}`);
+      }
+      throw err;
+    }
+
+    const records = analyticData?.records || [];
+    if (records.length === 0 && prevCount > 0) {
+      throw new Error(`أودو أرجع 0 حساب تحليلي للخادم ${instance.id} بينما يوجد ${prevCount} حساب سابقاً — أُلغيت المزامنة منعاً لسقوط مراكز التكلفة`);
+    }
+
     const map = {};
     for (const r of records) {
       map[r.id] = (r.name || '').trim();
@@ -153,13 +170,9 @@ class SyncEngine {
       // Fetch analytic account names for RPC data (IDs -> names) strictly scoped per instance
       let companyAnalyticMap = {};
       if (dataSource === 'rpc') {
-        try {
-          this._progress[companyId].phase = 'جاري جلب أسماء الحسابات التحليلية...';
-          const analyticRes = await this.getOrFetchAnalyticAccounts(instance, connector);
-          companyAnalyticMap = analyticRes.map || {};
-        } catch (e) {
-          console.log(`[Sync] Could not fetch analytic accounts: ${e.message}`);
-        }
+        this._progress[companyId].phase = 'جاري جلب أسماء الحسابات التحليلية...';
+        const analyticRes = await this.getOrFetchAnalyticAccounts(instance, connector);
+        companyAnalyticMap = analyticRes.map || {};
 
         // Fetch and save taxes
         try {
@@ -344,22 +357,56 @@ class SyncEngine {
       WHERE company_id = @cid AND account_code = @account_code AND date = @date
       GROUP BY move_name
       HAVING ROUND(SUM(debit), 2) = @debit AND ROUND(SUM(credit), 2) = @credit
+      ORDER BY move_name ASC
     `);
     const updReleases = this.db.prepare(
       'UPDATE guarantee_releases SET move_name = ? WHERE company_id = ? AND account_code = ? AND move_name = ?');
     const updSubItems = this.db.prepare(
       'UPDATE guarantee_sub_items SET parent_move_name = ? WHERE parent_company_id = ? AND parent_account_code = ? AND parent_move_name = ?');
 
+    const usedCandidates = new Set();
+    const existingLinked = this.db.prepare(`
+      SELECT move_name FROM guarantee_releases WHERE company_id = ?
+      UNION
+      SELECT parent_move_name FROM guarantee_sub_items WHERE parent_company_id = ?
+    `).all(companyId, companyId).map(r => r.move_name);
+    for (const m of existingLinked) {
+      if (m && !m.startsWith('AUTO/')) usedCandidates.add(m);
+    }
+
+    // Group unlinked entries by fingerprint
+    const unlinkedByFp = new Map();
     for (const e of linkedEntries) {
       if (stillExists.get(companyId, e.account_code, e.move_name)) continue;
-      const candidates = findCandidates.all({ cid: companyId, ...e });
-      if (candidates.length === 1) {
-        const newName = candidates[0].move_name;
-        updReleases.run(newName, companyId, e.account_code, e.move_name);
-        updSubItems.run(newName, companyId, e.account_code, e.move_name);
-        console.log(`[Sync] Re-linked guarantee ${e.account_code} ${e.move_name} → ${newName}`);
+      const fp = `${e.account_code}|${e.date}|${e.debit}|${e.credit}`;
+      if (!unlinkedByFp.has(fp)) unlinkedByFp.set(fp, []);
+      unlinkedByFp.get(fp).push(e);
+    }
+
+    for (const [, entries] of unlinkedByFp) {
+      const e0 = entries[0];
+      const allCandidates = findCandidates.all({ cid: companyId, ...e0 });
+      const available = allCandidates.filter(c => !usedCandidates.has(c.move_name));
+
+      if (available.length === 1 && entries.length === 1) {
+        const newName = available[0].move_name;
+        usedCandidates.add(newName);
+        updReleases.run(newName, companyId, e0.account_code, e0.move_name);
+        updSubItems.run(newName, companyId, e0.account_code, e0.move_name);
+        console.log(`[Sync] Re-linked guarantee ${e0.account_code} ${e0.move_name} → ${newName}`);
+      } else if (available.length >= entries.length) {
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i];
+          const newName = available[i].move_name;
+          usedCandidates.add(newName);
+          updReleases.run(newName, companyId, entry.account_code, entry.move_name);
+          updSubItems.run(newName, companyId, entry.account_code, entry.move_name);
+          console.log(`[Sync] Re-linked guarantee ${entry.account_code} ${entry.move_name} → ${newName} (multi-match ${i+1}/${entries.length})`);
+        }
       } else {
-        console.warn(`[Sync] Guarantee ${e.account_code} ${e.move_name} could not be re-linked (${candidates.length} matches) — kept as is`);
+        for (const entry of entries) {
+          console.warn(`[Sync] Guarantee ${entry.account_code} ${entry.move_name} could not be re-linked (${available.length} available candidates for ${entries.length} entries) — kept as is`);
+        }
       }
     }
   }

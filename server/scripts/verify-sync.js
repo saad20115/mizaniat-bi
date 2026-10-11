@@ -12,6 +12,7 @@
 
 const { getDb } = require('../db/connection');
 const ConsolidationEngine = require('../services/consolidation');
+const SyncEngine = require('../services/sync-engine');
 const { syncAllPaymentAllocations } = require('./sync-payment-allocations');
 
 let failures = 0;
@@ -204,6 +205,46 @@ async function runVerifySync() {
       'Guard active'
     );
 
+    // ── TEST 6b: Empty/Failed Analytic Accounts Safety Guard
+    console.log('\n── Test 6b: Empty/Failed Analytic Accounts Safety Guard');
+    const testSyncEngine = new SyncEngine();
+    const testInstance = db.prepare('SELECT * FROM odoo_instances WHERE id = (SELECT odoo_instance_id FROM companies WHERE id = 1)').get();
+    const prevAnalyticCnt = db.prepare('SELECT COUNT(*) as cnt FROM odoo_analytic_accounts WHERE instance_id = ?').get(testInstance.id).cnt;
+    
+    let emptyAnalyticGuardTriggered = false;
+    let failedAnalyticGuardTriggered = false;
+
+    // Test 1: Empty records response
+    try {
+      const mockEmptyConnector = {
+        fetchAnalyticAccounts: async () => ({ records: [] })
+      };
+      testSyncEngine._instanceAnalyticCache.delete(testInstance.id);
+      await testSyncEngine.getOrFetchAnalyticAccounts(testInstance, mockEmptyConnector);
+    } catch (err) {
+      if (err.message.includes('أودو أرجع 0 حساب تحليلي') && err.message.includes('أُلغيت المزامنة')) {
+        emptyAnalyticGuardTriggered = true;
+      }
+    }
+
+    // Test 2: Network / RPC failure
+    try {
+      const mockFailingConnector = {
+        fetchAnalyticAccounts: async () => { throw new Error('Network timeout'); }
+      };
+      testSyncEngine._instanceAnalyticCache.delete(testInstance.id);
+      await testSyncEngine.getOrFetchAnalyticAccounts(testInstance, mockFailingConnector);
+    } catch (err) {
+      if (err.message.includes('فشل جلب الحسابات التحليلية') && err.message.includes('Network timeout')) {
+        failedAnalyticGuardTriggered = true;
+      }
+    }
+
+    check('DR1-guard: Empty or failed analytic accounts RPC aborts sync with explicit error to protect cost centers',
+      prevAnalyticCnt > 0 && emptyAnalyticGuardTriggered && failedAnalyticGuardTriggered,
+      `guards active (empty: ${emptyAnalyticGuardTriggered}, failure: ${failedAnalyticGuardTriggered}, prevCount: ${prevAnalyticCnt})`
+    );
+
     // ── TEST 7: Earliest Completion Timestamp Calculation
     console.log('\n── Test 7: Earliest Timestamp Calculation');
     const s1 = db.prepare("SELECT MAX(completed_at) as t FROM sync_logs WHERE status = 'completed' AND (sync_type IS NULL OR sync_type = 'full')").get()?.t || null;
@@ -222,7 +263,6 @@ async function runVerifySync() {
     // ── TEST 8: Cross-Server Outsider Invariant (B3-4)
     console.log('\n── Test 8: Cross-Server Outsider Invariant Check');
     console.log('  Running actual sync for Company 4 to verify pipeline invariant on live data...');
-    const SyncEngine = require('../services/sync-engine');
     const syncEngine = new SyncEngine();
     await syncEngine.syncCompany(4);
 

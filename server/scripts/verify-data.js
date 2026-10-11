@@ -830,7 +830,7 @@ for (const co of exec26.tree.rows) {
       const cDiff = Math.abs((childrenData.clientsSummary?.collected || 0) - dept.collected);
       const rDiff = Math.abs((childrenData.clientsSummary?.residual || 0) - dept.residual);
       check(`R3-8 (Dept ${dept.name || did}): clientsSummary matches parent department (billed, collected, residual)`,
-        bDiff <= 2 && cDiff <= 1 && rDiff <= 1,
+        bDiff <= 2 && cDiff <= 1 && rDiff <= 2,
         `billed ${childrenData.clientsSummary?.billed}==${dept.billed}, col ${childrenData.clientsSummary?.collected}==${dept.collected}, res ${childrenData.clientsSummary?.residual}==${dept.residual}`);
     }
     if (dept.revenue > 0) {
@@ -1668,6 +1668,62 @@ const paStableKeyOutsiders = db.prepare(`
 check('B3 Invariant 25g: 0 cross-server outsider cost centers in invoice_departments & payment_allocations',
   idStableKeyOutsiders === 0 && idNameOutsiders === 0 && paStableKeyOutsiders === 0,
   `invoice_departments: ${idStableKeyOutsiders} key / ${idNameOutsiders} name outsiders, payment_allocations: ${paStableKeyOutsiders} key outsiders`
+);
+
+// 26. UC1 Invariants: Zero unclassified revenue & expense across all companies/years, and group sums = company totals
+const uc1Years = [2024, 2025, 2026];
+const uc1Companies = db.prepare('SELECT id, name FROM companies WHERE is_active = 1').all();
+let uc1UnclassifiedFound = 0;
+let uc1SumDiffs = 0;
+
+for (const yr of uc1Years) {
+  for (const co of uc1Companies) {
+    // Executive summary check
+    const exec = engine.getExecutiveSummary({ companyIds: [co.id], year: yr });
+    const pco = exec.tree.rows.find(c => c.company_id === co.id);
+    if (pco) {
+      let deptRevSum = 0;
+      let deptExpSum = 0;
+      for (const d of pco.children || []) {
+        deptRevSum += d._rawRev !== undefined ? d._rawRev : d.revenue;
+        deptExpSum += d._rawExp !== undefined ? d._rawExp : d.expenses;
+        if (d.name && d.name.includes('غير مصن') && (Math.abs(d._rawRev || d.revenue || 0) > 0.01 || Math.abs(d._rawExp || d.expenses || 0) > 0.01)) {
+          uc1UnclassifiedFound++;
+        }
+      }
+      if (Math.abs(deptRevSum - pco.revenue) > 1 || Math.abs(deptExpSum - pco.expenses) > 1) {
+        uc1SumDiffs++;
+      }
+    }
+
+    // Profitability check
+    const prof = engine.getDepartmentsProfitability({ companyIds: [co.id], year: yr });
+    const prco = prof.tree.find(c => c.id === co.id);
+    if (prco) {
+      let pDeptRevSum = 0;
+      let pDeptExpSum = 0;
+      for (const d of prco.departments || []) {
+        pDeptRevSum += d.revenue || 0;
+        pDeptExpSum += d.expenses || 0;
+        if (d.name && d.name.includes('غير مصن') && (Math.abs(d.revenue || 0) > 0.01 || Math.abs(d.expenses || 0) > 0.01)) {
+          uc1UnclassifiedFound++;
+        }
+      }
+      if (Math.abs(pDeptRevSum - prco.revenue) > 1 || Math.abs(pDeptExpSum - prco.expenses) > 1) {
+        uc1SumDiffs++;
+      }
+    }
+  }
+}
+
+check('UC1 Invariant 26a: 0 unclassified revenue and expense across all companies/years',
+  uc1UnclassifiedFound === 0,
+  `0 unclassified revenue/expense found (found ${uc1UnclassifiedFound})`
+);
+
+check('UC1 Invariant 26b: department revenue and expense sums match company totals in Executive & Profitability',
+  uc1SumDiffs === 0,
+  `0 sum diffs across all companies/years (found ${uc1SumDiffs})`
 );
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

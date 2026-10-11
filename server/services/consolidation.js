@@ -1139,6 +1139,19 @@ class ConsolidationEngine {
       ORDER BY sort_order, name
     `).all();
 
+    // UC1: Append unmapped cost centers with transactions as selectable groups
+    const unmappedGroups = this._getUnmappedCostCenterGroups();
+    for (const ug of unmappedGroups) {
+      if (!groups.some(g => g.name === ug.name || g.id === ug.id)) {
+        groups.push({
+          id: ug.id,
+          name: ug.name,
+          color: ug.color,
+          sort_order: ug.sort_order
+        });
+      }
+    }
+
     let journalFilter = '';
     const jParams = {};
     if (companyIds && companyIds.length > 0) {
@@ -1151,7 +1164,7 @@ class ConsolidationEngine {
         c.id as company_id,
         c.name as company_name,
         m.dominant_dept_id as group_id,
-        COALESCE(ag.name, 'غير مصنّف') as group_name,
+        ${this._groupNameSql('ag', 'id.cost_center_name')} as group_name,
         id.cost_center_key,
         id.cost_center_name,
         MIN(si.journal_id) as journal_id,
@@ -1175,6 +1188,7 @@ class ConsolidationEngine {
     const journals = rawCostCenters.map(r => {
       const cleanName = (r.cost_center_name || '').replace(/\s+/g, ' ').trim();
       const ccKey = r.cost_center_key || ('j:' + (r.journal_id || 0));
+      const synthId = this._resolveGroupId(r.group_id, r.cost_center_key);
       return {
         id: `${r.company_id}|${ccKey}`,
         cost_center_key: r.cost_center_key,
@@ -1185,11 +1199,65 @@ class ConsolidationEngine {
         name: cleanName,
         company_id: r.company_id,
         company_name: r.company_name,
-        group_id: r.group_id,
+        group_id: synthId,
         group_name: r.group_name,
         original_journals: r.original_journals
       };
     });
+
+    // UC1: Also include active cost centers from fact_daily if not present in journals
+    const existingCcKeys = new Set(journals.map(j => `${j.company_id}|${j.cost_center_key}`));
+    let fdJournalFilter = '';
+    const fdJParams = {};
+    if (companyIds && companyIds.length > 0) {
+      fdJournalFilter = `WHERE fd.company_id IN (${companyIds.map((_, i) => `@fd_cid${i}`).join(',')}) AND fd.cost_center_key IS NOT NULL AND TRIM(fd.cost_center_key) != ''`;
+      companyIds.forEach((id, i) => { fdJParams[`fd_cid${i}`] = id; });
+    } else {
+      fdJournalFilter = `WHERE fd.cost_center_key IS NOT NULL AND TRIM(fd.cost_center_key) != ''`;
+    }
+
+    const fdCostCenters = this.db.prepare(`
+      SELECT 
+        fd.company_id,
+        COALESCE(c.name, 'شركة ' || fd.company_id) as company_name,
+        fd.department_id as group_id,
+        ${this._groupNameSql('ag', 'fd.cost_center_name')} as group_name,
+        fd.cost_center_key,
+        fd.cost_center_name,
+        MIN(fd.journal_id) as journal_id,
+        GROUP_CONCAT(DISTINCT fd.journal_id) as journal_ids,
+        GROUP_CONCAT(DISTINCT COALESCE(NULLIF(TRIM(fd.journal_name), ''), 'بدون دفتر')) as original_journals
+      FROM fact_daily fd
+      LEFT JOIN companies c ON c.id = fd.company_id
+      LEFT JOIN analytic_groups ag ON ag.id = fd.department_id
+      ${fdJournalFilter}
+      GROUP BY fd.company_id, fd.cost_center_key, fd.cost_center_name
+      HAVING (SUM(fd.revenue) != 0 OR SUM(fd.expense) != 0)
+    `).all(fdJParams);
+
+    for (const r of fdCostCenters) {
+      const ccKey = r.cost_center_key || ('j:' + (r.journal_id || 0));
+      const pairKey = `${r.company_id}|${ccKey}`;
+      if (!existingCcKeys.has(pairKey)) {
+        existingCcKeys.add(pairKey);
+        const cleanName = (r.cost_center_name || '').replace(/\s+/g, ' ').trim();
+        const synthId = this._resolveGroupId(r.group_id, r.cost_center_key);
+        journals.push({
+          id: pairKey,
+          cost_center_key: r.cost_center_key,
+          cost_center_name: cleanName,
+          journal_id: r.journal_id,
+          journal_ids: r.journal_ids,
+          journal_name: cleanName,
+          name: cleanName,
+          company_id: r.company_id,
+          company_name: r.company_name,
+          group_id: synthId,
+          group_name: r.group_name,
+          original_journals: r.original_journals
+        });
+      }
+    }
 
     return { periods, fiscalYears, accountTypes, costCenters, companyYears, groups, journals };
   }
@@ -1395,8 +1463,8 @@ class ConsolidationEngine {
         join: 'LEFT JOIN companies c ON c.id = fd.company_id'
       },
       department: {
-        keyCol: 'fd.department_id',
-        labelCol: "COALESCE(ag.name, 'غير مصنّف')",
+        keyCol: "CASE WHEN fd.department_id > 0 THEN CAST(fd.department_id AS TEXT) ELSE 'cc:' || COALESCE(fd.cost_center_key, '') END",
+        labelCol: this._groupNameSql('ag', 'fd.cost_center_name'),
         join: 'LEFT JOIN analytic_groups ag ON ag.id = fd.department_id'
       },
       analytic: {
@@ -1459,11 +1527,10 @@ class ConsolidationEngine {
         }
       }
       if (departmentIds) {
-        const dids = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-        if (dids.length > 0) {
-          const dPh = dids.map((_, i) => `@fd_mat_d_${i}`).join(',');
-          dids.forEach((d, i) => { params[`fd_mat_d_${i}`] = d; });
-          whereClauses.push(`fd.department_id IN (${dPh})`);
+        const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'fd', prefix: 'fd_mat_d_' });
+        if (grpFilter.sql) {
+          whereClauses.push(grpFilter.sql.replace(/^\s*AND\s*/i, ''));
+          Object.assign(params, grpFilter.params);
         }
       }
 
@@ -1611,11 +1678,10 @@ class ConsolidationEngine {
         }
       }
       if (departmentIds) {
-        const dids = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-        if (dids.length > 0) {
-          const dPh = dids.map((_, i) => `@fd_k_d_${i}`).join(',');
-          dids.forEach((d, i) => { kParams[`fd_k_d_${i}`] = d; });
-          kWhere.push(`fd.department_id IN (${dPh})`);
+        const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'fd', prefix: 'fd_k_d_' });
+        if (grpFilter.sql) {
+          kWhere.push(grpFilter.sql.replace(/^\s*AND\s*/i, ''));
+          Object.assign(kParams, grpFilter.params);
         }
       }
       const kWhereSql = kWhere.length > 0 ? `WHERE ${kWhere.join(' AND ')}` : '';
@@ -1833,11 +1899,10 @@ class ConsolidationEngine {
         whereClause += ` AND si.company_id IN (${sPh})`;
       }
       if (departmentIds && departmentIds.length > 0) {
-        const dArr = (Array.isArray(departmentIds) ? departmentIds : [departmentIds]).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-        if (dArr.length > 0) {
-          const dPh = dArr.map((_, i) => `@rec_d_${i}`).join(',');
-          dArr.forEach((d, i) => { params[`rec_d_${i}`] = d; });
-          whereClause += ` AND id.department_id IN (${dPh})`;
+        const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'rec_d_' });
+        if (grpFilter.sql) {
+          whereClause += grpFilter.sql;
+          Object.assign(params, grpFilter.params);
         }
       }
       if (partnerId) {
@@ -1859,7 +1924,9 @@ class ConsolidationEngine {
           c.id as company_id,
           c.name as company_name,
           id.department_id,
-          COALESCE(ag.name, 'غير مصنّف') as department_name,
+          id.cost_center_key,
+          id.cost_center_name,
+          ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
           si.partner_id,
           COALESCE(NULLIF(TRIM(si.partner_name), ''), 'بدون عميل') as partner_name,
           si.id as invoice_id,
@@ -1922,10 +1989,11 @@ class ConsolidationEngine {
         comp.total_billed += billed;
         comp.total_collected += coll;
 
-        let dept = comp.departments.get(r.department_id);
+        const did = this._resolveGroupId(r.department_id, r.cost_center_key);
+        let dept = comp.departments.get(did);
         if (!dept) {
           dept = {
-            id: r.department_id,
+            id: did,
             name: r.department_name,
             buckets: { not_due: 0, b1_30: 0, b31_60: 0, b61_90: 0, b91_180: 0, b181_365: 0, over_365: 0 },
             total_residual: 0,
@@ -1933,7 +2001,7 @@ class ConsolidationEngine {
             total_collected: 0,
             partners: new Map()
           };
-          comp.departments.set(r.department_id, dept);
+          comp.departments.set(did, dept);
         }
         dept.buckets[bKey] += res;
         dept.total_residual += res;
@@ -2078,11 +2146,10 @@ class ConsolidationEngine {
         whereClause += ` AND si.company_id IN (${sPh})`;
       }
       if (departmentIds && departmentIds.length > 0) {
-        const dArr = (Array.isArray(departmentIds) ? departmentIds : [departmentIds]).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-        if (dArr.length > 0) {
-          const dPh = dArr.map((_, i) => `@mat_d_${i}`).join(',');
-          dArr.forEach((d, i) => { params[`mat_d_${i}`] = d; });
-          whereClause += ` AND id.department_id IN (${dPh})`;
+        const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'mat_d_' });
+        if (grpFilter.sql) {
+          whereClause += grpFilter.sql;
+          Object.assign(params, grpFilter.params);
         }
       }
       if (recPeriod.sql !== '1=1') {
@@ -2101,7 +2168,9 @@ class ConsolidationEngine {
           c.id as company_id,
           c.name as company_name,
           id.department_id,
-          COALESCE(ag.name, 'غير مصنّف') as department_name,
+          id.cost_center_key,
+          id.cost_center_name,
+          ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
           ${timeExpr} as period,
           ROUND(SUM(si.amount_total * id.share), 2) as billed,
           ROUND(SUM((si.amount_total - si.amount_residual_signed) * id.share), 2) as collected,
@@ -2148,11 +2217,15 @@ class ConsolidationEngine {
       whereClause += ` AND si.company_id IN (${sPh})`;
     }
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : [departmentIds]).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPh = dArr.map((_, i) => `@reg_d_${i}`).join(',');
-        dArr.forEach((d, i) => { params[`reg_d_${i}`] = d; });
-        whereClause += ` AND EXISTS (SELECT 1 FROM invoice_departments _id WHERE _id.sales_invoice_id = si.id AND _id.department_id IN (${dPh}))`;
+      const grpFilter = this._buildGroupCondition({
+        departmentIds,
+        tableAlias: '_id',
+        prefix: 'reg_d_',
+        wrapExists: '_id.sales_invoice_id = si.id'
+      });
+      if (grpFilter.sql) {
+        whereClause += grpFilter.sql;
+        Object.assign(params, grpFilter.params);
       }
     }
     if (paymentState) {
@@ -2240,7 +2313,7 @@ class ConsolidationEngine {
     const invoiceIds = invoices.map(i => i.id);
     if (invoiceIds.length > 0) {
       const depts = this.db.prepare(`
-        SELECT id.sales_invoice_id, id.department_id, id.share, COALESCE(ag.name, 'غير مصنّف') as department_name
+        SELECT id.sales_invoice_id, id.department_id, id.cost_center_key, id.cost_center_name, id.share, ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name
         FROM invoice_departments id
         LEFT JOIN analytic_groups ag ON ag.id = id.department_id
         WHERE id.sales_invoice_id IN (${invoiceIds.map(() => '?').join(',')})
@@ -2855,7 +2928,163 @@ class ConsolidationEngine {
   }
 
   /**
-   * M1 / F2: Unified cost center & journal condition across all reports
+   * UC1: Central SQL expression for group/department name.
+   * Falls back to cost center name if group name is null/empty.
+   */
+  _groupNameSql(groupAlias = 'ag', ccNameCol = 'fd.cost_center_name') {
+    return `COALESCE(NULLIF(TRIM(${groupAlias}.name), ''), NULLIF(TRIM(${ccNameCol}), ''), 'غير مصنّف')`;
+  }
+
+  /**
+   * UC1: Deterministic positive integer ID derived from cost center key.
+   * Range: 100000 - 999999 (distinguishable from normal group IDs 1..1000).
+   */
+  _deriveSyntheticGroupId(costCenterKey) {
+    if (!costCenterKey) return 0;
+    let hash = 0;
+    const str = String(costCenterKey).trim();
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return 100000 + (Math.abs(hash) % 900000);
+  }
+
+  /**
+   * UC1: Resolve group ID: returns real group ID if > 0, otherwise synthetic ID from cost center key.
+   */
+  _resolveGroupId(deptId, costCenterKey) {
+    const n = Number(deptId);
+    if (Number.isInteger(n) && n > 0) return n;
+    return this._deriveSyntheticGroupId(costCenterKey);
+  }
+
+  /**
+   * UC1: Returns map of synthetic group IDs to cost center metadata, and reverse map.
+   */
+  _getSyntheticGroupRegistry() {
+    if (!this._syntheticGroupReg) {
+      const rows = this.db.prepare(`
+        SELECT DISTINCT cost_center_key, cost_center_name 
+        FROM fact_daily 
+        WHERE (department_id = 0 OR department_id IS NULL)
+          AND cost_center_key IS NOT NULL 
+          AND TRIM(cost_center_key) != ''
+        UNION
+        SELECT DISTINCT cost_center_key, cost_center_name 
+        FROM invoice_departments 
+        WHERE (department_id = 0 OR department_id IS NULL)
+          AND cost_center_key IS NOT NULL 
+          AND TRIM(cost_center_key) != ''
+        UNION
+        SELECT DISTINCT cost_center_key, cost_center_name 
+        FROM payment_allocations 
+        WHERE (department_id = 0 OR department_id IS NULL)
+          AND cost_center_key IS NOT NULL 
+          AND TRIM(cost_center_key) != ''
+      `).all();
+
+      const idToMeta = new Map();
+      const keyToId = new Map();
+      for (const r of rows) {
+        const key = (r.cost_center_key || '').trim();
+        const name = (r.cost_center_name || '').trim();
+        if (!key) continue;
+        const synthId = this._deriveSyntheticGroupId(key);
+        idToMeta.set(synthId, { id: synthId, key, name });
+        keyToId.set(key, synthId);
+      }
+      this._syntheticGroupReg = { idToMeta, keyToId };
+    }
+    return this._syntheticGroupReg;
+  }
+
+  /**
+   * UC1: Returns unmapped cost centers formatted as standalone groups for slicers/filters.
+   */
+  _getUnmappedCostCenterGroups() {
+    const rows = this.db.prepare(`
+      SELECT DISTINCT cost_center_key, cost_center_name, SUM(revenue) as rev, SUM(expense) as exp
+      FROM fact_daily
+      WHERE (department_id = 0 OR department_id IS NULL)
+        AND cost_center_name IS NOT NULL
+        AND TRIM(cost_center_name) != ''
+      GROUP BY cost_center_key, cost_center_name
+      HAVING rev != 0 OR exp != 0
+    `).all();
+
+    const groups = [];
+    for (const r of rows) {
+      const key = r.cost_center_key.trim();
+      const name = (r.cost_center_name || '').trim();
+      const synthId = this._deriveSyntheticGroupId(key);
+      groups.push({
+        id: synthId,
+        name: name,
+        cost_center_key: key,
+        color: 'var(--status-warning)',
+        sort_order: 999
+      });
+    }
+    return groups;
+  }
+
+  /**
+   * UC1: Centralized department / group condition builder.
+   * Handles both real group IDs (department_id IN (...)) and synthetic IDs (cost_center_key = ...).
+   */
+  _buildGroupCondition({ departmentIds, tableAlias = 'fd', prefix = 'grp_', wrapExists = null } = {}) {
+    if (!departmentIds || departmentIds.length === 0) return { sql: '', params: {} };
+    const dArr = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(','))
+      .map(Number)
+      .filter(n => Number.isInteger(n) && !isNaN(n));
+    if (dArr.length === 0) return { sql: '', params: {} };
+
+    const reg = this._getSyntheticGroupRegistry();
+    const realIds = [];
+    const synthMetas = [];
+
+    for (const id of dArr) {
+      if (reg.idToMeta.has(id)) {
+        synthMetas.push(reg.idToMeta.get(id));
+      } else if (id > 0) {
+        realIds.push(id);
+      }
+    }
+
+    const orParts = [];
+    const params = {};
+
+    if (realIds.length > 0) {
+      const ph = realIds.map((_, i) => `@${prefix}r_${i}`).join(',');
+      realIds.forEach((id, i) => { params[`${prefix}r_${i}`] = id; });
+      if (wrapExists) {
+        orParts.push(`EXISTS (SELECT 1 FROM invoice_departments _id WHERE ${wrapExists} AND _id.department_id IN (${ph}))`);
+      } else {
+        orParts.push(`${tableAlias}.department_id IN (${ph})`);
+      }
+    }
+
+    if (synthMetas.length > 0) {
+      synthMetas.forEach((meta, i) => {
+        const kParam = `${prefix}k_${i}`;
+        const nParam = `${prefix}n_${i}`;
+        params[kParam] = meta.key;
+        params[nParam] = meta.name;
+        if (wrapExists) {
+          orParts.push(`EXISTS (SELECT 1 FROM invoice_departments _id WHERE ${wrapExists} AND (_id.cost_center_key = @${kParam} OR _id.cost_center_name = @${nParam}))`);
+        } else {
+          orParts.push(`(${tableAlias}.cost_center_key = @${kParam} OR ${tableAlias}.cost_center_name = @${nParam})`);
+        }
+      });
+    }
+
+    if (orParts.length === 0) return { sql: '', params: {} };
+    const sql = orParts.length === 1 ? ` AND ${orParts[0]}` : ` AND (${orParts.join(' OR ')})`;
+    return { sql, params };
+  }
+
+  /**
    * Enforces pair identity: (company_id, cost_center_key)
    * Supports tableAlias:
    *  'fd' (fact_daily: fd.company_id, fd.cost_center_key)
@@ -3102,11 +3331,10 @@ class ConsolidationEngine {
     }
 
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPh = dArr.map((_, i) => `@exec_d_${i}`).join(',');
-        dArr.forEach((d, i) => { fdParams[`exec_d_${i}`] = d; });
-        fdWhere += ` AND fd.department_id IN (${dPh})`;
+      const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'fd', prefix: 'exec_d_' });
+      if (grpFilter.sql) {
+        fdWhere += grpFilter.sql;
+        Object.assign(fdParams, grpFilter.params);
       }
     }
 
@@ -3143,11 +3371,10 @@ class ConsolidationEngine {
       Object.assign(invParams, period.params);
     }
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPhInv = dArr.map((_, i) => `@exec_d_inv_${i}`).join(',');
-        dArr.forEach((d, i) => { invParams[`exec_d_inv_${i}`] = d; });
-        invWhere += ` AND id.department_id IN (${dPhInv})`;
+      const grpFilterInv = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'exec_d_inv_' });
+      if (grpFilterInv.sql) {
+        invWhere += grpFilterInv.sql;
+        Object.assign(invParams, grpFilterInv.params);
       }
     }
     if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
@@ -3171,7 +3398,9 @@ class ConsolidationEngine {
         SELECT 
           c.id as ledger_cid,
           id.department_id,
-          COALESCE(ag.name, 'غير مصنّف') as department_name,
+          id.cost_center_key,
+          id.cost_center_name,
+          ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
           COUNT(DISTINCT si.partner_id) as client_count,
           SUM(si.amount_untaxed * id.share) as billed,
           SUM(CASE WHEN si.amount_total != 0 THEN (si.amount_untaxed * (si.amount_total - si.amount_residual_signed) / si.amount_total) * id.share ELSE 0 END) as collected,
@@ -3183,7 +3412,7 @@ class ConsolidationEngine {
         JOIN invoice_departments id ON id.sales_invoice_id = si.id
         LEFT JOIN analytic_groups ag ON ag.id = id.department_id
         ${invWhere}
-        GROUP BY c.id, id.department_id
+        GROUP BY c.id, id.department_id, (CASE WHEN id.department_id > 0 THEN '' ELSE id.cost_center_key END)
       `).all({ ...invParams, refDate });
 
       for (const r of aggRows) {
@@ -3201,7 +3430,7 @@ class ConsolidationEngine {
         if (!invMap.has(lCid)) invMap.set(lCid, new Map());
         const dMap = invMap.get(lCid);
 
-        const dId = r.department_id || 0;
+        const dId = this._resolveGroupId(r.department_id, r.cost_center_key);
         dMap.set(dId, {
           dept_id: dId,
           dept_name: r.department_name,
@@ -3220,7 +3449,9 @@ class ConsolidationEngine {
           c.id as ledger_cid,
           c.name as company_name,
           id.department_id,
-          COALESCE(ag.name, 'غير مصنّف') as department_name,
+          id.cost_center_key,
+          id.cost_center_name,
+          ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
           si.partner_id,
           COALESCE(NULLIF(TRIM(si.partner_name), ''), 'بدون عميل') as partner_name,
           si.amount_untaxed,
@@ -3266,7 +3497,7 @@ class ConsolidationEngine {
         if (!invMap.has(lCid)) invMap.set(lCid, new Map());
         const dMap = invMap.get(lCid);
 
-        const dId = inv.department_id || 0;
+        const dId = this._resolveGroupId(inv.department_id, inv.cost_center_key);
         if (!dMap.has(dId)) {
           dMap.set(dId, {
             dept_id: dId,
@@ -3441,18 +3672,22 @@ class ConsolidationEngine {
         SELECT 
           fd.company_id as ledger_cid,
           fd.department_id,
+          fd.cost_center_key,
+          fd.cost_center_name,
           fd.account_code,
           SUM(fd.revenue) as revenue,
           SUM(fd.expense) as expense
         FROM fact_daily fd
         ${fdWhere}
-        GROUP BY fd.company_id, fd.department_id, fd.account_code
+        GROUP BY fd.company_id, fd.department_id, (CASE WHEN fd.department_id > 0 THEN '' ELSE fd.cost_center_key END), fd.account_code
         HAVING (SUM(fd.revenue) != 0 OR SUM(fd.expense) != 0)
       )
       SELECT 
         agg.ledger_cid,
         agg.department_id,
-        COALESCE(ag.name, 'غير مصنّف') as department_name,
+        agg.cost_center_key,
+        agg.cost_center_name,
+        ${this._groupNameSql('ag', 'agg.cost_center_name')} as department_name,
         agg.account_code,
         COALESCE(ca.name, agg.account_code) as account_name,
         agg.revenue,
@@ -3470,7 +3705,7 @@ class ConsolidationEngine {
       if (!accMap.has(lCid)) accMap.set(lCid, new Map());
       const dMap = accMap.get(lCid);
 
-      const dId = row.department_id || 0;
+      const dId = this._resolveGroupId(row.department_id, row.cost_center_key);
       if (!dMap.has(dId)) {
         dMap.set(dId, {
           dept_id: dId,
@@ -3847,9 +4082,13 @@ class ConsolidationEngine {
       invoice_count: 0
     };
 
+    const synthMeta = this._getSyntheticGroupRegistry().idToMeta.get(did);
+
     if ((kind === 'clients' || kind === 'both') && salesCid) {
-      let invWhere = `WHERE si.company_id = @salesCid AND id.department_id = @did`;
-      const invParams = { salesCid, did };
+      let invWhere = synthMeta
+        ? `WHERE si.company_id = @salesCid AND (id.cost_center_key = @synthKey OR id.cost_center_name = @synthName)`
+        : `WHERE si.company_id = @salesCid AND id.department_id = @did`;
+      const invParams = { salesCid, did, synthKey: synthMeta?.key, synthName: synthMeta?.name };
       if (period.sql !== '1=1') {
         invWhere += ` AND ${period.sql}`;
         Object.assign(invParams, period.params);
@@ -4005,8 +4244,10 @@ class ConsolidationEngine {
       margin: 0
     };
     if (kind === 'accounts' || kind === 'both') {
-      let fdWhere = `WHERE fd.company_id = @cid AND fd.department_id = @did`;
-      const fdParams = { cid, did };
+      let fdWhere = synthMeta
+        ? `WHERE fd.company_id = @cid AND (fd.cost_center_key = @synthKey OR fd.cost_center_name = @synthName)`
+        : `WHERE fd.company_id = @cid AND fd.department_id = @did`;
+      const fdParams = { cid, did, synthKey: synthMeta?.key, synthName: synthMeta?.name };
       if (period.sql !== '1=1') {
         const fdPeriod = this._periodFilter({ years: period.yearsList, dateFrom: period.dateFrom, dateTo: period.dateTo }, 'fd.date', 'fd_');
         if (fdPeriod.sql !== '1=1') {
@@ -4724,11 +4965,10 @@ class ConsolidationEngine {
       Object.assign(invParams, period.params);
     }
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPh = dArr.map((_, i) => `@cust_d_${i}`).join(',');
-        dArr.forEach((d, i) => { invParams[`cust_d_${i}`] = d; });
-        invWhere += ` AND id.department_id IN (${dPh})`;
+      const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'cust_d_' });
+      if (grpFilter.sql) {
+        invWhere += grpFilter.sql;
+        Object.assign(invParams, grpFilter.params);
       }
     }
     if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
@@ -4744,7 +4984,7 @@ class ConsolidationEngine {
         c.id as ledger_cid,
         c.name as ledger_name,
         id.department_id,
-        COALESCE(NULLIF(TRIM(ag.name), ''), 'غير مصنف') as department_name,
+        ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
         id.cost_center_key,
         id.cost_center_name,
         si.journal_id,
@@ -4802,7 +5042,7 @@ class ConsolidationEngine {
           due_date: r.due_date,
           company_id: r.ledger_cid,
           company_name: r.ledger_name,
-          department_id: r.department_id,
+          department_id: this._resolveGroupId(r.department_id, r.cost_center_key),
           department_name: r.department_name,
           journal_id: jid,
           journal_name: jName,
@@ -4848,9 +5088,10 @@ class ConsolidationEngine {
       co.partnerSet.add(pid);
 
       const deptMap = co.departmentsMap;
-      if (!deptMap.has(r.department_id)) {
-        deptMap.set(r.department_id, {
-          id: r.department_id,
+      const dId = this._resolveGroupId(r.department_id, r.cost_center_key);
+      if (!deptMap.has(dId)) {
+        deptMap.set(dId, {
+          id: dId,
           name: r.department_name,
           company_id: r.ledger_cid,
           type: 'dept',
@@ -4867,7 +5108,7 @@ class ConsolidationEngine {
           partnerSet: new Set()
         });
       }
-      const dept = deptMap.get(r.department_id);
+      const dept = deptMap.get(dId);
       dept.inv_count = (dept.inv_count || 0) + 1;
       dept.billed += billedVal;
       dept.returns += returnVal;
@@ -4889,7 +5130,7 @@ class ConsolidationEngine {
           cost_center_name: ccName,
           name: ccName,
           company_id: r.ledger_cid,
-          department_id: r.department_id,
+          department_id: dId,
           type: 'journal',
           inv_count: 0,
           billed: 0,
@@ -5422,11 +5663,10 @@ class ConsolidationEngine {
 
     let extraFilter = '';
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : String(departmentIds).split(',')).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPh = dArr.map((_, i) => `@fd_dept_${i}`).join(',');
-        dArr.forEach((d, i) => { extraParams[`fd_dept_${i}`] = d; });
-        extraFilter += ` AND fd.department_id IN (${dPh})`;
+      const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'fd', prefix: 'fd_dept_' });
+      if (grpFilter.sql) {
+        extraFilter += grpFilter.sql;
+        Object.assign(extraParams, grpFilter.params);
       }
     }
     const ccFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'fd', prefix: 'jF_' });
@@ -5449,7 +5689,9 @@ class ConsolidationEngine {
         fd.company_id,
         COALESCE(c.name, 'شركة ' || fd.company_id) as company_name,
         fd.department_id,
-        COALESCE(ag.name, 'غير مصنّف') as department_name,
+        fd.cost_center_key,
+        fd.cost_center_name,
+        ${this._groupNameSql('ag', 'fd.cost_center_name')} as department_name,
         COALESCE(NULLIF(TRIM(fd.analytic_account), ''), 'بدون مركز') as cost_center,
         fd.account_code,
         COALESCE(ca.name, fd.account_code) as account_name,
@@ -5461,7 +5703,7 @@ class ConsolidationEngine {
       LEFT JOIN analytic_groups ag ON ag.id = fd.department_id
       LEFT JOIN company_accounts ca ON ca.company_id = fd.company_id AND ca.code = fd.account_code
       WHERE ${inCoClause} AND ${period.sql} ${extraFilter}
-      GROUP BY fd.company_id, fd.department_id, cost_center, fd.account_code, period_key
+      GROUP BY fd.company_id, fd.department_id, (CASE WHEN fd.department_id > 0 THEN '' ELSE fd.cost_center_key END), cost_center, fd.account_code, period_key
       ORDER BY fd.company_id, fd.department_id, cost_center, fd.account_code, period_key
     `).all({ ...period.params, ...extraParams });
 
@@ -5479,7 +5721,7 @@ class ConsolidationEngine {
 
     for (const r of rows) {
       const cid = r.company_id;
-      const did = r.department_id || 0;
+      const did = this._resolveGroupId(r.department_id, r.cost_center_key);
       const cc = r.cost_center;
       const acc = r.account_code;
       const pk = r.period_key;
@@ -6418,11 +6660,10 @@ class ConsolidationEngine {
     }
 
     if (departmentIds && departmentIds.length > 0) {
-      const dArr = (Array.isArray(departmentIds) ? departmentIds : [departmentIds]).map(Number).filter(n => Number.isInteger(n) && !isNaN(n));
-      if (dArr.length > 0) {
-        const dPh = dArr.map((_, i) => `@pa_dept_${i}`).join(',');
-        dArr.forEach((d, i) => { params[`pa_dept_${i}`] = d; });
-        whereClauses.push(`pa.department_id IN (${dPh})`);
+      const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'pa', prefix: 'pa_dept_' });
+      if (grpFilter.sql) {
+        whereClauses.push(grpFilter.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(params, grpFilter.params);
       }
     }
 
@@ -6624,7 +6865,7 @@ class ConsolidationEngine {
         pa.company_id,
         c.name as company_name,
         pa.department_id,
-        pa.department_name,
+        COALESCE(NULLIF(TRIM(pa.department_name), ''), NULLIF(TRIM(pa.cost_center_name), ''), 'غير مصنّف') as department_name,
         pa.cost_center_key,
         pa.cost_center_name,
         pa.invoice_journal_id,
@@ -6666,20 +6907,21 @@ class ConsolidationEngine {
       }
       const coNode = coMap.get(r.company_id);
 
-      if (!coNode.deptMap.has(r.department_id)) {
+      const did = this._resolveGroupId(r.department_id, r.cost_center_key);
+      if (!coNode.deptMap.has(did)) {
         const deptNode = {
-          id: `co:${r.company_id}/dept:${r.department_id}`,
-          department_id: r.department_id,
+          id: `co:${r.company_id}/dept:${did}`,
+          department_id: did,
           name: r.department_name,
           type: 'department',
           bank: 0, sister_company: 0, other_adjustment: 0, discount_fee: 0, total_collected: 0, credit_notes: 0, payments_count: 0, invoices_count: 0,
           journals: [],
           journalMap: new Map()
         };
-        coNode.deptMap.set(r.department_id, deptNode);
+        coNode.deptMap.set(did, deptNode);
         coNode.departments.push(deptNode);
       }
-      const deptNode = coNode.deptMap.get(r.department_id);
+      const deptNode = coNode.deptMap.get(did);
 
       const jId = r.invoice_journal_id || 0;
       const ccKey = r.cost_center_key || ('j:' + jId);
@@ -6687,7 +6929,7 @@ class ConsolidationEngine {
 
       if (!deptNode.journalMap.has(ccKey)) {
         const jNode = {
-          id: `co:${r.company_id}/dept:${r.department_id}/j:${ccKey}`,
+          id: `co:${r.company_id}/dept:${did}/j:${ccKey}`,
           cost_center_key: ccKey,
           cost_center_name: ccName,
           journal_id: jId,
@@ -6702,7 +6944,7 @@ class ConsolidationEngine {
       const jNode = deptNode.journalMap.get(ccKey);
 
       const partnerNode = {
-        id: `co:${r.company_id}/dept:${r.department_id}/j:${ccKey}/p:${r.partner_id}`,
+        id: `co:${r.company_id}/dept:${did}/j:${ccKey}/p:${r.partner_id}`,
         partner_id: r.partner_id,
         name: r.partner_name || 'عميل غير معروف',
         type: 'partner',
@@ -7358,8 +7600,8 @@ class ConsolidationEngine {
         si.name as invoice_name,
         c.id as company_id,
         c.name as company_name,
-        COALESCE(id.department_id, agm.group_id, 0) as group_id,
-        COALESCE(ag.name, 'غير مصنّف') as group_name,
+        COALESCE(id.department_id, agm.group_id, 0) as department_id,
+        ${this._groupNameSql('ag', 'id.cost_center_name')} as group_name,
         id.cost_center_key,
         id.cost_center_name,
         si.journal_id,
@@ -7380,6 +7622,8 @@ class ConsolidationEngine {
     `).all(invParams);
 
     for (const inv of invoices) {
+      const rawDeptId = inv.department_id || 0;
+      const gId = this._resolveGroupId(rawDeptId, inv.cost_center_key);
       const ccKey = inv.cost_center_key || ('j:' + (inv.journal_id || 0));
       const jId = inv.journal_id !== undefined ? inv.journal_id : 0;
       const pId = inv.partner_id || inv.partner_name;
@@ -7390,7 +7634,7 @@ class ConsolidationEngine {
         label: `${inv.invoice_name} (${inv.partner_name})`,
         company_id: inv.company_id,
         company_name: inv.company_name,
-        group_id: inv.group_id,
+        group_id: gId,
         group_name: inv.group_name,
         cost_center_key: ccKey,
         cost_center_name: inv.cost_center_name || inv.journal_name,
@@ -7400,14 +7644,14 @@ class ConsolidationEngine {
         partner_name: inv.partner_name,
         path: [
           `co:${inv.company_id}`,
-          `dept:${inv.group_id}`,
+          `dept:${gId}`,
           `journal:${ccKey}`,
           `partner:${inv.partner_id}`,
           `inv:${inv.id}`
         ],
         exec_path: [
           `co:${inv.company_id}`,
-          `dept:${inv.group_id}`,
+          `dept:${gId}`,
           `grp:clients`,
           `j:${ccKey}`,
           `p:${pId}`
