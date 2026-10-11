@@ -324,20 +324,28 @@ for (const c of companies) {
       `).get(sc.id);
       
       if (sampleInv) {
-        const origDept = engine.db.prepare('SELECT department_id FROM invoice_departments WHERE sales_invoice_id = ?').get(sampleInv.id)?.department_id;
-        const testTx = engine.db.transaction(() => {
-          engine.db.prepare("UPDATE sales_invoices SET journal_name = 'اسم_مؤقت_لاختبار_S1' WHERE id = ?").run(sampleInv.id);
-          engine.resolveInvoiceDepartments(sampleInv.company_id);
-          const newDept = engine.db.prepare('SELECT department_id FROM invoice_departments WHERE sales_invoice_id = ?').get(sampleInv.id)?.department_id;
-          if (origDept !== newDept) {
-            throw new Error(`Dept changed from ${origDept} to ${newDept}`);
-          }
-          throw new Error('ROLLBACK_INTENDED');
-        });
-        try { testTx(); } catch(e) {
-          if (e.message !== 'ROLLBACK_INTENDED') {
+        if (process.argv.includes('--readonly')) {
+          const unmappedJid = engine.db.prepare('SELECT COUNT(*) as n FROM sales_invoices WHERE company_id = ? AND journal_id IS NULL').get(sc.id).n;
+          if (unmappedJid > 0) {
             s1ImmunityPassed = false;
-            s1Details = e.message;
+            s1Details = `${unmappedJid} invoices missing journal_id`;
+          }
+        } else {
+          const origDept = engine.db.prepare('SELECT department_id FROM invoice_departments WHERE sales_invoice_id = ?').get(sampleInv.id)?.department_id;
+          const testTx = engine.db.transaction(() => {
+            engine.db.prepare("UPDATE sales_invoices SET journal_name = 'اسم_مؤقت_لاختبار_S1' WHERE id = ?").run(sampleInv.id);
+            engine.resolveInvoiceDepartments(sampleInv.company_id);
+            const newDept = engine.db.prepare('SELECT department_id FROM invoice_departments WHERE sales_invoice_id = ?').get(sampleInv.id)?.department_id;
+            if (origDept !== newDept) {
+              throw new Error(`Dept changed from ${origDept} to ${newDept}`);
+            }
+            throw new Error('ROLLBACK_INTENDED');
+          });
+          try { testTx(); } catch(e) {
+            if (e.message !== 'ROLLBACK_INTENDED') {
+              s1ImmunityPassed = false;
+              s1Details = e.message;
+            }
           }
         }
       }
@@ -1724,6 +1732,54 @@ check('UC1 Invariant 26a: 0 unclassified revenue and expense across all companie
 check('UC1 Invariant 26b: department revenue and expense sums match company totals in Executive & Profitability',
   uc1SumDiffs === 0,
   `0 sum diffs across all companies/years (found ${uc1SumDiffs})`
+);
+
+// 27. HF1 Invariants: odoo_journals & payment allocation journal types
+const activeCos = db.prepare('SELECT id, name FROM companies WHERE is_active = 1').all();
+let emptyJournalCompanies = 0;
+for (const co of activeCos) {
+  const cnt = db.prepare('SELECT COUNT(*) as c FROM odoo_journals WHERE company_id = ?').get(co.id)?.c || 0;
+  if (cnt === 0) emptyJournalCompanies++;
+}
+check('HF1 Invariant 27a: odoo_journals non-empty for all active companies',
+  emptyJournalCompanies === 0,
+  `all ${activeCos.length} active companies have journals (${emptyJournalCompanies} empty)`
+);
+
+const unmappedJournalIds = db.prepare(`
+  SELECT COUNT(*) as cnt
+  FROM payment_allocations pa
+  WHERE pa.payment_journal_id IS NOT NULL AND pa.payment_journal_id != 0
+    AND (
+      pa.payment_journal_type IS NULL OR pa.payment_journal_type = ''
+      OR NOT EXISTS (
+        SELECT 1 FROM odoo_journals oj
+        WHERE oj.company_id = pa.company_id AND oj.odoo_journal_id = pa.payment_journal_id
+      )
+    )
+`).get().cnt;
+check('HF1 Invariant 27b: all payment allocations with payment_journal_id have known journal type',
+  unmappedJournalIds === 0,
+  `${unmappedJournalIds} allocations with unmapped payment journal`
+);
+
+const badOtherAdj = db.prepare(`
+  SELECT COUNT(*) as cnt
+  FROM payment_allocations pa
+  WHERE pa.channel = 'other_adjustment'
+    AND (
+      pa.payment_journal_type IN ('bank', 'cash')
+      OR EXISTS (
+        SELECT 1 FROM odoo_journals oj
+        WHERE oj.company_id = pa.company_id
+          AND oj.odoo_journal_id = pa.payment_journal_id
+          AND oj.type IN ('bank', 'cash')
+      )
+    )
+`).get().cnt;
+check('HF1 Invariant 27c: 0 other_adjustment allocations with bank or cash journal',
+  badOtherAdj === 0,
+  `${badOtherAdj} other_adjustment allocations with bank/cash journal`
 );
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);

@@ -1,7 +1,7 @@
 const { getDb } = require('./connection');
 
-function initializeSchema() {
-  const db = getDb();
+function initializeSchema(targetDb) {
+  const db = targetDb || getDb();
 
   db.exec(`
     -- Odoo instance connections
@@ -1025,7 +1025,7 @@ function initializeSchema() {
     if (unmappedFdCount > 0) {
       console.log(`[DB] Backfilling ${unmappedFdCount} fact_daily rows with cost centers...`);
       const ConsolidationEngine = require('../services/consolidation');
-      const engine = new ConsolidationEngine();
+      const engine = new ConsolidationEngine(db);
       const updateStmt = db.prepare('UPDATE fact_daily SET cost_center_key = ?, cost_center_name = ? WHERE id = ?');
       const rows = db.prepare('SELECT id, company_id, analytic_account, journal_id, journal_name FROM fact_daily WHERE cost_center_key IS NULL').all();
       db.transaction(() => {

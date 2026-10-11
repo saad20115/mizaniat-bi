@@ -245,6 +245,30 @@ async function runVerifySync() {
       `guards active (empty: ${emptyAnalyticGuardTriggered}, failure: ${failedAnalyticGuardTriggered}, prevCount: ${prevAnalyticCnt})`
     );
 
+    // ── TEST 6c: HF1 Invariant: Empty odoo_journals Guard & Population via Sync
+    console.log('\n── Test 6c: HF1 Empty odoo_journals Guard & Population via Sync');
+    const savedJournals = db.prepare('SELECT company_id, odoo_journal_id, name, type FROM odoo_journals').all();
+    db.prepare('DELETE FROM odoo_journals').run();
+
+    let emptyJournalsGuardTriggered = false;
+    const { syncAllPaymentAllocations } = require('./sync-payment-allocations');
+    try {
+      await syncAllPaymentAllocations();
+    } catch (err) {
+      if (err.message.includes('جدول odoo_journals فارغ')) {
+        emptyJournalsGuardTriggered = true;
+      }
+    }
+
+    // Now sync journals from Odoo
+    const journalsSyncedCount = await testSyncEngine.syncAllJournals();
+    const repopulatedCount = db.prepare('SELECT COUNT(*) as cnt FROM odoo_journals').get().cnt;
+
+    check('HF1-guard: Empty odoo_journals aborts payment allocations safely, and syncAllJournals populates it',
+      emptyJournalsGuardTriggered && repopulatedCount > 0 && journalsSyncedCount === repopulatedCount,
+      `guard triggered: ${emptyJournalsGuardTriggered}, repopulated: ${repopulatedCount} journals across active companies`
+    );
+
     // ── TEST 7: Earliest Completion Timestamp Calculation
     console.log('\n── Test 7: Earliest Timestamp Calculation');
     const s1 = db.prepare("SELECT MAX(completed_at) as t FROM sync_logs WHERE status = 'completed' AND (sync_type IS NULL OR sync_type = 'full')").get()?.t || null;

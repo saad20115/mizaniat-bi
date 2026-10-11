@@ -72,6 +72,17 @@ async function syncAllPaymentAllocations() {
   }
 
   const odooJournals = db.prepare('SELECT odoo_journal_id, company_id, name, type FROM odoo_journals').all();
+  if (odooJournals.length === 0) {
+    throw new Error('جدول odoo_journals فارغ! لا يمكن تصنيف تسويات السداد بدون أنواع دفاتر اليومية.');
+  }
+
+  for (const co of companies) {
+    const coJournals = db.prepare('SELECT COUNT(*) as cnt FROM odoo_journals WHERE company_id = ?').get(co.ledger_cid)?.cnt || 0;
+    if (coJournals === 0) {
+      throw new Error(`لا توجد دفاتر يومية مسجلة للشركة ${co.ledger_cid} (${co.ledger_name}) في odoo_journals! أُلغيت تسويات السداد منعاً للتصنيف الخاطئ.`);
+    }
+  }
+
   const odooJournalMap = new Map();
   for (const oj of odooJournals) {
     odooJournalMap.set(`${oj.company_id}_${oj.odoo_journal_id}`, oj.type);

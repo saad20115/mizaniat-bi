@@ -75,6 +75,79 @@ class SyncEngine {
   }
 
   /**
+   * Sync and persist Odoo journals for a specific company (HF1)
+   */
+  async syncCompanyJournals(companyId, existingConnector) {
+    const company = this.db.prepare('SELECT * FROM companies WHERE id = ?').get(companyId);
+    if (!company) throw new Error(`Company ${companyId} not found`);
+
+    const instance = this.db.prepare('SELECT * FROM odoo_instances WHERE id = ?').get(company.odoo_instance_id);
+    if (!instance) throw new Error(`Odoo instance not found for company ${companyId}`);
+
+    const prevCount = this.db.prepare(
+      'SELECT COUNT(*) as cnt FROM odoo_journals WHERE company_id = ?'
+    ).get(companyId)?.cnt || 0;
+
+    const connector = existingConnector || new OdooConnector(instance.url, instance.username, instance.api_key, instance.db_name);
+    let journals;
+    try {
+      journals = await connector.fetchJournalsRPC(company.odoo_company_id);
+    } catch (err) {
+      if (prevCount > 0) {
+        throw new Error(`فشل جلب دفاتر اليومية للشركة ${company.name} (يوجد ${prevCount} دفتر مسجل سابقاً): ${err.message}`);
+      }
+      throw err;
+    }
+
+    if ((!journals || journals.length === 0) && prevCount > 0) {
+      throw new Error(`أودو أرجع 0 دفتر يومية للشركة ${company.name} بينما يوجد ${prevCount} دفتر سابقاً — أُلغيت المزامنة منعاً للخلط في قنوات التحصيل`);
+    }
+
+    if (!journals || journals.length === 0) {
+      throw new Error(`أودو أرجع 0 دفتر يومية للشركة ${company.name} — لا يمكن المتابعة بدون دفاتر`);
+    }
+
+    const insJournal = this.db.prepare(`
+      INSERT INTO odoo_journals (company_id, odoo_journal_id, name, type, updated_at)
+      VALUES (?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(company_id, odoo_journal_id) DO UPDATE SET
+        name = excluded.name,
+        type = excluded.type,
+        updated_at = datetime('now')
+    `);
+
+    const saveTx = this.db.transaction(() => {
+      for (const j of journals) {
+        insJournal.run(
+          companyId,
+          j.id,
+          (j.name || '').trim(),
+          (j.type || '').trim()
+        );
+      }
+    });
+    saveTx();
+
+    console.log(`[Sync] Synced ${journals.length} journals for ${company.name}`);
+    return journals.length;
+  }
+
+  /**
+   * Sync and persist Odoo journals for all active companies (HF1)
+   */
+  async syncAllJournals() {
+    const companies = this.db.prepare('SELECT id, name FROM companies WHERE is_active = 1 ORDER BY id').all();
+    console.log(`[Sync] Syncing Odoo journals for ${companies.length} active companies...`);
+    let total = 0;
+    for (const co of companies) {
+      const count = await this.syncCompanyJournals(co.id);
+      total += count;
+    }
+    console.log(`[Sync] Completed syncing journals: ${total} total journals across ${companies.length} companies`);
+    return total;
+  }
+
+  /**
    * Sync journal items for a company in chunks (for large datasets)
    */
   async syncCompany(companyId, onProgress) {
@@ -195,6 +268,10 @@ class SyncEngine {
         } catch (e) {
           console.log(`[Sync] Could not sync taxes: ${e.message}`);
         }
+
+        // Fetch and save journals for company (HF1)
+        this._progress[companyId].phase = 'جاري جلب دفاتر اليومية...';
+        await this.syncCompanyJournals(companyId, connector);
       }
       
       const companyJournalMappings = {};
@@ -864,6 +941,10 @@ class SyncEngine {
       const ConsolidationEngine = require('./consolidation');
       const consolidation = new ConsolidationEngine(this.db);
       consolidation.resolveInvoiceDepartments();
+
+      // Stage 2.8: Ensure Odoo journals are fresh and persisted before payment allocations (HF1)
+      console.log('[UnifiedSync] Syncing Odoo journals before payment allocations...');
+      await this.syncAllJournals();
 
       // Stage 3: Payment allocations
       if (progressCallback) progressCallback({ stage: 3, name: 'تسويات السداد', progress: 70 });

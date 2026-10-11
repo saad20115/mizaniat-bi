@@ -217,6 +217,31 @@ class OdooConnector {
   }
 
   /**
+   * Fetch all journals for a company with active_test: false
+   */
+  async fetchJournalsRPC(companyId) {
+    try {
+      const records = await this._rpcCall(
+        'account.journal',
+        'search_read',
+        [[
+          ['company_id', '=', parseInt(companyId)]
+        ]],
+        {
+          fields: ['id', 'name', 'type', 'code', 'company_id'],
+          context: { active_test: false },
+          limit: 1000,
+          order: 'id'
+        }
+      );
+      return records || [];
+    } catch (err) {
+      console.error(`[OdooConnector] Failed to fetch journals for company ${companyId}: ${err.message}`);
+      throw err;
+    }
+  }
+
+  /**
    * Fetch journal items — tries RPC first, falls back to custom API
    */
   async fetchJournalItems(companyId) {

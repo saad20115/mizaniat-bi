@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { initializeSchema } = require('../db/schema');
 
 const isDryRun = process.argv.includes('--dry-run');
 const dbArgIdx = process.argv.indexOf('--db');
@@ -62,6 +63,22 @@ async function runMigration() {
   } else {
     console.log('🔍 DRY-RUN: Skipping backup creation.\n');
   }
+
+  // 1b. Initialize target schema and verify required tables exist
+  console.log('── Step 0: Target Schema Initialization and Table Verification');
+  initializeSchema(db);
+  const requiredTables = [
+    'odoo_instances', 'companies', 'account_section_overrides',
+    'account_tags', 'sister_company_partners', 'analytic_groups',
+    'analytic_group_mapping', 'odoo_journals'
+  ];
+  for (const t of requiredTables) {
+    const exists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+    if (!exists) {
+      throw new Error(`Required table "${t}" does not exist in target database after initialization!`);
+    }
+  }
+  console.log(`  ✓ Schema initialized and all ${requiredTables.length} required tables verified.\n`);
 
   // 2. odoo_instances.db_name
   console.log('── Step 1: Odoo Instances db_name Migration');

@@ -225,6 +225,11 @@ class SalesSyncEngine {
 
     // Automatically sync payment allocations for all companies
     try {
+      const odooJournalsCount = db.prepare('SELECT COUNT(*) as cnt FROM odoo_journals').get()?.cnt || 0;
+      if (odooJournalsCount === 0) {
+        const SyncEngine = require('./sync-engine');
+        await new SyncEngine(db).syncAllJournals();
+      }
       const { syncAllPaymentAllocations } = require('../scripts/sync-payment-allocations');
       await syncAllPaymentAllocations();
     } catch (e) {

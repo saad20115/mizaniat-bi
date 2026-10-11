@@ -47,6 +47,9 @@ function reclassifyPaymentAllocations() {
   `);
 
   const odooJournals = db.prepare('SELECT odoo_journal_id, company_id, name, type FROM odoo_journals').all();
+  if (odooJournals.length === 0) {
+    throw new Error('جدول odoo_journals فارغ! لا يمكن إعادة تصنيف تسويات السداد بدون أنواع دفاتر اليومية.');
+  }
   const odooJournalMap = new Map();
   for (const oj of odooJournals) {
     odooJournalMap.set(`${oj.company_id}_${oj.odoo_journal_id}`, oj.type);
