@@ -1306,6 +1306,20 @@ check('C1-l: no invoice settlement is double-counted across companies as both ba
   `0 double-counted settlements (found ${doubleCount.length})`
 );
 
+// 23m. SV1-1: 0 other_adjustment settlements with customer receivable counterpart
+const untracedReceivableOtherAdj = db.prepare(`
+  SELECT COUNT(*) as cnt
+  FROM payment_allocations
+  WHERE channel = 'other_adjustment'
+    AND (counterpart_account_type = 'asset_receivable' OR counterpart_account_code LIKE '1611%')
+`).get().cnt;
+
+check('SV1-1: 0 other_adjustment settlements with untraced receivable counterparts',
+  untracedReceivableOtherAdj === 0,
+  `0 untraced receivable other_adjustments (found ${untracedReceivableOtherAdj})`
+);
+
+
 // ============================================================================
 // 24. Stage B2 — Sales Journal Revenue Consistency («مطابقة إيراد دفاتر المبيعات»)
 // ============================================================================

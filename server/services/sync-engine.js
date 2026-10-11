@@ -24,13 +24,14 @@ class SyncEngine {
     }
 
     const insAnalytic = this.db.prepare(`
-      INSERT INTO odoo_analytic_accounts (instance_id, odoo_id, name, code, plan_id, company_id)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO odoo_analytic_accounts (instance_id, odoo_id, name, code, plan_id, company_id, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(instance_id, odoo_id) DO UPDATE SET
         name = excluded.name,
         code = excluded.code,
         plan_id = excluded.plan_id,
-        company_id = excluded.company_id
+        company_id = excluded.company_id,
+        is_active = excluded.is_active
     `);
 
     const saveTx = this.db.transaction(() => {
@@ -43,7 +44,8 @@ class SyncEngine {
           (r.name || '').trim(),
           r.code ? String(r.code).trim() : null,
           planId,
-          compId
+          compId,
+          r.is_active !== undefined ? r.is_active : 1
         );
       }
     });
@@ -466,9 +468,8 @@ class SyncEngine {
       if (typeof item.analytic_distribution === 'object') {
         // RPC format: {analytic_account_id: percentage} — resolve IDs to names
         const ids = Object.keys(item.analytic_distribution);
-        if (ids.length > 0) {
-          costCenterId = parseInt(ids[0], 10) || null;
-        }
+        const validId = ids.find(id => analyticMap && analyticMap[id] !== undefined);
+        costCenterId = validId ? (parseInt(validId, 10) || null) : null;
         const names = ids.map(id => {
           if (analyticMap && analyticMap[id]) return analyticMap[id];
           return id; // fallback to ID if name not found

@@ -221,6 +221,11 @@ async function runVerifySync() {
 
     // ── TEST 8: Cross-Server Outsider Invariant (B3-4)
     console.log('\n── Test 8: Cross-Server Outsider Invariant Check');
+    console.log('  Running actual sync for Company 4 to verify pipeline invariant on live data...');
+    const SyncEngine = require('../services/sync-engine');
+    const syncEngine = new SyncEngine();
+    await syncEngine.syncCompany(4);
+
     const jiOutsiders = db.prepare(`
       SELECT COUNT(*) as cnt 
       FROM journal_items ji 

@@ -6,16 +6,33 @@ function reclassifyPaymentAllocations() {
   console.log('🚀 Starting reclassification of payment_allocations in database...');
 
   const sisterPartnerRows = db.prepare('SELECT company_id, partner_id, partner_name, sister_company_name FROM sister_company_partners').all();
-  const sisterPartnerMap = new Map();
+  const sisterPartnerIdMap = new Map();
+  const sisterPartnerNameMap = new Map();
   for (const sp of sisterPartnerRows) {
-    sisterPartnerMap.set(`${sp.company_id}_${sp.partner_id}`, sp.sister_company_name);
+    if (sp.partner_id) {
+      sisterPartnerIdMap.set(`${sp.company_id}_${sp.partner_id}`, sp.sister_company_name);
+    }
+    if (sp.partner_name && sp.partner_name.trim()) {
+      sisterPartnerNameMap.set(`${sp.company_id}_${sp.partner_name.trim()}`, sp.sister_company_name);
+    }
   }
-  const sisterNames = [
-    'مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية',
-    'شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد',
-    'شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد',
-    'شركة جمال بكر حريري للاستشارات الهندسية'
-  ];
+
+  function resolveSisterCompany(companyId, partnerId, partnerName, accountName) {
+    if (partnerId) {
+      const skId = `${companyId}_${partnerId}`;
+      if (sisterPartnerIdMap.has(skId)) return sisterPartnerIdMap.get(skId);
+    }
+    const cleanPartnerName = partnerName ? partnerName.trim() : '';
+    const cleanAccountName = accountName ? accountName.trim() : '';
+    for (const [key, sName] of sisterPartnerNameMap.entries()) {
+      const [cId, registeredName] = key.split('_');
+      if (String(companyId) === cId) {
+        if (cleanPartnerName && cleanPartnerName === registeredName) return sName;
+        if (cleanAccountName && cleanAccountName === registeredName) return sName;
+      }
+    }
+    return null;
+  }
 
   const findCreditStmt = db.prepare(`
     SELECT id, move_name, move_type, date, journal_id, journal_name, journal_type, label, account_code, account_name, account_type, partner_id, partner_name
@@ -24,7 +41,7 @@ function reclassifyPaymentAllocations() {
   `);
 
   const findCounterpartsStmt = db.prepare(`
-    SELECT id, odoo_line_id, account_code, account_name, account_type, partner_id, partner_name, debit, credit
+    SELECT id, odoo_line_id, account_code, account_name, account_type, tax_id, partner_id, partner_name, debit, credit
     FROM journal_items
     WHERE company_id = ? AND move_name = ? AND odoo_line_id != ?
   `);
@@ -62,14 +79,18 @@ function reclassifyPaymentAllocations() {
 
   const tx = db.transaction(() => {
     for (const pa of rows) {
+      if (!db.prepare('SELECT id FROM payment_allocations WHERE id = ?').get(pa.id)) {
+        continue;
+      }
+
       if (pa.channel === 'credit_note') {
         continue;
       }
 
       const cItem = findCreditStmt.get(pa.company_id, pa.payment_line_id);
       const isCreditNote = (cItem && cItem.move_type === 'out_refund')
-        || (pa.payment_move_name || '').startsWith('RINV')
-        || (pa.payment_journal_name || '').includes('إشعار دائن');
+        || (pa.payment_journal_type === 'sale_refund')
+        || (cItem && cItem.journal_type === 'sale_refund');
 
       if (isCreditNote) {
         continue;
@@ -107,40 +128,51 @@ function reclassifyPaymentAllocations() {
         matchedCp = cpItems[0];
       }
 
-      const cp = matchedCp || cpItems[0];
+      let cp = matchedCp || cpItems[0];
 
       let newChannel = 'other_adjustment';
       let newLabel = 'تسويات أخرى';
-      let newSisterName = null;
+      let newSisterName = resolveSisterCompany(pa.company_id, cp.partner_id, cp.partner_name, cp.account_name);
 
-      // Check sister company first
-      let foundSister = false;
-      const sk = `${pa.company_id}_${cp.partner_id}`;
-      if (sisterPartnerMap.has(sk)) {
-        foundSister = true;
-        newSisterName = sisterPartnerMap.get(sk);
-      } else {
-        for (const sn of sisterNames) {
-          if ((cp.partner_name || '').includes(sn) || (cp.account_name || '').includes(sn)) {
-            foundSister = true;
-            newSisterName = sn.includes('سمير') ? 'مكتب المهندس سمير صالح ابو غلية' : 'شركة جمال بكر حريري للاستشارات الهندسية';
-            break;
-          }
-        }
-      }
-
-      if (foundSister && !isCashOrBankJournal) {
+      if (newSisterName && !isCashOrBankJournal) {
         newChannel = 'sister_company';
         newLabel = 'عبر شركة شقيقة';
         sisterCount++;
+      } else if (cp.account_type === 'asset_receivable') {
+        // Counterpart is a receivable line in a manual entry: trace the rest of the move lines
+        const expLine = cpItems.find(x => x.account_type && x.account_type.startsWith('expense'));
+        if (expLine) {
+          newChannel = 'discount_fee';
+          newLabel = 'خصومات ورسوم (خارج التحصيل)';
+          cp = expLine;
+          discountCount++;
+        } else {
+          const cashLine = cpItems.find(x => x.account_type === 'asset_cash');
+          if (cashLine) {
+            newChannel = 'bank';
+            newLabel = 'بنك ونقد';
+            cp = cashLine;
+            bankCount++;
+          } else {
+            const sisterLine = cpItems.find(x => resolveSisterCompany(pa.company_id, x.partner_id, x.partner_name, x.account_name));
+            if (sisterLine) {
+              newChannel = 'sister_company';
+              newLabel = 'عبر شركة شقيقة';
+              newSisterName = resolveSisterCompany(pa.company_id, sisterLine.partner_id, sisterLine.partner_name, sisterLine.account_name);
+              cp = sisterLine;
+              sisterCount++;
+            } else {
+              newChannel = 'other_adjustment';
+              newLabel = 'تسويات أخرى';
+              otherCount++;
+            }
+          }
+        }
       } else {
         // Check expense / discount fee: expense account or tax line accompanying an expense move
         const hasExpenseInMove = cpItems.some(x => x.account_type && x.account_type.startsWith('expense'));
         const isExpense = (cp.account_type && cp.account_type.startsWith('expense'))
-          || (hasExpenseInMove && !isCashOrBankJournal && (
-            (cp.account_type && cp.account_type.includes('tax'))
-            || (cp.account_name || '').includes('ضريبة')
-          ));
+          || (hasExpenseInMove && !isCashOrBankJournal && ((cp.account_type && cp.account_type.includes('tax')) || cp.tax_id != null));
 
         if (isExpense) {
           newChannel = 'discount_fee';
@@ -157,19 +189,31 @@ function reclassifyPaymentAllocations() {
         }
       }
 
-      updateStmt.run({
-        id: pa.id,
-        channel: newChannel,
-        channel_label: newLabel,
-        sister_company_name: newSisterName,
-        payment_journal_id: (cItem && cItem.journal_id) || pa.payment_journal_id || 0,
-        payment_journal_type: jType || pa.payment_journal_type || '',
-        counterpart_account_code: cp.account_code || pa.counterpart_account_code,
-        counterpart_account_name: cp.account_name || pa.counterpart_account_name,
-        counterpart_account_type: cp.account_type || pa.counterpart_account_type,
-        counterpart_partner_id: cp.partner_id || pa.counterpart_partner_id,
-        counterpart_partner_name: cp.partner_name || pa.counterpart_partner_name
-      });
+      // Check if a row with the new counterpart_account_code already exists for this reconcile
+      const targetCode = cp.account_code || pa.counterpart_account_code;
+      const sibling = db.prepare(`
+        SELECT id, amount FROM payment_allocations
+        WHERE company_id = ? AND odoo_reconcile_id = ? AND counterpart_account_code = ? AND department_id = ? AND cost_center_key = ? AND id != ?
+      `).get(pa.company_id, pa.odoo_reconcile_id, targetCode, pa.department_id, pa.cost_center_key, pa.id);
+
+      if (sibling) {
+        db.prepare(`UPDATE payment_allocations SET amount = ROUND(amount + ?, 2) WHERE id = ?`).run(pa.amount, sibling.id);
+        db.prepare(`DELETE FROM payment_allocations WHERE id = ?`).run(pa.id);
+      } else {
+        updateStmt.run({
+          id: pa.id,
+          channel: newChannel,
+          channel_label: newLabel,
+          sister_company_name: newSisterName,
+          payment_journal_id: (cItem && cItem.journal_id) || pa.payment_journal_id || 0,
+          payment_journal_type: jType || pa.payment_journal_type || '',
+          counterpart_account_code: cp.account_code || pa.counterpart_account_code,
+          counterpart_account_name: cp.account_name || pa.counterpart_account_name,
+          counterpart_account_type: cp.account_type || pa.counterpart_account_type,
+          counterpart_partner_id: cp.partner_id || pa.counterpart_partner_id,
+          counterpart_partner_name: cp.partner_name || pa.counterpart_partner_name
+        });
+      }
       updatedCount++;
     }
   });

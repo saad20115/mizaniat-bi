@@ -80,6 +80,7 @@ function initializeSchema() {
       code TEXT,
       plan_id INTEGER,
       company_id INTEGER,
+      is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT (datetime('now')),
       PRIMARY KEY(instance_id, odoo_id)
     );
@@ -812,6 +813,9 @@ function initializeSchema() {
   } catch (e) {}
   try {
     db.prepare('ALTER TABLE payment_allocations ADD COLUMN cost_center_name TEXT').run();
+  } catch (e) {}
+  try {
+    db.prepare('ALTER TABLE odoo_analytic_accounts ADD COLUMN is_active INTEGER DEFAULT 1').run();
   } catch (e) {}
 
   db.exec(`

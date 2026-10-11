@@ -159,7 +159,8 @@ class OdooConnector {
         'search_read',
         [[]],
         {
-          fields: ['id', 'name', 'code', 'plan_id', 'company_id'],
+          fields: ['id', 'name', 'code', 'plan_id', 'company_id', 'active'],
+          context: { active_test: false },
           limit: 5000,
           order: 'id'
         }
@@ -175,7 +176,8 @@ class OdooConnector {
           name: r.name || cleanName,
           code: r.code ? String(r.code) : null,
           plan_id: Array.isArray(r.plan_id) ? r.plan_id[0] : (r.plan_id || null),
-          company_id: Array.isArray(r.company_id) ? r.company_id[0] : (r.company_id || null)
+          company_id: Array.isArray(r.company_id) ? r.company_id[0] : (r.company_id || null),
+          is_active: r.active !== false ? 1 : 0
         });
       }
       console.log(`[OdooConnector] Fetched ${parsedRecords.length} analytic accounts`);

@@ -43,9 +43,32 @@ async function syncAllPaymentAllocations() {
   `);
 
   const sisterPartnerRows = db.prepare('SELECT company_id, partner_id, partner_name, sister_company_name FROM sister_company_partners').all();
-  const sisterPartnerMap = new Map();
+  const sisterPartnerIdMap = new Map();
+  const sisterPartnerNameMap = new Map();
   for (const sp of sisterPartnerRows) {
-    sisterPartnerMap.set(`${sp.company_id}_${sp.partner_id}`, sp.sister_company_name);
+    if (sp.partner_id) {
+      sisterPartnerIdMap.set(`${sp.company_id}_${sp.partner_id}`, sp.sister_company_name);
+    }
+    if (sp.partner_name && sp.partner_name.trim()) {
+      sisterPartnerNameMap.set(`${sp.company_id}_${sp.partner_name.trim()}`, sp.sister_company_name);
+    }
+  }
+
+  function resolveSisterCompany(companyId, partnerId, partnerName, accountName) {
+    if (partnerId) {
+      const skId = `${companyId}_${partnerId}`;
+      if (sisterPartnerIdMap.has(skId)) return sisterPartnerIdMap.get(skId);
+    }
+    const cleanPartnerName = partnerName ? partnerName.trim() : '';
+    const cleanAccountName = accountName ? accountName.trim() : '';
+    for (const [key, sName] of sisterPartnerNameMap.entries()) {
+      const [cId, registeredName] = key.split('_');
+      if (String(companyId) === cId) {
+        if (cleanPartnerName && cleanPartnerName === registeredName) return sName;
+        if (cleanAccountName && cleanAccountName === registeredName) return sName;
+      }
+    }
+    return null;
   }
 
   const odooJournals = db.prepare('SELECT odoo_journal_id, company_id, name, type FROM odoo_journals').all();
@@ -120,17 +143,10 @@ async function syncAllPaymentAllocations() {
     `);
 
     const findCounterpartsStmt = db.prepare(`
-      SELECT id, odoo_line_id, account_code, account_name, account_type, partner_id, partner_name, debit, credit
+      SELECT id, odoo_line_id, account_code, account_name, account_type, tax_id, partner_id, partner_name, debit, credit
       FROM journal_items
       WHERE company_id = ? AND move_name = ? AND odoo_line_id != ?
     `);
-
-    const sisterNames = [
-      'مكتب المهندس سمير صالح ابو غلية للاستشارات الهندسية',
-      'شركة سمير صالح سليمان ابو غلية للاستشارات الهندسية مهنية شخص واحد',
-      'شركة جمال بكر حريري للاستشارات الهندسية مهنية شخص واحد',
-      'شركة جمال بكر حريري للاستشارات الهندسية'
-    ];
 
     let coInserted = 0;
 
@@ -176,8 +192,8 @@ async function syncAllPaymentAllocations() {
 
         // Determine channel
         const isCreditNote = (cItem.move_type === 'out_refund')
-          || (cItem.move_name || '').startsWith('RINV')
-          || (cItem.journal_name || '').includes('إشعار دائن');
+          || (cItem.journal_type === 'sale_refund')
+          || (jType === 'sale_refund');
 
         let counterpartRows = [];
 
@@ -195,14 +211,18 @@ async function syncAllPaymentAllocations() {
           }];
         } else {
           const rawCounterparts = findCounterpartsStmt.all(co.ledger_cid, cItem.move_name, cItem.odoo_line_id || r.credit_move_id[0]);
+          const nonReceivableLines = rawCounterparts.filter(cp => cp.account_type !== 'asset_receivable');
+          const effectiveCounterparts = nonReceivableLines.length > 0 ? nonReceivableLines : rawCounterparts;
+
           const groupedCpMap = new Map();
-          for (const cp of rawCounterparts) {
+          for (const cp of effectiveCounterparts) {
             const code = cp.account_code || '';
             if (!groupedCpMap.has(code)) {
               groupedCpMap.set(code, {
                 account_code: code,
                 account_name: cp.account_name || '',
                 account_type: cp.account_type || '',
+                tax_id: cp.tax_id || null,
                 partner_id: cp.partner_id || 0,
                 partner_name: cp.partner_name || '',
                 val: 0
@@ -217,10 +237,13 @@ async function syncAllPaymentAllocations() {
             if (!g.partner_name && cp.partner_name) {
               g.partner_name = cp.partner_name;
             }
+            if (!g.tax_id && cp.tax_id) {
+              g.tax_id = cp.tax_id;
+            }
           }
           const groupedCounterparts = Array.from(groupedCpMap.values());
 
-          const hasExpenseInMove = rawCounterparts.some(cp =>
+          const hasExpenseInMove = effectiveCounterparts.some(cp =>
             (cp.account_type && cp.account_type.startsWith('expense'))
           );
 
@@ -238,25 +261,9 @@ async function syncAllPaymentAllocations() {
           counterpartRows = targetLines.map(cp => {
             let cpChannel = 'other_adjustment';
             let cpChannelLabel = 'تسويات أخرى';
-            let cpSisterCoName = null;
+            let cpSisterCoName = resolveSisterCompany(co.ledger_cid, cp.partner_id, cp.partner_name, cp.account_name);
 
-            // Check sister company first (any account type)
-            let foundSister = false;
-            const sk = `${co.ledger_cid}_${cp.partner_id}`;
-            if (sisterPartnerMap.has(sk)) {
-              foundSister = true;
-              cpSisterCoName = sisterPartnerMap.get(sk);
-            } else {
-              for (const sn of sisterNames) {
-                if ((cp.partner_name || '').includes(sn) || (cp.account_name || '').includes(sn)) {
-                  foundSister = true;
-                  cpSisterCoName = sn.includes('سمير') ? 'مكتب المهندس سمير صالح ابو غلية' : 'شركة جمال بكر حريري للاستشارات الهندسية';
-                  break;
-                }
-              }
-            }
-
-            if (foundSister && !isBankOrCashJournal) {
+            if (cpSisterCoName && !isBankOrCashJournal) {
               cpChannel = 'sister_company';
               cpChannelLabel = 'عبر شركة شقيقة';
             } else {
@@ -264,7 +271,7 @@ async function syncAllPaymentAllocations() {
               const isExpense = (cp.account_type && cp.account_type.startsWith('expense'))
                 || (hasExpenseInMove && !isBankOrCashJournal && (
                   (cp.account_type && cp.account_type.includes('tax'))
-                  || (cp.account_name || '').includes('ضريبة')
+                  || cp.tax_id != null
                 ));
 
               if (isExpense) {
