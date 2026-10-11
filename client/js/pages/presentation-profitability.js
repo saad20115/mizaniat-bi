@@ -228,15 +228,15 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
             <span style="font-size:12px;color:var(--text-muted);font-weight:600;">المقياس:</span>
             <div class="bi-btn-group" style="display:inline-flex;background:var(--bg-subtle);padding:3px;border-radius:10px;border:1px solid var(--border-default);">
               <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'net' ? 'active' : ''}" data-measure="net"
-                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'net' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentMeasure === 'net' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentMeasure === 'net' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 صافي الربح
               </button>
               <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'revenue' ? 'active' : ''}" data-measure="revenue"
-                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'revenue' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentMeasure === 'revenue' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentMeasure === 'revenue' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 الإيرادات
               </button>
               <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'expense' ? 'active' : ''}" data-measure="expense"
-                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'expense' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentMeasure === 'expense' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentMeasure === 'expense' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 المصروفات
               </button>
             </div>
@@ -247,15 +247,15 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
             <span style="font-size:12px;color:var(--text-muted);font-weight:600;">التدرج:</span>
             <div class="bi-btn-group" style="display:inline-flex;background:var(--bg-subtle);padding:3px;border-radius:10px;border:1px solid var(--border-default);">
               <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'year' ? 'active' : ''}" data-grain="year"
-                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'year' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentTimeGrain === 'year' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentTimeGrain === 'year' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 سنوي
               </button>
               <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
-                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'quarter' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentTimeGrain === 'quarter' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentTimeGrain === 'quarter' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 ربع سنوي
               </button>
               <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'month' ? 'active' : ''}" data-grain="month"
-                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'month' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;line-height:18px;font-weight:${currentTimeGrain === 'month' ? '600' : '500'};cursor:pointer;transition:all 0.15s;${currentTimeGrain === 'month' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
                 شهري
               </button>
             </div>

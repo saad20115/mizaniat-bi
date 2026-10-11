@@ -162,29 +162,29 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
     <div class="vat-kpi-grid exec-kpi-grid" style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
       <!-- Card 1: Output VAT -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
-        <span class="bi-kpi-label">ضريبة المخرجات (المبيعات)</span>
-        <div class="bi-kpi-value">${fmtVal(cards.output_tax, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-label">ضريبة المخرجات (المبيعات) <span style="font-size:11px;font-weight:500;color:var(--text-muted);">(ر.س)</span></span>
+        <div class="bi-kpi-value vat-card-num">${fmtVal(cards.output_tax, false)}</div>
         <span class="bi-kpi-sub">المبيعات الخاضعة: ${fmtVal(cards.taxable_sales, false, 0)} ر.س</span>
       </div>
 
       <!-- Card 2: Input VAT -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
-        <span class="bi-kpi-label">ضريبة المدخلات (المشتريات)</span>
-        <div class="bi-kpi-value">${fmtVal(cards.input_tax, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-label">ضريبة المدخلات (المشتريات) <span style="font-size:11px;font-weight:500;color:var(--text-muted);">(ر.س)</span></span>
+        <div class="bi-kpi-value vat-card-num">${fmtVal(cards.input_tax, false)}</div>
         <span class="bi-kpi-sub">المشتريات الخاضعة: ${fmtVal(cards.taxable_purchases, false, 0)} ر.س</span>
       </div>
 
       <!-- Card 3: Net Tax Due (HERO Card) -->
       <div class="bi-kpi bi-kpi-card hero exec-kpi-card exec-card">
-        <span class="bi-kpi-label">صافي الضريبة المستحقة للفترة</span>
-        <div class="bi-kpi-value">${fmtVal(cards.net_tax_due, false)} <span style="font-size:12px;font-weight:500;opacity:0.85;">ر.س</span></div>
+        <span class="bi-kpi-label">صافي الضريبة المستحقة للفترة <span style="font-size:11px;font-weight:500;opacity:0.9;color:var(--text-on-brand);">(ر.س)</span></span>
+        <div class="bi-kpi-value vat-card-num">${fmtVal(cards.net_tax_due, false)}</div>
         <span class="bi-kpi-sub">${cards.last_completed_period ? `آخر فترة إقرار مكتملة: ${escapeHtml(cards.last_completed_period)}` : 'المخرجات − المدخلات'}</span>
       </div>
 
       <!-- Card 4: Ledger Balance -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
-        <span class="bi-kpi-label">رصيد حسابات الضريبة الدفتري</span>
-        <div class="bi-kpi-value">${fmtVal(cards.ledger_balance, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-label">رصيد حسابات الضريبة الدفتري <span style="font-size:11px;font-weight:500;color:var(--text-muted);">(ر.س)</span></span>
+        <div class="bi-kpi-value vat-card-num">${fmtVal(cards.ledger_balance, false)}</div>
         <span class="bi-kpi-sub">التسويات والسداد: ${fmtVal(cards.settlements, false, 0)} ر.س</span>
       </div>
     </div>
@@ -342,15 +342,15 @@ function renderVatTreeTable(body, data) {
   }
 
   const columns = [
-    { id: 'name', key: 'name', label: 'البيان / الفترة', width: '24%', minWidth: '120px', priority: 1 },
-    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '10%', minWidth: '60px', priority: 2 },
-    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '10%', minWidth: '60px', priority: 1 },
-    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '10%', minWidth: '60px', priority: 2 },
-    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '10%', minWidth: '60px', priority: 1 },
-    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '10%', minWidth: '60px', priority: 1 },
-    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '9%', minWidth: '55px', priority: 2 },
-    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات والمدخلات', width: '13%', minWidth: '65px', align: 'center', priority: 1 },
-    { id: 'actions', key: 'actions', label: '', width: '4%', minWidth: '32px', maxWidth: '36px', priority: 1 }
+    { id: 'name', key: 'name', label: 'البيان / الفترة', width: '22%', minWidth: '220px', priority: 1 },
+    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '11.5%', minWidth: '110px', priority: 2 },
+    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '11%', minWidth: '105px', priority: 1 },
+    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '11.5%', minWidth: '110px', priority: 2 },
+    { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '10.5%', minWidth: '100px', priority: 1 },
+    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '11.5%', minWidth: '110px', priority: 1 },
+    { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '10.5%', minWidth: '100px', priority: 2 },
+    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات والمدخلات', width: '8%', minWidth: '85px', align: 'center', priority: 1 },
+    { id: 'actions', key: 'actions', label: '', width: '3.5%', minWidth: '32px', maxWidth: '36px', priority: 1 }
   ];
 
   currentTreeTable = createTreeTable(container, {
@@ -386,10 +386,10 @@ function renderVatTreeTable(body, data) {
       let nameStyle = 'font-weight:400;color:var(--text-secondary);font-size:13px;';
 
       if (node.type === 'company') {
-        nameStyle = 'font-weight:700;color:var(--text-primary);font-size:14px;';
+        nameStyle = 'font-weight:700;color:var(--text-primary);font-size:13.5px;';
         const isMonthly = node.vat_period === 'monthly';
         badge = `
-          <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;margin-right:6px;${isMonthly ? 'background:var(--status-warning-subtle, rgba(245,158,11,0.15));color:var(--status-warning, #f59e0b);border:1px solid var(--border-default);' : 'background:var(--brand-accent-subtle);color:var(--brand-accent);border:1px solid var(--border-default);'}">
+          <span class="vat-period-badge" style="white-space:nowrap;flex-shrink:0;font-size:11px;line-height:16px;padding:2px 8px;border-radius:6px;font-weight:600;display:inline-block;${isMonthly ? 'background:var(--status-warning-subtle, rgba(245,158,11,0.15));color:var(--status-warning, #f59e0b);border:1px solid var(--border-default);' : 'background:var(--brand-accent-subtle);color:var(--brand-accent);border:1px solid var(--border-default);'}">
             ${isMonthly ? 'إقرار شهري' : 'إقرار ربعي'}
           </span>
         `;
@@ -421,34 +421,38 @@ function renderVatTreeTable(body, data) {
       if (node.type === 'company') {
         const coId = node.company_id || (node.id && String(node.id).replace('co_', '')) || 1;
         nameContent = `
-          <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;max-width:100%;">
-            <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;color:var(--text-muted);flex-shrink:0;">${toggleChevron}</span>
-            <span class="company-dot" style="background:var(--company-${coId});width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;"></span>
-            <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name" style="${nameStyle}white-space:normal;word-break:break-word;">${escapeHtml(node.name)}</span>
-            ${badge}
+          <div class="tree-name-cell vat-company-cell" style="display:flex;flex-direction:column;gap:4px;width:100%;max-width:100%;box-sizing:border-box;">
+            <div style="display:flex;align-items:flex-start;gap:6px;width:100%;">
+              <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;margin-top:2px;color:var(--text-muted);flex-shrink:0;">${toggleChevron}</span>
+              <span class="company-dot" style="background:var(--company-${coId});width:8px;height:8px;border-radius:50%;margin-top:6px;display:inline-block;flex-shrink:0;"></span>
+              <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name vat-company-name" style="${nameStyle}white-space:normal;line-height:1.35;word-break:break-word;flex:1 1 auto;min-width:0;">${escapeHtml(node.name)}</span>
+            </div>
+            <div style="padding-right:22px;">
+              ${badge}
+            </div>
           </div>
         `;
       } else {
         nameContent = `
-          <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;max-width:100%;">
+          <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;width:100%;max-width:100%;box-sizing:border-box;">
             <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;color:var(--text-muted);flex-shrink:0;">${toggleChevron}</span>
-            <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name" style="${nameStyle}white-space:normal;word-break:break-word;">${escapeHtml(node.name)}</span>
+            <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name" style="${nameStyle}white-space:nowrap;text-overflow:ellipsis;overflow:hidden;flex:1 1 auto;min-width:0;">${escapeHtml(node.name)}</span>
           </div>
         `;
       }
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 12px;padding-right:${indent + 12}px;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 8px;padding-right:${indent + 8}px;">
             ${nameContent}
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 12px;text-align:right;">${fmtVal(node.output_tax)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 12px;text-align:right;">${fmtVal(node.input_tax)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 12px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.settlements)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 12px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 8px;text-align:right;">${fmtVal(node.output_tax)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 8px;text-align:right;">${fmtVal(node.input_tax)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 8px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(node.settlements)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 8px;">
             ${renderVatVisual(node)}
           </td>
           <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:36px;min-width:32px;max-width:36px;padding:4px 2px;">
@@ -461,16 +465,16 @@ function renderVatTreeTable(body, data) {
       const netDue = (tot.output_tax || 0) - (tot.input_tax || 0);
       return `
         <tr class="exec-totals-row" style="background:var(--bg-subtle);font-weight:700;border-top:1px solid var(--border-default);">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:12px 14px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 8px;font-size:13px;color:var(--text-primary);white-space:nowrap;">
             المجموع الكلي العام
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:var(--brand-accent);">${fmtVal(netDue, false)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:12px 14px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 8px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 8px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 8px;text-align:right;font-size:13px;font-weight:700;color:var(--brand-accent);">${fmtVal(netDue, false)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 8px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 8px;">
             ${renderVatVisual(tot)}
           </td>
           <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:36px;min-width:32px;max-width:36px;padding:4px 2px;"></td>

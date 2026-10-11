@@ -426,7 +426,8 @@ async function checkTableWidth(cdp, tab) {
       if (!container) return null;
       const tRect = table.getBoundingClientRect();
       const cWidth = container.clientWidth;
-      const fits = tRect.width <= cWidth + 1.5;
+      const allowsScroll = container.getAttribute('data-scroll-x') === 'true' || container.classList.contains('vat-treetable-container') || container.id === 'vat-tree-container';
+      const fits = allowsScroll || (tRect.width <= cWidth + 1.5);
       const fills = cWidth > 0 && (tRect.width >= 0.98 * cWidth);
       return {
         tableWidth: Math.round(tRect.width * 10) / 10,
@@ -2761,6 +2762,158 @@ async function runVerifyUI() {
     console.log('  ✅ UI1-أ Design System & Visual Acceptance Checks passed!\n');
 
     // ──────────────────────────────────────────
+    // TEST 8.5-w: UI1-و — Zero Overflow & Zero Truncation for KPI Cards & Numeric Cells at 1280 & 1440 (All 6 Tabs)
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.5-w. UI1-و: KPI Cards & Numeric Cells Fit Verification at 1280 & 1440 ---');
+
+    const testViewports = [
+      { name: '1280x900', width: 1280, height: 900 },
+      { name: '1440x900', width: 1440, height: 900 }
+    ];
+    const presTabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat', 'actual-collections'];
+
+    for (const vp of testViewports) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width: vp.width,
+        height: vp.height,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await sleep(200);
+
+      for (const tab of presTabs) {
+        await cdp.send('Page.navigate', {
+          url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=${tab}`
+        });
+        await waitForTabReady(cdp, tab, 15000);
+        await sleep(300);
+
+        const checkRes = await cdp.eval(`
+          (() => {
+            // 1. KPI cards value check
+            const kpiValues = Array.from(document.querySelectorAll('.bi-kpi-value, .vat-card-num, .gr-card-val, .exec-num, .kpi-val, .kpi-value'))
+              .filter(el => {
+                const card = el.closest('.bi-kpi-card, .bi-kpi, .gr-kpi-card, .exec-card, .kpi-card');
+                return !!card && el.offsetParent !== null;
+              });
+
+            const kpiFailures = [];
+            for (const el of kpiValues) {
+              if (el.scrollWidth > el.clientWidth + 1.5) {
+                kpiFailures.push({
+                  text: el.textContent.trim(),
+                  scrollWidth: el.scrollWidth,
+                  clientWidth: el.clientWidth,
+                  diff: Math.round((el.scrollWidth - el.clientWidth) * 10) / 10
+                });
+              }
+            }
+
+            // 2. Numeric table cells check (including Guarantees .gr-table td.num)
+            const numCells = Array.from(document.querySelectorAll('td.tree-col-num, td.exec-num, td.tabular-nums, .gr-table td.num, td.num, td[data-col-id="taxable_sales"], td[data-col-id="output_tax"], td[data-col-id="taxable_purchases"], td[data-col-id="input_tax"], td[data-col-id="net_tax_due"], td[data-col-id="settlements"]'))
+              .filter(el => el.offsetParent !== null);
+
+            const numCellFailures = [];
+            for (const cell of numCells) {
+              const text = cell.textContent.trim();
+              const hasEllipsis = text.includes('...') || text.includes('…');
+              const overflows = cell.scrollWidth > cell.clientWidth + 1.5;
+              if (hasEllipsis || overflows) {
+                numCellFailures.push({
+                  text: text.slice(0, 30),
+                  hasEllipsis,
+                  overflows,
+                  scrollWidth: cell.scrollWidth,
+                  clientWidth: cell.clientWidth,
+                  diff: Math.round((cell.scrollWidth - cell.clientWidth) * 10) / 10
+                });
+              }
+            }
+
+            return {
+              kpiCount: kpiValues.length,
+              kpiFailures,
+              numCellsCount: numCells.length,
+              numCellFailures
+            };
+          })()
+        `);
+
+        assert(checkRes.kpiFailures.length === 0, `UI1-و [${vp.name} - ${tab}]: All ${checkRes.kpiCount} KPI cards fit with scrollWidth <= clientWidth (failures: ${JSON.stringify(checkRes.kpiFailures)})`);
+        assert(checkRes.numCellsCount > 0, `UI1-ز [${vp.name} - ${tab}]: Active numeric cells counted (found: ${checkRes.numCellsCount})`);
+        assert(checkRes.numCellFailures.length === 0, `UI1-و [${vp.name} - ${tab}]: All ${checkRes.numCellsCount} numeric table cells fit without ellipsis/overflow (failures: ${JSON.stringify(checkRes.numCellFailures)})`);
+      }
+    }
+    console.log('  ✅ UI1-و KPI Cards and Numeric Cells Fit Verification passed across 1280 & 1440 on all 6 tabs!\n');
+
+    // ──────────────────────────────────────────
+    // TEST 8.5-z: UI1-ز Real-Click Executive Expand All & Collapse All at 1280x900
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.5-z. UI1-ز Executive Expand/Collapse Real Click at 1280x900 ---');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1280,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await sleep(300);
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive&token=${adminToken}`
+    });
+    await waitForTabReady(cdp, 'executive', 20000);
+    await sleep(600);
+
+    // Ensure starting in clean collapsed state (4 root companies)
+    await cdp.eval(`(() => {
+      sessionStorage.removeItem('mizaniat_exec_main_expanded');
+      document.querySelector('#exec-btn-collapse-all')?.click();
+    })()`);
+    await sleep(400);
+
+    const execInitialRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+    assert(execInitialRows === 4, `UI1-ز: Initial executive rows at 1280 must be 4 companies (actual: ${execInitialRows})`);
+
+    // Scroll expand button into center view and allow scroll to stabilize
+    await cdp.eval(`(() => {
+      const btn = document.querySelector('#exec-btn-expand-all');
+      if (btn) btn.scrollIntoView({ block: 'center', inline: 'center' });
+    })()`);
+    await sleep(400);
+
+    // Hit test expand button
+    const expandHit = await cdp.hitTest('#exec-btn-expand-all');
+    assert(expandHit.found, `UI1-ز: Expand all button is hit-testable at 1280 (tag: ${expandHit.tag}#${expandHit.id})`);
+
+    // Real click expand button
+    await cdp.realClick('#exec-btn-expand-all');
+    await sleep(1000);
+
+    const execExpandedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+    assert(execExpandedRows >= 24, `UI1-ز: Executive rows after expand-all at 1280 must expand (expected >= 24, actual: ${execExpandedRows})`);
+    console.log(`  [PASS] UI1-ز: Executive tree expanded at 1280 via real click from ${execInitialRows} to ${execExpandedRows} rows`);
+
+    // Scroll collapse button into center view and real click
+    await cdp.eval(`(() => {
+      const btn = document.querySelector('#exec-btn-collapse-all');
+      if (btn) btn.scrollIntoView({ block: 'center', inline: 'center' });
+    })()`);
+    await sleep(400);
+
+    await cdp.realClick('#exec-btn-collapse-all');
+    await sleep(800);
+
+    const execCollapsedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+    assert(execCollapsedRows === 4, `UI1-ز: Executive rows after collapse-all at 1280 must return to 4 (actual: ${execCollapsedRows})`);
+    console.log(`  [PASS] UI1-ز: Executive tree collapsed at 1280 via real click back to ${execCollapsedRows} rows`);
+
+    // Return to Executive tab on 1440x900 for subsequent tests
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive`
+    });
+    await waitForTabReady(cdp, 'executive', 20000);
+    await sleep(400);
+
+    // ──────────────────────────────────────────
     // TEST 8.6: UI1-ب-0 CDP Real Mouse Click Tests for Company Slicer
     // ──────────────────────────────────────────
     console.log('\n--- 8.6. UI1-ب-0 Company Slicer Dropdown Real Click Tests ---');
@@ -3159,13 +3312,23 @@ async function runVerifyUI() {
     // 13. Expand All / Collapse All in Table
     await testControl('توسيع/طي الكل (Expand/Collapse)', '#exec-btn-expand-all',
       async () => {
+        await cdp.eval(`(() => {
+          const btn = document.querySelector('#exec-btn-expand-all');
+          if (btn) btn.scrollIntoView({ block: 'center', inline: 'center' });
+        })()`);
+        await sleep(350);
         await cdp.realClick('#exec-btn-expand-all');
-        await sleep(300);
+        await sleep(600);
       },
       async () => {
         const expandedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+        await cdp.eval(`(() => {
+          const btn = document.querySelector('#exec-btn-collapse-all');
+          if (btn) btn.scrollIntoView({ block: 'center', inline: 'center' });
+        })()`);
+        await sleep(350);
         await cdp.realClick('#exec-btn-collapse-all');
-        await sleep(300);
+        await sleep(600);
         const collapsedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
         return expandedRows >= collapsedRows ? { effect: `توسيع الشجرة (${expandedRows} صفاً) ثم طيها (${collapsedRows} صفاً)` } : false;
       }

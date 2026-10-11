@@ -279,17 +279,27 @@ body.light-theme,
   display: none;
 }
 
-@media (min-width: 1200px) {
-  .bi-topbar-filters {
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-  }
+.bi-topbar-filters {
+  flex-wrap: wrap !important;
+  row-gap: 8px !important;
+  column-gap: 10px !important;
 }
 
-@media (max-width: 1199.98px) {
-  .bi-topbar-filters {
-    flex-wrap: wrap !important;
-  }
+.bi-filter-item,
+.bi-filter-btn,
+.bi-filter-label,
+.bi-filter-val,
+.bi-filter-zero-item,
+.bi-filter-zero-item label,
+.bi-filter-zero-item span,
+.bi-switch,
+.bi-switch span,
+#co-filter-container,
+#period-filter-container,
+#row-slicers-bar,
+#yr-slicer {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
 }
 
 .bi-filter-item {
@@ -678,17 +688,43 @@ body.light-theme .bi-tabs .bi-tab.active,
 }
 
 .bi-kpi-card {
-  min-width: 0 !important;
+  min-width: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
-  border-radius: 14px;
-  padding: 16px 18px;
+  border-radius: 12px;
+  padding: 16px 12px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 8px;
   box-sizing: border-box;
   min-height: 120px;
+}
+
+.bi-kpi,
+.gr-kpi-card,
+.exec-kpi-card {
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 16px 12px;
+  box-sizing: border-box;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 1400px) {
+  .bi-kpi-card,
+  .bi-kpi,
+  .gr-kpi-card,
+  .exec-kpi-card {
+    padding: 14px 10px;
+    gap: 6px;
+  }
 }
 
 .bi-kpi-label {
@@ -698,14 +734,23 @@ body.light-theme .bi-tabs .bi-tab.active,
   color: var(--text-secondary);
 }
 
-.bi-kpi-value {
-  font-size: 28px !important;
+.bi-kpi-value,
+.vat-card-num,
+.gr-card-val,
+.kpi-val,
+.kpi-value {
+  font-size: clamp(17px, 1.72vw, 28px) !important;
   line-height: 36px !important;
   font-weight: 600 !important;
+  letter-spacing: -0.035em !important;
   color: var(--text-primary);
-  font-family: var(--font-en);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .bi-kpi-sub {
@@ -723,6 +768,7 @@ body.light-theme .bi-kpi-card.hero,
 body.light-theme .bi-kpi.hero {
   background: var(--brand-primary) !important;
   border: 1px solid var(--brand-primary) !important;
+  border-radius: 12px !important;
   color: var(--text-on-brand) !important;
 }
 .bi-kpi-card.hero .bi-kpi-label,
@@ -732,13 +778,48 @@ body.light-theme .bi-kpi.hero {
 }
 .bi-kpi-card.hero .bi-kpi-value,
 .bi-kpi.hero .bi-kpi-value,
+.exec-hero-card .bi-kpi-value,
 .bi-kpi-card.hero #gr-kpi-pending-amt,
 body.light-theme .bi-kpi-card.hero #gr-kpi-pending-amt,
 [data-theme="light"] .bi-kpi-card.hero #gr-kpi-pending-amt {
-  font-size: 32px !important;
+  font-size: clamp(19px, 1.95vw, 32px) !important;
   line-height: 40px !important;
   font-weight: 700 !important;
+  letter-spacing: -0.035em !important;
   color: var(--text-on-brand) !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (min-width: 1440px) {
+  .bi-kpi-value,
+  .vat-card-num,
+  .gr-card-val,
+  .kpi-val,
+  .kpi-value,
+  .col-kpi-subcard .bi-kpi-value,
+  .col-outside-card .bi-kpi-value {
+    font-size: 28px !important;
+    line-height: 36px !important;
+    font-weight: 600 !important;
+    letter-spacing: -0.035em !important;
+  }
+
+  .bi-kpi-card.hero .bi-kpi-value,
+  .bi-kpi.hero .bi-kpi-value,
+  .exec-hero-card .bi-kpi-value,
+  .col-kpi-grid .bi-kpi-card.hero .bi-kpi-value,
+  .bi-kpi-card.hero #gr-kpi-pending-amt,
+  body.light-theme .bi-kpi-card.hero #gr-kpi-pending-amt,
+  [data-theme="light"] .bi-kpi-card.hero #gr-kpi-pending-amt {
+    font-size: 32px !important;
+    line-height: 40px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.035em !important;
+  }
 }
 .bi-kpi-card.hero .bi-kpi-value *,
 .bi-kpi.hero .bi-kpi-value * {
@@ -1179,18 +1260,27 @@ body.light-theme .section-num-badge {
 }
 
 .col-kpi-grid .bi-kpi-card {
-  min-height: auto !important;
-  padding: 16px 18px !important;
+  min-height: auto;
+  padding: 16px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+}
+
+@media (max-width: 1400px) {
+  .col-kpi-grid .bi-kpi-card {
+    padding: 14px 10px;
+  }
 }
 
 .col-kpi-grid .bi-kpi-card.hero .bi-kpi-value {
-  font-size: 36px !important;
-  line-height: 44px !important;
+  font-size: clamp(22px, 2.22vw, 32px) !important;
+  line-height: 40px !important;
   font-weight: 700 !important;
 }
 
-.col-kpi-grid .col-kpi-subcard .bi-kpi-value {
-  font-size: 28px !important;
+.col-kpi-grid .col-kpi-subcard .bi-kpi-value,
+.col-kpi-grid .col-outside-card .bi-kpi-value {
+  font-size: clamp(20px, 1.95vw, 28px) !important;
   line-height: 36px !important;
   font-weight: 600 !important;
 }
@@ -1259,4 +1349,111 @@ body.light-theme #gr-kpi-ledger-amt,
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/* UI1-و: Visual Polish & Zero-Clipping Layouts                               */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* 1. VAT TreeTable Container & Columns (No ellipsis, min-width: 1080px) */
+#vat-tree-container,
+.vat-treetable-container {
+  overflow-x: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+#vat-tree-container table,
+.vat-treetable-container table {
+  min-width: 1080px !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+#vat-tree-container td,
+#vat-tree-container th,
+.vat-treetable-container td,
+.vat-treetable-container th {
+  padding: 10px 8px !important;
+  box-sizing: border-box !important;
+}
+
+#vat-tree-container td.tree-col-num,
+.vat-treetable-container td.tree-col-num,
+#vat-tree-container tr.exec-totals-row td.tree-col-num {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  padding: 10px 8px !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  font-size: 13px !important;
+  text-align: right !important;
+}
+
+/* 2. VAT Company Cell: Badge under Name, max 2 lines, no ellipsis */
+.vat-company-cell {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.vat-company-name {
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.35 !important;
+  font-size: 13px !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  display: block !important;
+}
+
+.vat-period-badge {
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  display: inline-block !important;
+  font-size: 11px !important;
+  line-height: 16px !important;
+  padding: 2px 8px !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+}
+
+/* 3. Profitability Toolbar Measure & Grain Buttons 12px / 500 */
+.prof-measure-btn,
+.prof-grain-btn {
+  font-family: var(--font-ar), var(--font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+  padding: 5px 12px !important;
+  border-radius: 8px !important;
+}
+.prof-measure-btn.active,
+.prof-grain-btn.active {
+  font-weight: 600 !important;
+}
+
+/* 4. Table Numeric Cells across all tabs: No ellipsis, proper padding */
+body .tree-table-wrap td.tree-col-num,
+body table.exec-table td.tree-col-num,
+td.tree-col-num,
+td.exec-num,
+table td.tabular-nums {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
 
