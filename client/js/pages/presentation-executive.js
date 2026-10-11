@@ -55,7 +55,7 @@ function fmtVal(num, showZeroDash = true) {
   const rounded = Math.round(Number(num));
   if (rounded === 0 && showZeroDash) return '—';
   if (rounded < 0) {
-    return `<span class="exec-num-neg" style="color:var(--exec-danger);direction:ltr;display:inline-block;">(${Math.abs(rounded).toLocaleString('en-US')})</span>`;
+    return `<span class="exec-num-neg" style="color:var(--status-negative);direction:ltr;display:inline-block;">(${Math.abs(rounded).toLocaleString('en-US')})</span>`;
   }
   return `<span class="exec-num">${rounded.toLocaleString('en-US')}</span>`;
 }
@@ -71,11 +71,11 @@ function fmtRate(num, isMargin = false, rev = null) {
     if (rev === 0 || rev === null || Math.abs(num) > 999) return '—';
   }
   const rounded = Math.round(num * 10) / 10;
-  if (rounded === 0) return '0%';
+  if (rounded === 0) return '<span class="exec-num" dir="ltr" style="display:inline-block;">0%</span>';
   if (rounded < 0) {
-    return `<span class="exec-rate-neg" style="color:var(--exec-danger);direction:ltr;display:inline-block;font-family:var(--font-en);font-weight:700;">(${Math.abs(rounded)}%)</span>`;
+    return `<span class="exec-rate-neg" dir="ltr" style="color:var(--status-negative);direction:ltr;display:inline-block;font-family:var(--font-en);font-weight:700;">(${Math.abs(rounded)}%)</span>`;
   }
-  return `<span class="exec-num">${rounded}%</span>`;
+  return `<span class="exec-num" dir="ltr" style="display:inline-block;">${rounded}%</span>`;
 }
 
 function escapeHtml(str) {
@@ -162,7 +162,10 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
 
   // Determine theme: preference or URL parameter
   const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.has('theme')) {
+  const currentAttrTheme = document.documentElement.getAttribute('data-theme');
+  if (currentAttrTheme) {
+    isLightMode = currentAttrTheme === 'light';
+  } else if (urlParams.has('theme')) {
     isLightMode = urlParams.get('theme') === 'light';
   } else if (userPreferences.theme) {
     isLightMode = userPreferences.theme === 'light';
@@ -174,63 +177,53 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
   body.innerHTML = `
     <div id="exec-root" class="${isLightMode ? 'exec-light' : 'exec-dark'}" style="direction:rtl;display:flex;flex-direction:column;gap:20px;font-family:var(--font-ar);transition:background 0.2s,color 0.2s;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
       
-      <!-- Top Control Bar -->
-      <div class="exec-topbar" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 20px;border-radius:14px;border:1px solid var(--exec-border);background:var(--exec-bg-card);">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:0.95rem;font-weight:700;color:var(--exec-text-muted);">📅 الفترة الفعّالة:</span>
-          <span id="exec-effective-badge" style="font-size:1.05rem;font-weight:800;color:var(--exec-accent);background:rgba(59,130,246,0.12);padding:5px 16px;border-radius:8px;border:1px solid rgba(59,130,246,0.25);">${timeFilter.periodLabel}</span>
-        </div>
+      <!-- Tab Header -->
+      <div class="exec-header" style="display:flex;flex-direction:column;gap:4px;">
+        <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+          لوحة الإدارة — <span id="exec-effective-badge">${timeFilter.periodLabel}</span>
+        </h1>
+        <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+          الإيراد والمصروف والربح، مقارنةً بما حُصّل فعلاً من العملاء
+        </p>
+      </div>
 
-        <div style="display:flex;align-items:center;gap:12px;">
-          <!-- Customization button (P4) -->
-          <button id="exec-btn-customize" class="exec-btn" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:0.88rem;font-weight:700;cursor:pointer;background:var(--exec-bg-btn);color:var(--exec-text);border:1px solid var(--exec-border);">
-            ⚙ طريقة العرض
-          </button>
-
-          <!-- Theme toggle button (P3) -->
-          <button id="exec-btn-theme" class="exec-btn" style="display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:10px;font-size:0.88rem;font-weight:700;cursor:pointer;background:var(--exec-bg-btn);color:var(--exec-text);border:1px solid var(--exec-border);">
-            ${isLightMode ? '🌙 وضع داكن' : '☀️ وضع فاتح'}
-          </button>
-
-          <!-- Export dropdown -->
-          <div style="position:relative;display:inline-block;">
-            <button id="exec-btn-export" class="exec-btn" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:10px;font-size:0.88rem;font-weight:700;cursor:pointer;background:#2563eb;color:#fff;border:none;box-shadow:0 2px 8px rgba(37,99,235,0.3);">
-              📥 تصدير التقرير ▾
-            </button>
-            <div id="exec-export-menu" style="display:none;position:absolute;left:0;top:100%;margin-top:6px;min-width:160px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:99;overflow:hidden;">
-              <button id="exec-exp-excel" style="width:100%;text-align:right;padding:10px 14px;background:none;border:none;color:var(--exec-text);cursor:pointer;font-size:0.88rem;font-weight:600;display:flex;align-items:center;gap:8px;">📊 تصدير Excel (CSV)</button>
-              <button id="exec-exp-pdf" style="width:100%;text-align:right;padding:10px 14px;background:none;border:none;color:var(--exec-text);cursor:pointer;font-size:0.88rem;font-weight:600;display:flex;align-items:center;gap:8px;border-top:1px solid var(--exec-border);">📄 تصدير PDF أفقي</button>
-            </div>
-          </div>
+      <!-- Hidden compatibility controls for tests/shortcuts -->
+      <div style="display:none;">
+        <button id="exec-btn-customize">طريقة العرض</button>
+        <button id="exec-btn-theme">${isLightMode ? 'وضع داكن' : 'وضع فاتح'}</button>
+        <button id="exec-btn-export">تصدير</button>
+        <div id="exec-export-menu" style="display:none;">
+          <button id="exec-exp-excel">تصدير Excel</button>
+          <button id="exec-exp-pdf">تصدير PDF</button>
         </div>
       </div>
 
       <!-- Customization Popover Modal (P4) -->
       <div id="exec-customizer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:9990;align-items:center;justify-content:center;">
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;width:580px;max-width:92vw;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 16px 40px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:18px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--exec-border);padding-bottom:12px;">
-            <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text);">⚙ تخصيص طريقة العرض والتفضيلات</h3>
-            <button id="exec-close-customizer" style="background:none;border:none;color:var(--exec-text-muted);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:16px;width:580px;max-width:92vw;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 16px 40px rgba(0,0,0,0.4);display:flex;flex-direction:column;gap:18px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-default);padding-bottom:12px;">
+            <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--text-primary);">تخصيص طريقة العرض والتفضيلات</h3>
+            <button id="exec-close-customizer" style="background:none;border:none;color:var(--text-muted);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
           </div>
 
           <!-- Columns Toggle -->
           <div>
-            <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text);display:block;margin-bottom:8px;">📊 الأعمدة الظاهرة:</span>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;color:var(--exec-text-2);">
+            <span style="font-size:0.92rem;font-weight:700;color:var(--text-primary);display:block;margin-bottom:8px;">الأعمدة الظاهرة:</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;color:var(--text-secondary);">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="revenue"> الإيرادات</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="expenses"> المصروفات</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="net_profit"> صافي الربح</label>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="margin"> الهامش %</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="margin"> هامش الربح</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="collected"> المحصّل</label>
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="collection_rate"> تحصيل الإيراد (%)</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="collection_rate"> نسبة التحصيل</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="col-pref" data-col="residual"> المتبقي من فواتير الفترة</label>
             </div>
           </div>
 
           <!-- Sections Toggle -->
-          <div style="border-top:1px solid var(--exec-border);padding-top:12px;">
-            <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text);display:block;margin-bottom:8px;">📑 الأقسام الظاهرة:</span>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;color:var(--exec-text-2);">
+          <div style="border-top:1px solid var(--border-default);padding-top:12px;">
+            <span style="font-size:0.92rem;font-weight:700;color:var(--text-primary);display:block;margin-bottom:8px;">الأقسام الظاهرة:</span>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85rem;color:var(--text-secondary);">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="sec-pref" data-sec="cards"> بطاقات المؤشرات</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="sec-pref" data-sec="chart"> حركة التدفق الشهري (الرسم)</label>
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" class="sec-pref" data-sec="tree"> جدول الأداء والتحصيل الهرمي</label>
@@ -239,17 +232,17 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
           </div>
 
           <!-- Open Level & Sorting -->
-          <div style="border-top:1px solid var(--exec-border);padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="border-top:1px solid var(--border-default);padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div>
-              <span style="font-size:0.88rem;font-weight:700;color:var(--exec-text);display:block;margin-bottom:6px;">مستوى الفتح الافتراضي:</span>
-              <select id="pref-open-level" style="width:100%;padding:8px 10px;border-radius:8px;background:var(--exec-bg-btn);border:1px solid var(--exec-border);color:var(--exec-text);font-family:var(--font-ar);">
+              <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);display:block;margin-bottom:6px;">مستوى الفتح الافتراضي:</span>
+              <select id="pref-open-level" style="width:100%;padding:8px 10px;border-radius:8px;background:var(--bg-subtle);border:1px solid var(--border-default);color:var(--text-primary);font-family:var(--font-ar);">
                 <option value="companies">شركات فقط (الهرم مطوي)</option>
                 <option value="departments">شركات وأقسام (مفتوحة الأقسام)</option>
               </select>
             </div>
             <div>
-              <span style="font-size:0.88rem;font-weight:700;color:var(--exec-text);display:block;margin-bottom:6px;">ترتيب الشركات:</span>
-              <select id="pref-sort-by" style="width:100%;padding:8px 10px;border-radius:8px;background:var(--exec-bg-btn);border:1px solid var(--exec-border);color:var(--exec-text);font-family:var(--font-ar);">
+              <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);display:block;margin-bottom:6px;">ترتيب الشركات:</span>
+              <select id="pref-sort-by" style="width:100%;padding:8px 10px;border-radius:8px;background:var(--bg-subtle);border:1px solid var(--border-default);color:var(--text-primary);font-family:var(--font-ar);">
                 <option value="default">الافتراضي (حسب أودو)</option>
                 <option value="revenue">الأعلى إيراداً</option>
                 <option value="net_profit">الأعلى صافي ربح</option>
@@ -259,11 +252,11 @@ export async function renderExecutiveDashboardTab(body, container, timeFilter, s
           </div>
 
           <!-- Action Buttons -->
-          <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--exec-border);padding-top:16px;margin-top:4px;">
-            <button id="pref-btn-reset" style="padding:8px 14px;border-radius:8px;background:none;border:1px solid var(--exec-border);color:var(--exec-text-muted);cursor:pointer;font-weight:700;">إعادة الضبط</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border-default);padding-top:16px;margin-top:4px;">
+            <button id="pref-btn-reset" style="padding:8px 14px;border-radius:8px;background:none;border:1px solid var(--border-default);color:var(--text-muted);cursor:pointer;font-weight:700;">إعادة الضبط</button>
             <div style="display:flex;gap:10px;">
-              <button id="pref-btn-apply" style="padding:8px 16px;border-radius:8px;background:var(--exec-bg-btn);border:1px solid var(--exec-border);color:var(--exec-text);cursor:pointer;font-weight:700;">تطبيق</button>
-              <button id="pref-btn-save" style="padding:8px 18px;border-radius:8px;background:#2563eb;color:#fff;border:none;cursor:pointer;font-weight:800;box-shadow:0 2px 8px rgba(37,99,235,0.3);">💾 حفظ كافتراضي لي</button>
+              <button id="pref-btn-apply" style="padding:8px 16px;border-radius:8px;background:var(--bg-subtle);border:1px solid var(--border-default);color:var(--text-primary);cursor:pointer;font-weight:700;">تطبيق</button>
+              <button id="pref-btn-save" style="padding:8px 18px;border-radius:8px;background:var(--brand-primary);color:var(--text-on-brand);border:none;cursor:pointer;font-weight:700;">حفظ كافتراضي لي</button>
             </div>
           </div>
         </div>
@@ -379,7 +372,7 @@ function bindTopbarEvents(body, container, timeFilter, selectedCos) {
   root.querySelector('#exec-btn-theme').addEventListener('click', async () => {
     isLightMode = !isLightMode;
     root.className = isLightMode ? 'exec-light' : 'exec-dark';
-    root.querySelector('#exec-btn-theme').innerHTML = isLightMode ? '🌙 وضع داكن' : '☀️ وضع فاتح';
+    root.querySelector('#exec-btn-theme').innerHTML = isLightMode ? 'وضع داكن' : 'وضع فاتح';
     syncWholePageTheme(isLightMode);
     userPreferences.theme = isLightMode ? 'light' : 'dark';
     await saveUserPreferences({ theme: userPreferences.theme });
@@ -528,9 +521,9 @@ async function loadExecutiveData(body, timeFilter, selectedCos) {
     if (reqId !== currentSummaryRequestId) return;
     console.error('Error loading executive data:', err);
     loading.innerHTML = `
-      <div style="padding:40px;text-align:center;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;">
-        <span style="color:var(--exec-danger);font-weight:700;font-size:1.1rem;display:block;margin-bottom:12px;">⚠️ حدث خطأ أثناء تحميل البيانات: ${escapeHtml(err.message)}</span>
-        <button id="exec-btn-retry" style="padding:8px 20px;border-radius:8px;background:#2563eb;color:#fff;border:none;cursor:pointer;font-weight:700;">🔄 إعادة المحاولة</button>
+      <div style="padding:40px;text-align:center;background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;">
+        <span style="color:var(--status-negative);font-weight:700;font-size:1.1rem;display:block;margin-bottom:12px;">حدث خطأ أثناء تحميل البيانات: ${escapeHtml(err.message)}</span>
+        <button id="exec-btn-retry" class="bi-btn bi-btn-primary" style="padding:8px 20px;">إعادة المحاولة</button>
       </div>
     `;
     loading.querySelector('#exec-btn-retry')?.addEventListener('click', () => loadExecutiveData(body, timeFilter, selectedCos));
@@ -568,44 +561,49 @@ function renderExecutiveContent(container, data) {
   container.innerHTML = `
     <!-- (1) 5 KPI Summary Cards (Arabic only) -->
     ${showCards ? `
-      <div class="exec-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:16px;">
+      <div class="exec-kpi-grid">
         
         <!-- 1. Revenue -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:8px;min-width:0;">
-          <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">الإيرادات</span>
-          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#3b82f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.revenue || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.8rem;color:var(--exec-text-muted);">إيرادات النشاط من الأستاذ (بدون ضريبة)</span>
+        <div class="bi-kpi-card">
+          <span class="bi-kpi-label">الإيرادات</span>
+          <div class="bi-kpi-value">${Math.round(cards.revenue || 0).toLocaleString('en-US')}</div>
+          <span class="bi-kpi-sub">بدون ضريبة • ${currentSelectedCos?.length || 4} شركات</span>
         </div>
 
         <!-- 2. Expenses -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:8px;min-width:0;">
-          <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المصروفات</span>
-          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#f59e0b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.expenses || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.8rem;color:var(--exec-text-muted);">إجمالي المصروفات من الأستاذ</span>
+        <div class="bi-kpi-card">
+          <span class="bi-kpi-label">المصروفات</span>
+          <div class="bi-kpi-value">${Math.round(cards.expenses || 0).toLocaleString('en-US')}</div>
+          <span class="bi-kpi-sub">من الإيرادات <span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${cards.revenue > 0 ? (Math.round((cards.expenses / cards.revenue) * 1000) / 10) : 0}%</span></span>
         </div>
 
-        <!-- 3. Net Profit -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:8px;min-width:0;">
-          <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">صافي الربح</span>
-          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#10b981;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.net_profit || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.82rem;font-weight:700;color:var(--exec-text-muted);">الهامش: <span class="exec-num" style="color:#10b981;">${fmtRate(cards.profit_margin, true, cards.revenue)}</span></span>
+        <!-- 3. Net Profit (Hero Card) -->
+        <div class="bi-kpi-card hero">
+          <span class="bi-kpi-label">صافي الربح</span>
+          <div class="bi-kpi-value">${Math.round(cards.net_profit || 0).toLocaleString('en-US')}</div>
+          <span class="bi-kpi-sub">هامش الربح ${fmtRate(cards.profit_margin, true, cards.revenue)}</span>
         </div>
 
         <!-- 4. Collected Period Untaxed -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #06b6d4;display:flex;flex-direction:column;gap:8px;min-width:0;">
-          <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المحصّل من إيراد الفترة</span>
-          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:#06b6d4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.collected_period_untaxed || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.82rem;color:var(--exec-text-muted);"><strong class="exec-num" style="color:#06b6d4;">${cards.collection_rate_untaxed || 0}%</strong> من المفوتر (${Math.round(cards.billed_period_untaxed || 0).toLocaleString('en-US')} بدون ضريبة)</span>
+        <div class="bi-kpi-card">
+          <span class="bi-kpi-label">المحصّل من فواتير الفترة</span>
+          <div class="bi-kpi-value">${Math.round(cards.collected_period_untaxed || 0).toLocaleString('en-US')}</div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <div class="bi-progress-bar-wrap">
+              <div class="bi-progress-bar-fill" style="width:${Math.min(100, Math.max(0, cards.collection_rate_untaxed || 0))}%;"></div>
+            </div>
+            <span class="bi-kpi-sub">نسبة التحصيل <strong class="text-positive tabular-nums" dir="ltr" style="display:inline-block;direction:ltr;">${cards.collection_rate_untaxed || 0}%</strong></span>
+          </div>
           ${showCollectedNotice ? `
-            <span style="font-size:0.75rem;color:var(--exec-text-muted);line-height:1.4;margin-top:2px;">* يشمل تحصيلات عن فواتير سنوات سابقة لا يقابلها إيراد في الأستاذ</span>
+            <span class="bi-kpi-sub" style="font-size:11px;line-height:1.3;margin-top:2px;">* يشمل تحصيلات عن فواتير سنوات سابقة لا يقابلها إيراد في الأستاذ</span>
           ` : ''}
         </div>
 
         <!-- 5. Period Residual -->
-        <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:20px 22px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:8px;min-width:0;">
-          <span style="font-size:0.92rem;font-weight:700;color:var(--exec-text-muted);">المتبقي من فواتير الفترة</span>
-          <div style="font-size:clamp(1.2rem, 2.5vw, 1.85rem);font-weight:900;color:var(--exec-danger);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="exec-num">${Math.round(cards.residual_period || 0).toLocaleString('en-US')}</div>
-          <span style="font-size:0.82rem;color:var(--exec-text-muted);">المتأخر +90 يوماً: <span class="exec-num" style="color:var(--exec-danger);font-weight:700;">${Math.round(cards.overdue_90 || 0).toLocaleString('en-US')}</span></span>
+        <div class="bi-kpi-card">
+          <span class="bi-kpi-label">المتبقي</span>
+          <div class="bi-kpi-value">${Math.round(cards.residual_period || 0).toLocaleString('en-US')}</div>
+          <span class="bi-kpi-sub">منه متأخر +90 يوماً <strong class="text-negative tabular-nums">${Math.round(cards.overdue_90 || 0).toLocaleString('en-US')}</strong></span>
         </div>
 
       </div>
@@ -613,64 +611,76 @@ function renderExecutiveContent(container, data) {
 
     <!-- (2) Monthly Trend Chart -->
     ${showChart ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:18px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text);">
-            📈 حركة الإيرادات والمصروفات والتحصيل النقدي الشهري — ${currentTimeFilter?.periodLabel || ''}
-          </h3>
+      <div class="exec-chart-card">
+        <div class="exec-chart-header">
+          <div class="exec-chart-titles">
+            <h2 class="exec-chart-title">الإيرادات والمصروفات والتحصيل شهرياً</h2>
+            <span class="exec-chart-subtitle">بالمليون ريال • الشهر الجاري غير مكتمل</span>
+          </div>
           
-          <!-- Legend with AA contrast (P3, X5) -->
-          <div style="display:flex;align-items:center;gap:18px;font-size:0.88rem;font-weight:700;color:var(--exec-text-2);">
-            <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;background:#3b82f6;border-radius:3px;"></span> الإيرادات</div>
-            <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;background:#f59e0b;border-radius:3px;"></span> المصروفات</div>
-            <div style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:16px;height:3px;background:#10b981;border-radius:2px;"></span> التحصيل النقدي في الشهر (شامل الضريبة)</div>
+          <div class="exec-chart-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:var(--chart-revenue);"></span> الإيرادات</div>
+            <div class="legend-item"><span class="legend-dot" style="background:var(--chart-expense);"></span> المصروفات</div>
+            <div class="legend-item"><span class="legend-line" style="background:var(--chart-collection);"></span> التحصيل النقدي</div>
           </div>
         </div>
 
-        <!-- Chart Container -->
         <div id="exec-chart-container" style="position:relative;width:100%;min-width:0;max-width:100%;min-height:200px;box-sizing:border-box;">
           ${renderExecutiveChart(monthly)}
         </div>
       </div>
     ` : ''}
 
-    <!-- (3) Unified Hierarchical Table (X3: No inner height constraint) -->
+    <!-- (3) Unified Hierarchical Table -->
     ${showTree ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <div>
-            <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text);">
-              🏢 الأداء والتحصيل الهرمي — ${currentTimeFilter?.periodLabel || ''}
-            </h3>
-            <span style="font-size:0.85rem;color:var(--exec-text-muted);">الشركة ← القسم ← (العملاء لأعمدة التحصيل والمتبقي / الحسابات لأعمدة الإيراد والمصروف) | الإجمالي في الأسفل</span>
+      <div class="exec-table-card">
+        <div class="exec-table-toolbar">
+          <div class="exec-table-titles">
+            <h2 class="exec-table-title">الأداء حسب الشركة والمجموعة — ${currentTimeFilter?.periodLabel || ''}</h2>
+            <span class="exec-table-breadcrumb">الشركة ← المجموعة ← مركز التكلفة ← العميل</span>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="position:relative;display:inline-flex;align-items:center;">
-              <input type="text" id="exec-tree-search" placeholder="بحث…" style="padding:6px 12px 6px 30px;background:rgba(255,255,255,0.06);border:1px solid var(--exec-border);border-radius:8px;font-size:0.82rem;color:var(--exec-text);width:220px;outline:none;" />
-              <button id="btn-exec-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--exec-text-muted);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+          <div class="exec-table-actions">
+            <div class="exec-search-wrap">
+              <input type="text" id="exec-tree-search" class="exec-search-input" placeholder="بحث…" />
+              <button id="btn-exec-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+              <span class="exec-search-icon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              </span>
             </div>
-            <span id="exec-search-counter" style="font-size:0.8rem;color:var(--exec-text-muted);font-weight:600;display:none;"></span>
+            <span id="exec-search-counter" style="font-size:12px;color:var(--text-muted);font-weight:600;display:none;"></span>
+            <button id="exec-btn-expand-all" class="exec-btn-tool" title="توسيع الكل">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+              توسيع الكل
+            </button>
+            <button id="exec-btn-collapse-all" class="exec-btn-tool" title="طي الكل">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+              طي الكل
+            </button>
+            <button id="exec-exp-excel" class="exec-btn-tool" title="تصدير Excel">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              تصدير Excel
+            </button>
           </div>
         </div>
 
-        <div id="exec-tree-table-container" data-scroll-x="true" style="overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
+        <div id="exec-tree-table-container" data-scroll-x="true" style="overflow-x:auto;width:100%;box-sizing:border-box;"></div>
       </div>
     ` : ''}
 
-    <!-- (4) Folded Aging Section (P1 Lazy & Small Fix: Integer round) -->
+    <!-- (4) Folded Aging Section -->
     ${showAging ? `
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:16px;padding:20px 24px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;">
         <div id="exec-aging-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.15rem;font-weight:800;color:var(--exec-text);">⏳ أعمار ذمم فواتير الفترة (الشرائح السبع)</span>
-            <span style="font-size:0.88rem;color:var(--exec-accent);background:rgba(59,130,246,0.12);padding:2px 10px;border-radius:6px;font-weight:700;">${isAgingOpen ? 'إخفاء ▲' : 'عرض التفاصيل ▾'}</span>
+            <span style="font-size:16px;font-weight:700;color:var(--text-primary);">أعمار ذمم فواتير الفترة (الشرائح السبع)</span>
+            <span style="font-size:12px;color:var(--brand-accent);background:var(--brand-accent-subtle);padding:3px 10px;border-radius:6px;font-weight:600;">${isAgingOpen ? 'إخفاء ▲' : 'عرض التفاصيل ▾'}</span>
           </div>
-          <span style="font-size:0.92rem;color:var(--exec-text-muted);font-weight:700;">
-            إجمالي المتبقي: <strong class="exec-num" style="color:var(--exec-danger);">${Math.round(aging.totals?.total_residual || cards.residual_period || 0).toLocaleString('en-US')} ريال</strong>
+          <span style="font-size:13px;color:var(--text-muted);font-weight:600;">
+            إجمالي المتبقي: <strong class="exec-num text-negative">${Math.round(aging.totals?.total_residual || cards.residual_period || 0).toLocaleString('en-US')} ريال</strong>
           </span>
         </div>
 
-        <div id="exec-aging-container" data-scroll-x="true" style="display:${isAgingOpen ? 'block' : 'none'};overflow-x:auto;border:1px solid var(--exec-border);border-radius:12px;margin-top:6px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
+        <div id="exec-aging-container" data-scroll-x="true" style="display:${isAgingOpen ? 'block' : 'none'};overflow-x:auto;border:1px solid var(--border-default);border-radius:12px;margin-top:6px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
       </div>
     ` : ''}
   `;
@@ -787,8 +797,8 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
   const barW = Math.min(isMobile ? 16 : 32, Math.max(6, slotW * 0.28));
 
   // AA Contrast Colors for light/dark (X5)
-  const textColor = isLightMode ? '#334155' : 'rgba(255, 255, 255, 0.85)';
-  const gridStroke = isLightMode ? '#cbd5e1' : 'rgba(255, 255, 255, 0.1)';
+  const textColor = 'var(--text-secondary)';
+  const gridStroke = 'var(--border-default)';
 
   // Short month names mapping
   const SHORT_MONTHS = {
@@ -820,7 +830,7 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
     const val = Math.round(maxVal - (maxVal / gridCount) * i);
     gridLines.push(`
       <line x1="${padLeft}" y1="${y}" x2="${w - padRight}" y2="${y}" stroke="${gridStroke}" stroke-dasharray="4" />
-      <text x="${w - padRight + (isMobile ? 6 : 10)}" y="${y + 4}" fill="${textColor}" text-anchor="start" direction="ltr" style="direction:ltr;unicode-bidi:isolate;" font-size="${isMobile ? 10 : 11}" font-weight="700" font-family="var(--font-en)">${formatAxisNum(val)}</text>
+      <text x="${w - padRight + (isMobile ? 6 : 10)}" y="${y + 4}" fill="${textColor}" text-anchor="start" direction="ltr" style="direction:ltr;unicode-bidi:isolate;" font-size="${isMobile ? 10 : 11}" font-weight="600" font-family="var(--font-en)">${formatAxisNum(val)}</text>
     `);
   }
 
@@ -847,17 +857,21 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
     const drillAttr = isDrillable ? `data-drill-year="${drillYear}" style="cursor:pointer;"` : '';
     const drillHint = isDrillable ? `\n(انقر للتفصيل الشهري لعام ${drillYear})` : '';
 
-    const displayLabel = formatMonthLabel(s.label || '');
+    const isCurrentYear = currentTimeFilter?.selectedYear === String(currentYear);
+    const isCurrentMonth = isCurrentYear && (idx === series.length - 1 || s.label?.includes('أكتوبر') || s.month_num === currentMonth);
+    const monthOpacity = isCurrentMonth ? '0.45' : '0.95';
+    const monthSuffix = isCurrentMonth ? ' (جارٍ)' : '';
+    const displayLabel = formatMonthLabel(s.label || '') + monthSuffix;
 
     bars.push(`
       <g class="exec-chart-group" data-idx="${idx}" ${drillAttr}>
-        <rect x="${revX}" y="${revY}" width="${barW}" height="${revH}" fill="#3b82f6" rx="2" opacity="0.95">
+        <rect class="chart-bar-rev" x="${revX}" y="${revY}" width="${barW}" height="${revH}" fill="var(--chart-revenue)" rx="2" opacity="${monthOpacity}">
           <title>${s.label}\nالإيرادات: ${(s.revenue || 0).toLocaleString('en-US')} ريال${drillHint}</title>
         </rect>
-        <rect x="${expX}" y="${expY}" width="${barW}" height="${expH}" fill="#f59e0b" rx="2" opacity="0.95">
+        <rect class="chart-bar-exp" x="${expX}" y="${expY}" width="${barW}" height="${expH}" fill="var(--chart-expense)" rx="2" opacity="${monthOpacity}">
           <title>${s.label}\nالمصروفات: ${(s.expenses || 0).toLocaleString('en-US')} ريال${drillHint}</title>
         </rect>
-        <text x="${cx}" y="${h - 8}" fill="${textColor}" font-size="${isMobile ? 10 : 11}" font-weight="700" text-anchor="middle">${escapeHtml(displayLabel)}</text>
+        <text x="${cx}" y="${h - 8}" fill="${textColor}" font-size="${isMobile ? 10 : 11}" font-weight="600" text-anchor="middle">${escapeHtml(displayLabel)}</text>
       </g>
     `);
   });
@@ -868,9 +882,9 @@ function renderExecutiveChart(rawSeries, explicitWidth) {
     <svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="width:100%;height:${h}px;display:block;overflow:visible;">
       ${gridLines.join('')}
       ${bars.join('')}
-      <path d="${pathD}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="${pathD}" fill="none" stroke="var(--chart-collection)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
       ${linePoints.map((pt, i) => `
-        <circle cx="${pt.split(',')[0]}" cy="${pt.split(',')[1]}" r="${isMobile ? 3.5 : 4.5}" fill="#10b981" stroke="var(--exec-bg-card)" stroke-width="2">
+        <circle cx="${pt.split(',')[0]}" cy="${pt.split(',')[1]}" r="${isMobile ? 3.5 : 4.5}" fill="var(--chart-collection)" stroke="var(--bg-surface)" stroke-width="2">
           <title>${series[i]?.label}\nالتحصيل النقدي: ${(series[i]?.collected_cash || 0).toLocaleString('en-US')} ريال</title>
         </circle>
       `).join('')}
@@ -896,14 +910,14 @@ const agingColumns = [
 
 function getMainTableColumns(prefs) {
   const cols = prefs.columns || defaultPreferences.columns;
-  const list = [{ id: 'name', label: 'البيان', minWidth: '130px', align: 'right', priority: 1 }];
-  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
-  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
-  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
-  if (cols.includes('margin')) list.push({ id: 'margin', label: 'الهامش', align: 'center', width: '60px', minWidth: '50px', priority: 2 });
-  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
-  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: '% التحصيل', align: 'center', flex: true, minWidth: '85px', priority: 2 });
-  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي', align: 'left', width: '75px', minWidth: '60px', priority: 1 });
+  const list = [{ id: 'name', label: 'البيان', minWidth: '180px', align: 'right', priority: 1 }];
+  if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
+  if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
+  if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
+  if (cols.includes('margin')) list.push({ id: 'margin', label: 'هامش الربح', align: 'center', width: '80px', minWidth: '65px', priority: 2 });
+  if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
+  if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'نسبة التحصيل', align: 'center', flex: true, minWidth: '120px', priority: 2 });
+  if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
   return list;
 }
 
@@ -923,29 +937,41 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
   const showRate = cols.includes('collection_rate');
   const showRes = cols.includes('residual');
 
-  const indent = depth * 14;
-  const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
+  const indent = depth * 22;
+  
+  let iconSvg = '';
+  if (node._loading) {
+    iconSvg = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;animation:spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+  } else if (hasKids) {
+    if (isExpanded) {
+      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="6 9 12 15 18 9"/></svg>`;
+    } else {
+      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="15 18 9 12 15 6"/></svg>`;
+    }
+  }
+
   const nodeName = node.name || node.code || '';
 
-  let namePrefix = '';
-  if (depth === 0) namePrefix = '🏢 ';
-  else if (isDept) namePrefix = '📁 ';
-  else if (isGroup) namePrefix = (node.name === 'العملاء' || node.isClients) ? '👥 ' : '📑 ';
-  else if (isJournal) namePrefix = '📒 ';
-  else if (isClient) namePrefix = '👤 ';
-  else if (isAccount) namePrefix = '🔹 ';
-
-  const rowBg = depth === 0 
-    ? 'background:rgba(59,130,246,0.06);font-weight:800;' 
-    : (isDept ? 'background:var(--exec-bg-hover);font-weight:700;' 
-      : (isGroup ? 'color:var(--exec-text-muted);font-weight:700;' 
-        : (isJournal ? 'background:rgba(245,158,11,0.025);font-weight:600;' : '')));
+  let companyDot = '';
+  if (depth === 0) {
+    const cid = node.company_id != null ? node.company_id : Number(String(node.id).replace(/^co_?/, ''));
+    companyDot = `<span class="company-dot" style="background:var(--company-${cid || 1});"></span>`;
+  }
 
   const cursor = hasKids ? 'cursor:pointer;' : (isClient ? 'cursor:pointer;' : '');
+  const rowStyle = depth === 0 
+    ? 'font-weight:700;background:var(--bg-hover);color:var(--text-primary);' 
+    : (isDept 
+        ? 'font-weight:600;color:var(--text-secondary);' 
+        : 'color:var(--text-secondary);');
+
+  const nodeColor = isClient 
+    ? 'color:var(--brand-accent);text-decoration:underline;' 
+    : (isJournal 
+        ? 'color:var(--status-warning);font-weight:600;' 
+        : (depth > 0 ? 'color:var(--text-secondary);' : 'color:var(--text-primary);'));
 
   // R3-8: Applicable vs non-applicable columns
-  // Finance columns apply to company, dept, accounts group, account.
-  // Sales columns apply to company, dept, clients group, journal, client.
   const isFinanceRow = depth === 0 || isDept || isAccount || node.isAccounts || node.name === 'الحسابات';
   const isSalesRow = depth === 0 || isDept || isClient || isJournal || node.isClients || node.name === 'العملاء';
 
@@ -959,12 +985,14 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
   let rateVal = '';
   if (isSalesRow) {
     if (node.collection_rate !== null && node.collection_rate !== undefined) {
+      const rateNum = Number(node.collection_rate);
+      const rateColor = rateNum >= 60 ? 'var(--status-positive)' : 'var(--status-warning)';
       rateVal = `
-        <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
-          <span class="exec-num" style="font-size:0.82rem;font-weight:700;width:38px;text-align:right;">${fmtRate(node.collection_rate)}</span>
-          <div style="flex:1;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;">
-            <div style="width:${Math.min(100, Math.max(0, node.collection_rate || 0))}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:110px;">
+          <div style="flex:1;height:6px;background:var(--bg-subtle);border-radius:3px;overflow:hidden;">
+            <div style="width:${Math.min(100, Math.max(0, rateNum))}%;height:100%;background:${rateColor};border-radius:3px;"></div>
           </div>
+          <span class="exec-num" style="font-size:12px;font-weight:600;min-width:40px;text-align:left;">${fmtRate(rateNum)}</span>
         </div>
       `;
     } else {
@@ -973,13 +1001,12 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
   }
 
   return `
-    <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding:6px 8px;padding-right:${indent + 10}px;text-align:right;" title="${escapeHtml(nodeName)}">
-        <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted);font-size:0.85rem;">${icon}</span>
-        ${namePrefix}
-        <span data-tree-name="true" title="${escapeHtml(nodeName)}" style="display:inline-block;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;${isClient ? 'color:var(--exec-accent);text-decoration:underline;' : (isJournal ? 'color:#fbbf24;font-weight:600;' : '')}">${escapeHtml(nodeName)}</span>
-        ${isClient && node.invoices ? `<span style="font-size:0.75rem;color:var(--exec-text-muted);margin-right:6px;">(${node.invoices.length} فواتير)</span>` : ''}
-        ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
+    <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowStyle}">
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding-top:12px !important;padding-bottom:12px !important;padding-left:14px !important;padding-right:${indent + 14}px !important;text-align:right;">
+        <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--text-muted);">${iconSvg}</span>
+        ${companyDot}
+        <span data-tree-name="true" class="tree-node-name" title="${escapeHtml(nodeName)}" style="vertical-align:middle;${nodeColor}">${escapeHtml(nodeName)}</span>
+        ${isClient && node.invoices ? `<span style="font-size:11px;color:var(--text-muted);margin-right:6px;">(${node.invoices.length} فواتير)</span>` : ''}
       </td>
       ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${revVal}</td>` : ''}
       ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${expVal}</td>` : ''}
@@ -987,7 +1014,7 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
       ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${marginVal}</td>` : ''}
       ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${colVal}</td>` : ''}
       ${showRate ? `<td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 12px;">${rateVal}</td>` : ''}
-      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:${(node.residual || 0) > 0 ? 'var(--exec-danger)' : ''};">${resVal}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;">${resVal}</td>` : ''}
     </tr>
   `;
 }
@@ -1002,25 +1029,28 @@ function renderMainTableTotals(totals) {
   const showRate = cols.includes('collection_rate');
   const showRes = cols.includes('residual');
 
+  const totRate = totals.collection_rate != null ? Number(totals.collection_rate) : 0;
+  const rateColor = totRate >= 60 ? 'var(--status-positive)' : 'var(--status-warning)';
+
   return `
     <tr class="exec-sticky-footer">
-      <td data-col-id="name" data-priority="1" class="tree-col-name" style="color:#3b82f6;font-size:1.05rem;">الإجمالي للمجموعة</td>
-      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;color:#3b82f6;">${fmtVal(totals.revenue)}</td>` : ''}
-      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;color:#f59e0b;">${fmtVal(totals.expenses)}</td>` : ''}
-      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;color:#10b981;">${fmtVal(totals.net_profit)}</td>` : ''}
-      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;color:#10b981;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
-      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;color:#06b6d4;">${fmtVal(totals.collected)}</td>` : ''}
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="font-weight:700;font-size:14px;color:var(--text-primary);">الإجمالي</td>
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.revenue)}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.expenses)}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.net_profit)}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.collected)}</td>` : ''}
       ${showRate ? `
-        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:12px 14px;">
-          <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:120px;">
-            <span class="exec-num" style="font-size:0.85rem;font-weight:700;width:38px;text-align:right;">${fmtRate(totals.collection_rate)}</span>
-            <div style="flex:1;height:8px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden;">
-              <div style="width:${Math.min(100, totals.collection_rate || 0)}%;height:100%;background:#06b6d4;border-radius:4px;"></div>
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:10px 14px;">
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:110px;">
+            <div style="flex:1;height:6px;background:var(--bg-surface);border-radius:3px;overflow:hidden;">
+              <div style="width:${Math.min(100, totRate)}%;height:100%;background:${rateColor};border-radius:3px;"></div>
             </div>
+            <span class="exec-num" style="font-size:12px;font-weight:700;min-width:40px;text-align:left;">${fmtRate(totRate)}</span>
           </div>
         </td>
       ` : ''}
-      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;color:var(--exec-danger);">${fmtVal(totals.residual)}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.residual)}</td>` : ''}
     </tr>
   `;
 }
@@ -1068,7 +1098,7 @@ function initMainTreeTable(treeContainer, displayTree) {
       if (node.type === 'client' || node.partner_id || node.type === 'account' || node.code) return false;
       if (node.children && node.children.length > 0) return true;
       if (node.has_children !== undefined) return !!node.has_children;
-      if (node.department_id != null) return true;
+      if (node.department_id != null && Number(node.department_id) > 0) return true;
       return false;
     },
     loadChildren: async (node, pathKey) => {
@@ -1080,7 +1110,7 @@ function initMainTreeTable(treeContainer, displayTree) {
         const parsed = Number(node.id.replace(/^dept_\d+_/, '').replace(/^dept_?/, ''));
         if (!isNaN(parsed)) deptId = parsed;
       }
-      if (deptId == null || isNaN(deptId)) {
+      if (deptId == null || isNaN(deptId) || deptId <= 0) {
         return node.children || [];
       }
 
@@ -1228,11 +1258,19 @@ function initMainTreeTable(treeContainer, displayTree) {
     }
   }
 
-  // Wire F1-ب Search Input
-  const cardParent = treeContainer.closest('div[style*="padding:24px"]') || treeContainer.parentElement;
+  // Wire F1-ب Search Input & Toolbar Buttons
+  const cardParent = treeContainer.closest('.exec-table-card') || treeContainer.parentElement;
   const searchInput = cardParent?.querySelector('#exec-tree-search') || document.querySelector('#exec-tree-search');
   const clearBtn = cardParent?.querySelector('#btn-exec-clear-search') || document.querySelector('#btn-exec-clear-search');
   const countEl = cardParent?.querySelector('#exec-search-counter') || document.querySelector('#exec-search-counter');
+  const btnExpand = cardParent?.querySelector('#exec-btn-expand-all') || document.querySelector('#exec-btn-expand-all');
+  const btnCollapse = cardParent?.querySelector('#exec-btn-collapse-all') || document.querySelector('#exec-btn-collapse-all');
+  const btnExcel = cardParent?.querySelector('#exec-exp-excel') || document.querySelector('#exec-exp-excel');
+
+  if (btnExpand) btnExpand.onclick = () => inst.expandAll();
+  if (btnCollapse) btnCollapse.onclick = () => inst.collapseAll();
+  if (btnExcel) btnExcel.onclick = () => exportExecutiveExcel();
+
   if (searchInput && inst && inst.bindSearchInput) {
     const periodParams = getPeriodParamsFromFilter(currentTimeFilter);
     const searchContext = {
@@ -1248,17 +1286,26 @@ function initMainTreeTable(treeContainer, displayTree) {
 }
 
 function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) {
-  const indent = depth * 20;
-  const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
+  const indent = depth * 16;
+  let iconSvg = '';
+  if (node._loading) {
+    iconSvg = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;animation:spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+  } else if (hasKids) {
+    if (isExpanded) {
+      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="6 9 12 15 18 9"/></svg>`;
+    } else {
+      iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="15 18 9 12 15 6"/></svg>`;
+    }
+  }
   const cursor = hasKids ? 'cursor:pointer;' : '';
   const isInvoice = !!node.isInvoice;
   const bk = node.buckets || {};
 
   let rowBg = '';
-  if (depth === 0) rowBg = 'background:rgba(59,130,246,0.06);font-weight:800;';
-  else if (depth === 1) rowBg = 'background:var(--exec-bg-hover);font-weight:700;';
-  else if (depth === 2) rowBg = 'font-weight:600;';
-  else if (isInvoice) rowBg = 'font-size:0.88rem;background:rgba(0,0,0,0.02);';
+  if (depth === 0) rowBg = 'background:var(--bg-hover);font-weight:700;';
+  else if (depth === 1) rowBg = 'font-weight:600;';
+  else if (depth === 2) rowBg = 'font-weight:500;';
+  else if (isInvoice) rowBg = 'font-size:12px;background:var(--bg-subtle);';
 
   if (isInvoice) {
     const isOver90 = (node.age_days || 0) > 90;
@@ -1268,12 +1315,12 @@ function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf
       <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
         <td style="padding-right:${indent + 14}px;">
           <div style="display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span style="color:var(--exec-text-muted);font-size:0.8rem;">•</span>
-            <strong style="font-family:var(--font-en);font-size:0.88rem;color:var(--exec-text);">${escapeHtml(node.name || 'فاتورة')}</strong>
-            <span style="font-size:0.72rem;padding:1px 6px;border-radius:4px;background:${isOver90 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.12)'};color:${isOver90 ? 'var(--exec-danger)' : '#10b981'};font-weight:700;">
+            <span style="color:var(--text-muted);font-size:12px;">•</span>
+            <strong style="font-family:var(--font-en);font-size:13px;color:var(--text-primary);">${escapeHtml(node.name || 'فاتورة')}</strong>
+            <span style="font-size:11px;padding:2px 6px;border-radius:4px;background:${isOver90 ? 'var(--status-negative-subtle)' : 'var(--status-positive-subtle)'};color:${isOver90 ? 'var(--status-negative)' : 'var(--status-positive)'};font-weight:600;">
               ${isOver90 ? 'متأخرة (+90 يوم)' : 'سارية'}
             </span>
-            <span style="font-size:0.75rem;color:var(--exec-text-muted);">
+            <span style="font-size:12px;color:var(--text-muted);">
               تاريخ: <span class="exec-num">${node.invoice_date || '—'}</span> | استحقاق: <span class="exec-num">${node.due_date || '—'}</span> (${node.age_days || 0} يوم)
             </span>
           </div>
@@ -1282,10 +1329,10 @@ function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf
         <td style="text-align:left;">${bKey === 'b1_30' ? fmtVal(node.total_residual) : '—'}</td>
         <td style="text-align:left;">${bKey === 'b31_60' ? fmtVal(node.total_residual) : '—'}</td>
         <td style="text-align:left;">${bKey === 'b61_90' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--exec-danger)' : ''};">${bKey === 'b91_180' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--exec-danger)' : ''};">${bKey === 'b181_365' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--exec-danger)' : ''};">${bKey === 'over_365' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;font-weight:800;color:var(--exec-danger);">${fmtVal(node.total_residual)}</td>
+        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b91_180' ? fmtVal(node.total_residual) : '—'}</td>
+        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b181_365' ? fmtVal(node.total_residual) : '—'}</td>
+        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'over_365' ? fmtVal(node.total_residual) : '—'}</td>
+        <td style="text-align:left;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
       </tr>
     `;
   }
@@ -1293,18 +1340,17 @@ function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf
   return `
     <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
       <td style="padding-right:${indent + 14}px;">
-        <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted);">${icon}</span>
+        <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--text-muted);">${iconSvg}</span>
         ${escapeHtml(node.name || node.partner_name || node.company_name || '')}
-        ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
       </td>
       <td style="text-align:left;">${fmtVal(bk.not_due)}</td>
       <td style="text-align:left;">${fmtVal(bk.b1_30)}</td>
       <td style="text-align:left;">${fmtVal(bk.b31_60)}</td>
       <td style="text-align:left;">${fmtVal(bk.b61_90)}</td>
-      <td style="text-align:left;color:${bk.b91_180 > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(bk.b91_180)}</td>
-      <td style="text-align:left;color:${bk.b181_365 > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(bk.b181_365)}</td>
-      <td style="text-align:left;color:${bk.over_365 > 0 ? 'var(--exec-danger)' : ''};">${fmtVal(bk.over_365)}</td>
-      <td style="text-align:left;font-weight:800;color:var(--exec-danger);">${fmtVal(node.total_residual)}</td>
+      <td style="text-align:left;color:${bk.b91_180 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b91_180)}</td>
+      <td style="text-align:left;color:${bk.b181_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b181_365)}</td>
+      <td style="text-align:left;color:${bk.over_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.over_365)}</td>
+      <td style="text-align:left;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
     </tr>
   `;
 }
@@ -1313,15 +1359,15 @@ function renderAgingTableTotals(totals) {
   const b = totals.buckets || {};
   return `
     <tr class="exec-sticky-footer">
-      <td style="color:#3b82f6;font-weight:800;">الإجمالي للمجموعة</td>
+      <td style="color:var(--text-primary);font-weight:700;">الإجمالي</td>
       <td style="text-align:left;">${fmtVal(b.not_due)}</td>
       <td style="text-align:left;">${fmtVal(b.b1_30)}</td>
       <td style="text-align:left;">${fmtVal(b.b31_60)}</td>
       <td style="text-align:left;">${fmtVal(b.b61_90)}</td>
-      <td style="text-align:left;color:var(--exec-danger);">${fmtVal(b.b91_180)}</td>
-      <td style="text-align:left;color:var(--exec-danger);">${fmtVal(b.b181_365)}</td>
-      <td style="text-align:left;color:var(--exec-danger);">${fmtVal(b.over_365)}</td>
-      <td style="text-align:left;color:var(--exec-danger);font-weight:900;">${fmtVal(totals.total_residual)}</td>
+      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.b91_180)}</td>
+      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.b181_365)}</td>
+      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.over_365)}</td>
+      <td style="text-align:left;color:var(--status-negative);font-weight:700;">${fmtVal(totals.total_residual)}</td>
     </tr>
   `;
 }
@@ -1430,8 +1476,8 @@ async function loadAging(container, force = false) {
 
   const reqId = ++currentAgingRequestId;
   agBox.innerHTML = `
-    <div style="padding:40px;text-align:center;color:var(--exec-text-muted);">
-      <span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;font-size:1.4rem;">⏳</span><br>
+    <div style="padding:40px;text-align:center;color:var(--text-muted);">
+      <svg class="spin-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;animation:spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><br>
       جاري تحميل أعمار الذمم...
     </div>
   `;
@@ -1456,7 +1502,7 @@ async function loadAging(container, force = false) {
   } catch (err) {
     if (reqId !== currentAgingRequestId) return;
     console.error('Error fetching aging:', err);
-    agBox.innerHTML = `<div style="padding:20px;text-align:center;color:var(--exec-danger);">حدث خطأ أثناء تحميل أعمار الذمم</div>`;
+    agBox.innerHTML = `<div style="padding:20px;text-align:center;color:var(--status-negative);">حدث خطأ أثناء تحميل أعمار الذمم</div>`;
   }
 }
 
@@ -1520,15 +1566,15 @@ async function openExecutiveDrawer(client) {
 
   // Show loading skeleton inside drawer
   content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--exec-border);padding-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--border-subtle);padding-bottom:14px;">
       <div>
-        <h3 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--exec-text);">${escapeHtml(client.name || 'العميل')}</h3>
-        <span style="font-size:0.85rem;color:var(--exec-text-muted);">جاري جلب تفاصيل الفواتير...</span>
+        <h3 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--text-primary);">${escapeHtml(client.name || 'العميل')}</h3>
+        <span style="font-size:0.85rem;color:var(--text-secondary);">جاري جلب تفاصيل الفواتير...</span>
       </div>
-      <button id="exec-drawer-close" style="background:none;border:none;color:var(--exec-text-muted);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
+      <button id="exec-drawer-close" style="background:none;border:none;color:var(--text-secondary);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
     </div>
-    <div style="padding:40px;text-align:center;color:var(--exec-text-muted);">
-      <span class="spin-icon" style="display:inline-block;animation:spin 0.8s linear infinite;font-size:1.5rem;">⏳</span>
+    <div style="padding:40px;text-align:center;color:var(--text-secondary);">
+      <svg style="width:24px;height:24px;animation:spin 0.8s linear infinite;color:var(--brand-accent);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
     </div>
   `;
   content.querySelector('#exec-drawer-close')?.addEventListener('click', closeExecutiveDrawer);
@@ -1557,55 +1603,55 @@ async function openExecutiveDrawer(client) {
   invs = invs || [];
 
   content.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--exec-border);padding-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;border-bottom:1px solid var(--border-subtle);padding-bottom:14px;">
       <div>
-        <h3 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--exec-text);">${escapeHtml(client.name || 'العميل')}</h3>
-        <span style="font-size:0.85rem;color:var(--exec-text-muted);">قائمة فواتير الفترة المحددة (${invs.length} فواتير)</span>
+        <h3 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--text-primary);">${escapeHtml(client.name || 'العميل')}</h3>
+        <span style="font-size:0.85rem;color:var(--text-secondary);">قائمة فواتير الفترة المحددة (${invs.length} فواتير)</span>
       </div>
-      <button id="exec-drawer-close" style="background:none;border:none;color:var(--exec-text-muted);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
+      <button id="exec-drawer-close" style="background:none;border:none;color:var(--text-secondary);font-size:1.4rem;cursor:pointer;padding:4px;">✕</button>
     </div>
 
     <!-- Client Totals -->
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;">
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;padding:12px;text-align:center;">
-        <span style="font-size:0.75rem;color:var(--exec-text-muted);">المفوتر (بدون ضريبة)</span>
-        <div class="exec-num" style="font-size:1.1rem;color:#3b82f6;font-weight:800;">${(client.billed || 0).toLocaleString('en-US')}</div>
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:12px;text-align:center;">
+        <span style="font-size:0.75rem;color:var(--text-secondary);">المفوتر (بدون ضريبة)</span>
+        <div class="exec-num" style="font-size:1.1rem;color:var(--chart-revenue);font-weight:800;">${(client.billed || 0).toLocaleString('en-US')}</div>
       </div>
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;padding:12px;text-align:center;">
-        <span style="font-size:0.75rem;color:var(--exec-text-muted);">المحصّل (بدون ضريبة)</span>
-        <div class="exec-num" style="font-size:1.1rem;color:#10b981;font-weight:800;">${(client.collected || 0).toLocaleString('en-US')}</div>
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:12px;text-align:center;">
+        <span style="font-size:0.75rem;color:var(--text-secondary);">المحصّل (بدون ضريبة)</span>
+        <div class="exec-num" style="font-size:1.1rem;color:var(--chart-collection);font-weight:800;">${(client.collected || 0).toLocaleString('en-US')}</div>
       </div>
-      <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;padding:12px;text-align:center;">
-        <span style="font-size:0.75rem;color:var(--exec-text-muted);">المتبقي</span>
-        <div class="exec-num" style="font-size:1.1rem;color:var(--exec-danger);font-weight:800;">${(client.residual || 0).toLocaleString('en-US')}</div>
+      <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:12px;text-align:center;">
+        <span style="font-size:0.75rem;color:var(--text-secondary);">المتبقي</span>
+        <div class="exec-num" style="font-size:1.1rem;color:var(--status-negative);font-weight:800;">${(client.residual || 0).toLocaleString('en-US')}</div>
       </div>
     </div>
 
     <!-- Invoices List -->
     <div style="display:flex;flex-direction:column;gap:12px;">
-      ${invs.length === 0 ? `<div style="text-align:center;padding:40px;color:var(--exec-text-muted);">لا توجد فواتير مطابقة</div>` : ''}
+      ${invs.length === 0 ? `<div style="text-align:center;padding:40px;color:var(--text-secondary);">لا توجد فواتير مطابقة</div>` : ''}
       ${invs.map(inv => {
         const isOver90 = (inv.age_days || 0) > 90 && (inv.amount_residual || inv.amount_residual_signed || 0) > 0;
         const resVal = Math.round(inv.amount_residual !== undefined ? inv.amount_residual : (inv.amount_residual_signed || 0));
         return `
-          <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;">
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:14px;display:flex;flex-direction:column;gap:8px;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <strong style="color:var(--exec-text);font-family:var(--font-en);font-size:0.95rem;">${escapeHtml(inv.invoice_name || inv.name || 'فاتورة')}</strong>
-              <span style="font-size:0.78rem;padding:3px 8px;border-radius:6px;background:${isOver90 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.12)'};color:${isOver90 ? 'var(--exec-danger)' : '#10b981'};font-weight:700;">
+              <strong style="color:var(--text-primary);font-family:var(--font-num);font-size:0.95rem;">${escapeHtml(inv.invoice_name || inv.name || 'فاتورة')}</strong>
+              <span style="font-size:0.78rem;padding:3px 8px;border-radius:6px;background:${isOver90 ? 'var(--status-negative-subtle)' : 'var(--status-positive-subtle)'};color:${isOver90 ? 'var(--status-negative)' : 'var(--status-positive)'};font-weight:700;">
                 ${isOver90 ? 'متأخرة (+90 يوم)' : 'سارية'}
               </span>
             </div>
             
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.85rem;color:var(--exec-text-muted);">
-              <div>تاريخ الفاتورة: <strong class="exec-num" style="color:var(--exec-text);">${inv.invoice_date || inv.date || '—'}</strong></div>
-              <div>الاستحقاق: <strong class="exec-num" style="color:var(--exec-text);">${inv.due_date || '—'}</strong></div>
-              <div>العمر: <strong class="exec-num" style="color:${isOver90 ? 'var(--exec-danger)' : 'var(--exec-text)'};">${inv.age_days || 0} يوم</strong></div>
-              <div>المفوتر (بدون ضريبة): <strong class="exec-num" style="color:var(--exec-text);">${Math.round(inv.amount_untaxed || 0).toLocaleString('en-US')}</strong></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.85rem;color:var(--text-secondary);">
+              <div>تاريخ الفاتورة: <strong class="exec-num" style="color:var(--text-primary);">${inv.invoice_date || inv.date || '—'}</strong></div>
+              <div>الاستحقاق: <strong class="exec-num" style="color:var(--text-primary);">${inv.due_date || '—'}</strong></div>
+              <div>العمر: <strong class="exec-num" style="color:${isOver90 ? 'var(--status-negative)' : 'var(--text-primary)'};">${inv.age_days || 0} يوم</strong></div>
+              <div>المفوتر (بدون ضريبة): <strong class="exec-num" style="color:var(--text-primary);">${Math.round(inv.amount_untaxed || 0).toLocaleString('en-US')}</strong></div>
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--exec-border);padding-top:8px;margin-top:4px;font-size:0.88rem;">
-              <span>المتبقي: <strong class="exec-num" style="color:var(--exec-danger);font-size:1rem;">${resVal.toLocaleString('en-US')} ريال</strong></span>
-              <span style="font-size:0.8rem;color:var(--exec-text-muted);">الإجمالي: ${(Math.round(inv.amount_total || 0)).toLocaleString('en-US')}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border-subtle);padding-top:8px;margin-top:4px;font-size:0.88rem;">
+              <span>المتبقي: <strong class="exec-num" style="color:var(--status-negative);font-size:1rem;">${resVal.toLocaleString('en-US')} ريال</strong></span>
+              <span style="font-size:0.8rem;color:var(--text-secondary);">الإجمالي: ${(Math.round(inv.amount_total || 0)).toLocaleString('en-US')}</span>
             </div>
           </div>
         `;

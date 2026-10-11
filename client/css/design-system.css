@@ -4,6 +4,8 @@
    ================================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import './ui1.css';
+
 
 :root {
   /* Colors - Main */
@@ -1356,19 +1358,21 @@ body.light-theme .tree-table-wrap td.tree-col-name {
     --page-padding: var(--page-padding-desktop);
   }
 
-  /* Full-width distributed tabs: flex: 1 each, centered, padding >= 12px from edge */
+  /* Tabs right-aligned, width to text */
   .bi-tabs {
     width: 100% !important;
     display: flex !important;
+    justify-content: flex-start !important;
     padding-right: 14px !important;
     padding-left: 14px !important;
     box-sizing: border-box !important;
   }
 
   .bi-tabs .bi-tab {
-    flex: 1 1 0 !important;
-    text-align: center !important;
-    justify-content: center !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    text-align: right !important;
+    justify-content: flex-start !important;
     white-space: nowrap !important;
   }
 
@@ -1394,10 +1398,10 @@ body.light-theme .tree-table-wrap td.tree-col-name {
 }
 
 .bi-tab.active {
-  color: #60a5fa !important;
-  border-bottom: 3px solid #3b82f6 !important;
-  background: rgba(59, 130, 246, 0.08) !important;
-  font-weight: 800 !important;
+  color: var(--brand-accent) !important;
+  border-bottom: 2px solid var(--brand-accent) !important;
+  background: transparent !important;
+  font-weight: 600 !important;
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1823,14 +1827,15 @@ body.light-theme .bi-last-updated {
 }
 body.light-theme .bi-actions .btn,
 body.light-theme .bi-refresh-btn {
-  background: #f1f5f9 !important;
-  border: 1px solid #cbd5e1 !important;
-  color: #334155 !important;
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-secondary) !important;
 }
 body.light-theme .bi-actions .btn:hover,
 body.light-theme .bi-refresh-btn:hover {
-  background: #e2e8f0 !important;
-  color: #0f172a !important;
+  background: var(--bg-hover) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
 }
 body.light-theme .bi-adv-toggle {
   background: #f8fafc !important;
@@ -1848,21 +1853,22 @@ body.light-theme .bi-adv-toggle .arrow {
   color: #475569 !important;
 }
 body.light-theme .bi-tabs {
-  background: #f8fafc !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  justify-content: flex-start !important;
 }
 body.light-theme .bi-tab {
-  color: #475569 !important;
+  color: var(--text-secondary) !important;
 }
 body.light-theme .bi-tab:hover {
-  color: #0f172a !important;
-  background: #f1f5f9 !important;
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
 }
 body.light-theme .bi-tab.active {
-  color: #2563eb !important;
-  border-bottom: 3px solid #2563eb !important;
-  background: rgba(37, 99, 235, 0.08) !important;
-  font-weight: 800 !important;
+  color: var(--brand-accent) !important;
+  border-bottom: 2px solid var(--brand-accent) !important;
+  background: transparent !important;
+  font-weight: 600 !important;
 }
 
 /* Compact Table Padding & Containment (R2-2: fits >= 1366 without horizontal scroll) */
@@ -1909,14 +1915,11 @@ span[data-tree-name="true"],
   .main-content {
     padding: 18px !important;
   }
-  .tree-table-wrap th,
   .tree-table-wrap td,
-  table.exec-table th,
   table.exec-table td,
-  table.gr-table th,
   table.gr-table td {
-    padding: 4px 4px !important;
-    font-size: 11.5px !important;
+    padding: 6px 4px !important;
+    font-size: 13px !important;
   }
   span.tree-node-name,
   span[data-tree-name="true"],
@@ -1932,14 +1935,11 @@ span[data-tree-name="true"],
   .main-content {
     padding: 14px !important;
   }
-  .tree-table-wrap th,
   .tree-table-wrap td,
-  table.exec-table th,
   table.exec-table td,
-  table.gr-table th,
   table.gr-table td {
-    padding: 4px 3px !important;
-    font-size: 11px !important;
+    padding: 6px 3px !important;
+    font-size: 13px !important;
   }
   span.tree-node-name,
   span[data-tree-name="true"],
@@ -2108,8 +2108,8 @@ body.light-theme .bi-card-title,
   color: #0f172a !important;
 }
 
-body.light-theme .bi-kpi,
-[data-theme="light"] .bi-kpi {
+body.light-theme .bi-kpi:not(.hero),
+[data-theme="light"] .bi-kpi:not(.hero) {
   background: #ffffff !important;
   border-color: #cbd5e1 !important;
 }
@@ -2415,12 +2415,10 @@ body.light-theme .gr-table tfoot .num,
   color: #075985 !important;
 }
 body.light-theme #gr-kpi-count,
-[data-theme="light"] #gr-kpi-count {
-  color: #6d28d9 !important;
-}
+[data-theme="light"] #gr-kpi-count,
 body.light-theme #gr-kpi-ledger-amt,
 [data-theme="light"] #gr-kpi-ledger-amt {
-  color: #1d4ed8 !important;
+  color: var(--text-primary) !important;
 }
 
 body.light-theme [style*="color:#818cf8"],

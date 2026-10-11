@@ -1,0 +1,1262 @@
+/* ================================================================
+   UI1 DESIGN SYSTEM - TOKENS & SHARED PRESENTATION COMPONENTS
+   Stage UI1-أ: Foundations + Tokens + Executive Dashboard
+   ================================================================ */
+
+:root {
+  /* UI1 Tokens - Dark (Default) */
+  --bg-page: #0A1120;
+  --bg-surface: #111A2C;
+  --bg-subtle: #18233A;
+  --bg-hover: #1C2942;
+  --border-default: #243049;
+  --border-strong: #34425F;
+  --text-primary: #F1F4F9;
+  --text-secondary: #B8C2D3;
+  --text-muted: #8B98AE;
+  --text-on-brand: #0A1120;
+  --brand-primary: #8FBFF5;
+  --brand-accent: #5C9DFF;
+  --brand-accent-subtle: #17294A;
+  --status-positive: #3FD08D;
+  --status-positive-subtle: #113326;
+  --status-negative: #FF7B70;
+  --status-negative-subtle: #3A1A1A;
+  --status-warning: #F3B45E;
+  --status-warning-subtle: #3A2A12;
+  --chart-revenue: #5C9DFF;
+  --chart-expense: #5A6A86;
+  --chart-collection: #3FD08D;
+  --chart-sister: #A994FF;
+  --company-1: #5C9DFF;
+  --company-2: #3FD08D;
+  --company-3: #F3B45E;
+  --company-4: #A994FF;
+
+  /* Typography */
+  --font-ar: 'Noto Sans Arabic', 'Segoe UI', sans-serif;
+  --font-en: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+:root[data-theme="light"],
+html[data-theme="light"],
+body.light-theme,
+[data-theme="light"] {
+  /* UI1 Tokens - Light */
+  --bg-page: #F4F6F9;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #EEF1F5;
+  --bg-hover: #F7F9FC;
+  --border-default: #E2E7EE;
+  --border-strong: #C9D1DC;
+  --text-primary: #0F1B2D;
+  --text-secondary: #42526B;
+  --text-muted: #66758C;
+  --text-on-brand: #FFFFFF;
+  --brand-primary: #123A63;
+  --brand-accent: #1D6AE5;
+  --brand-accent-subtle: #E8F0FE;
+  --status-positive: #0B7A4B;
+  --status-positive-subtle: #E4F5EC;
+  --status-negative: #C2281B;
+  --status-negative-subtle: #FDEBE9;
+  --status-warning: #A85A07;
+  --status-warning-subtle: #FCF1E0;
+  --chart-revenue: #1D6AE5;
+  --chart-expense: #9AA8BC;
+  --chart-collection: #0B7A4B;
+  --chart-sister: #7A5AF0;
+  --company-1: #1D6AE5;
+  --company-2: #0B7A4B;
+  --company-3: #A85A07;
+  --company-4: #7A5AF0;
+}
+
+/* ================================================================
+   TYPOGRAPHY & UTILITIES
+   ================================================================ */
+.tabular-nums,
+.exec-num,
+.bi-num {
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.text-positive { color: var(--status-positive) !important; font-weight: 600; }
+.text-negative { color: var(--status-negative) !important; font-weight: 600; }
+.text-warning { color: var(--status-warning) !important; font-weight: 600; }
+
+.company-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: 8px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ================================================================
+   PAGE & TOPBAR LAYOUT
+   ================================================================ */
+.bi-page {
+  background: var(--bg-page) !important;
+  color: var(--text-primary) !important;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Topbar: Exactly 2 rows (height <= 140px on 1440px desktop) */
+.bi-topbar {
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  padding: 10px var(--page-padding, 28px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 50 !important;
+  box-sizing: border-box !important;
+  box-shadow: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Mobile elements & responsive topbar */
+@media (max-width: 767.98px) {
+  .bi-topbar {
+    display: none !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+    background: var(--bg-surface) !important;
+    border-radius: 20px 20px 0 0 !important;
+    z-index: 1050 !important;
+    padding: 16px !important;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35) !important;
+    border: 1px solid var(--border-default) !important;
+  }
+  .bi-topbar.mobile-sheet-open {
+    display: flex !important;
+  }
+  .mobile-sheet-header {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-default);
+  }
+  .bi-mobile-filter-bar {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border-default);
+    position: sticky;
+    top: 0;
+    z-index: 60;
+  }
+  .mobile-sheet-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    z-index: 1040;
+  }
+  .mobile-sheet-backdrop.active {
+    display: block !important;
+  }
+}
+
+.bi-collapsed-summary-bar {
+  display: none !important;
+}
+
+@media (min-width: 768px) {
+  .mobile-sheet-header,
+  .mobile-zero-wrap,
+  .bi-mobile-filter-bar,
+  .mobile-sheet-backdrop {
+    display: none !important;
+  }
+}
+
+/* Row 1: Header / Nav */
+.bi-topbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  flex-wrap: wrap;
+}
+
+.bi-topbar-title-block {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.bi-page-title {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.bi-page-subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.bi-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Shared Buttons */
+.bi-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-ar);
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.bi-btn-primary {
+  background: var(--brand-primary) !important;
+  color: var(--text-on-brand) !important;
+  border: 1px solid var(--brand-primary) !important;
+}
+.bi-btn-primary:hover {
+  opacity: 0.92;
+}
+
+.bi-btn-secondary {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-default) !important;
+}
+.bi-btn-secondary:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* Row 2: Single Filter Card Bar */
+.bi-topbar-filters {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 12px !important;
+  padding: 4px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-sizing: border-box !important;
+  scrollbar-width: none;
+}
+.bi-topbar-filters::-webkit-scrollbar {
+  display: none;
+}
+
+@media (min-width: 1200px) {
+  .bi-topbar-filters {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+  }
+}
+
+@media (max-width: 1199.98px) {
+  .bi-topbar-filters {
+    flex-wrap: wrap !important;
+  }
+}
+
+.bi-filter-item {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.bi-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-ar);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.bi-filter-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.bi-filter-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.bi-filter-val {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Company Multi-Select Dropdown Menu */
+.bi-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 240px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bi-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+  user-select: none;
+}
+.bi-dropdown-item:hover {
+  background: var(--bg-hover);
+}
+.bi-dropdown-item input[type="checkbox"] {
+  accent-color: var(--brand-accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  margin: 0;
+}
+
+/* Segmented Control for Years */
+.bi-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.bi-segment-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  transition: all 0.15s ease;
+}
+.bi-segment-btn:hover {
+  color: var(--text-primary);
+}
+.bi-segment-btn.active {
+  background: var(--bg-surface) !important;
+  color: var(--brand-accent) !important;
+  font-weight: 700 !important;
+  border-color: var(--border-default) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.bi-segment-btn.yr-all {
+  font-family: var(--font-ar);
+}
+
+/* Period Popover */
+.bi-period-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bi-date {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: 8px !important;
+  padding: 5px 10px !important;
+  color: var(--text-primary) !important;
+  font-size: 13px !important;
+  font-family: var(--font-en) !important;
+  outline: none !important;
+}
+.bi-date:focus {
+  border-color: var(--brand-accent) !important;
+}
+
+/* Zero Toggle Switch */
+.bi-filter-zero-item {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bi-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.bi-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.bi-switch-slider {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+  background: var(--border-strong);
+  border-radius: 20px;
+  transition: 0.2s;
+}
+
+.bi-switch-slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  transition: 0.2s;
+}
+
+.bi-switch input:checked + .bi-switch-slider {
+  background: var(--status-positive);
+}
+
+.bi-switch input:checked + .bi-switch-slider::before {
+  transform: translateX(16px);
+}
+
+.badge-zero-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* Active Filter Chips */
+#active-filter-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-default);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.filter-chip-grp {
+  background: var(--status-warning-subtle) !important;
+  color: var(--status-warning) !important;
+  border: 1px solid var(--status-warning) !important;
+}
+
+.filter-chip-jrn {
+  background: var(--status-positive-subtle) !important;
+  color: var(--status-positive) !important;
+  border: 1px solid var(--status-positive) !important;
+}
+
+/* ================================================================
+   TABS BAR
+   ================================================================ */
+/* Tabs Bar (UI1: Right-aligned, width to text, line underline only, no background) */
+body .bi-tabs,
+body.light-theme .bi-tabs,
+[data-theme] .bi-tabs,
+.bi-tabs {
+  background: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  display: flex !important;
+  justify-content: flex-start !important;
+  padding: 0 var(--page-padding, 28px) !important;
+  gap: 8px !important;
+  overflow-x: auto !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+body .bi-tabs .bi-tab,
+body.light-theme .bi-tabs .bi-tab,
+[data-theme] .bi-tabs .bi-tab,
+.bi-tab {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  padding: 12px 16px !important;
+  font-size: 14px !important;
+  line-height: 22px !important;
+  font-weight: 500 !important;
+  color: var(--text-secondary) !important;
+  border-bottom: 2px solid transparent !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  background: transparent !important;
+  cursor: pointer;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-radius: 0 !important;
+  transition: all 0.15s ease;
+}
+
+body .bi-tabs .bi-tab:hover,
+body.light-theme .bi-tabs .bi-tab:hover,
+[data-theme] .bi-tabs .bi-tab:hover {
+  color: var(--text-primary) !important;
+  background: var(--bg-hover) !important;
+}
+
+body .bi-tabs .bi-tab.active,
+body.light-theme .bi-tabs .bi-tab.active,
+[data-theme] .bi-tabs .bi-tab.active {
+  color: var(--brand-accent) !important;
+  border-bottom: 2px solid var(--brand-accent) !important;
+  font-weight: 600 !important;
+  background: transparent !important;
+}
+
+/* ================================================================
+   CONTENT BODY & EXECUTIVE DASHBOARD
+   ================================================================ */
+.bi-body {
+  padding: 24px var(--page-padding, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1;
+  background: var(--bg-page);
+  box-sizing: border-box;
+}
+
+/* Tab Header */
+.exec-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.exec-title {
+  font-size: 22px;
+  line-height: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+.exec-subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* 5 KPI Cards Grid (Executive, Customers, Profitability) */
+.exec-kpi-grid,
+.prof-kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* 4 KPI Cards Grid (VAT, Guarantees - fill full width, zero left gap) */
+.vat-kpi-grid,
+.gr-kpi-grid,
+.gr-kpis {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 1400px) {
+  .exec-kpi-grid,
+  .prof-kpi-grid {
+    gap: 12px !important;
+  }
+  .vat-kpi-grid,
+  .gr-kpi-grid,
+  .gr-kpis {
+    gap: 12px !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .exec-kpi-grid,
+  .prof-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  }
+  .vat-kpi-grid,
+  .gr-kpi-grid,
+  .gr-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)) !important;
+  }
+}
+
+.bi-kpi-card {
+  min-width: 0 !important;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 120px;
+}
+
+.bi-kpi-label {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.bi-kpi-value {
+  font-size: 28px !important;
+  line-height: 36px !important;
+  font-weight: 600 !important;
+  color: var(--text-primary);
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bi-kpi-sub {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+/* Hero Primary KPI Card (Exactly 1 per tab) */
+.bi-kpi-card.hero,
+.bi-kpi.hero,
+[data-theme="light"] .bi-kpi-card.hero,
+[data-theme="light"] .bi-kpi.hero,
+body.light-theme .bi-kpi-card.hero,
+body.light-theme .bi-kpi.hero {
+  background: var(--brand-primary) !important;
+  border: 1px solid var(--brand-primary) !important;
+  color: var(--text-on-brand) !important;
+}
+.bi-kpi-card.hero .bi-kpi-label,
+.bi-kpi.hero .bi-kpi-label {
+  color: var(--text-on-brand) !important;
+  opacity: 0.9;
+}
+.bi-kpi-card.hero .bi-kpi-value,
+.bi-kpi.hero .bi-kpi-value,
+.bi-kpi-card.hero #gr-kpi-pending-amt,
+body.light-theme .bi-kpi-card.hero #gr-kpi-pending-amt,
+[data-theme="light"] .bi-kpi-card.hero #gr-kpi-pending-amt {
+  font-size: 32px !important;
+  line-height: 40px !important;
+  font-weight: 700 !important;
+  color: var(--text-on-brand) !important;
+}
+.bi-kpi-card.hero .bi-kpi-value *,
+.bi-kpi.hero .bi-kpi-value * {
+  color: var(--text-on-brand) !important;
+}
+.bi-kpi-card.hero .bi-kpi-sub,
+.bi-kpi.hero .bi-kpi-sub {
+  color: var(--text-on-brand) !important;
+  opacity: 0.9;
+}
+
+/* Mini Progress Bar in KPI Card */
+.bi-progress-bar-wrap {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 2px 0;
+}
+.bi-progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--status-positive);
+}
+
+/* ================================================================
+   CHART CARD
+   ================================================================ */
+.exec-chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.exec-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.exec-chart-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.exec-chart-title {
+  font-size: 17px;
+  line-height: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.exec-chart-subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.exec-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.legend-line {
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* ================================================================
+   TREE TABLE CARD & TOOLBAR
+   ================================================================ */
+.exec-table-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.exec-table-toolbar {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-default);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.exec-table-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.exec-table-title {
+  font-size: 17px;
+  line-height: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.exec-table-breadcrumb {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.exec-table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.exec-search-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.exec-search-input {
+  padding: 6px 12px 6px 32px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-ar);
+  width: 180px;
+  transition: all 0.15s ease;
+}
+.exec-search-input:focus {
+  border-color: var(--brand-accent);
+  outline: none;
+}
+.exec-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.exec-btn-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font-ar);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  scroll-margin-top: 140px !important;
+}
+.exec-btn-tool:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.exec-table-card,
+.exec-table-toolbar,
+#exec-btn-expand-all,
+#exec-btn-collapse-all {
+  scroll-margin-top: 140px !important;
+}
+
+/* Tree Table Core (UI1 Specifications) */
+body table.exec-table,
+body .tree-table-wrap table,
+table.exec-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 13px !important;
+  line-height: 20px !important;
+}
+
+body .tree-table-wrap thead tr,
+body table.exec-table thead tr,
+.exec-table thead tr {
+  background: var(--bg-subtle) !important;
+}
+
+body .tree-table-wrap th,
+body table.exec-table th,
+body table.gr-table th,
+body table.bi-table th,
+body .bi-table th,
+body table th,
+body th.tree-col-num,
+body th.tree-col-name,
+body th.tree-col-visual,
+body th.tree-col-action,
+body.light-theme table.exec-table th,
+body.light-theme .tree-table-wrap th,
+body.light-theme table.bi-table th,
+[data-theme] table.exec-table th,
+[data-theme] .tree-table-wrap th,
+[data-theme] table.bi-table th,
+.exec-table th,
+.bi-table th {
+  padding: 12px 10px !important;
+  text-align: right !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+  color: var(--text-secondary) !important;
+  background: var(--bg-subtle) !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  vertical-align: middle !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+body .tree-table-wrap td,
+body table.exec-table td,
+body table.gr-table td,
+body.light-theme table.exec-table td,
+body.light-theme .tree-table-wrap td,
+[data-theme] table.exec-table td,
+[data-theme] .tree-table-wrap td,
+.exec-table td {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  color: var(--text-primary) !important;
+  font-size: 13px !important;
+  line-height: 20px !important;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
+}
+
+body .tree-table-wrap td.tree-col-num,
+body table.exec-table td.tree-col-num {
+  padding-right: 10px !important;
+}
+
+body .tree-table-wrap tr:hover td,
+body table.exec-table tr:hover td,
+.exec-table tr:hover td {
+  background: var(--bg-hover) !important;
+}
+
+/* Flexible wraps without ellipsis for the name column */
+.tree-col-name {
+  white-space: normal !important;
+  word-break: break-word !important;
+  max-width: none !important;
+}
+
+.tree-col-name .tree-node-name {
+  max-width: none !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Numbers in table cells */
+td.tree-col-num,
+td.exec-num,
+table td.tabular-nums {
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  font-size: 13px !important;
+}
+
+.exec-num-neg,
+.exec-rate-neg {
+  color: var(--status-negative) !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* Sticky Footer / Totals Row */
+body .exec-sticky-footer td,
+body .exec-table tfoot tr td,
+body .tree-table-wrap tfoot tr td,
+body.light-theme .exec-table tfoot tr td,
+[data-theme] .exec-table tfoot tr td,
+.exec-sticky-footer td,
+.exec-table tfoot tr td,
+.exec-table tfoot tr th {
+  background: var(--bg-subtle) !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 12px 14px !important;
+  border-top: 1px solid var(--border-default) !important;
+  border-bottom: none !important;
+  color: var(--text-primary) !important;
+}
+
+/* Ensure desktop responsive does not shrink headers or cells below 12px/13px */
+@media (max-width: 1440px) {
+  body .tree-table-wrap th,
+  body table.exec-table th,
+  body.light-theme table.exec-table th {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 12px 8px !important;
+  }
+  body .tree-table-wrap td,
+  body table.exec-table td,
+  body.light-theme table.exec-table td {
+    font-size: 13px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+@media (max-width: 1366px) {
+  body .tree-table-wrap th,
+  body table.exec-table th,
+  body.light-theme table.exec-table th {
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 12px 6px !important;
+  }
+  body .tree-table-wrap td,
+  body table.exec-table td,
+  body.light-theme table.exec-table td {
+    font-size: 13px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+}
+
+/* Secondary Buttons & Refresh Button Unification (Correction #7) */
+.bi-btn-secondary,
+.bi-refresh-btn,
+body.light-theme .bi-refresh-btn,
+body.light-theme .bi-actions .btn,
+body [data-theme] .bi-refresh-btn {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.bi-btn-secondary:hover,
+.bi-refresh-btn:hover,
+body.light-theme .bi-refresh-btn:hover,
+body.light-theme .bi-actions .btn:hover,
+body [data-theme] .bi-refresh-btn:hover {
+  background: var(--bg-hover) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ================================================================
+   UI1-B: CUSTOMERS & COLLECTIONS SHARED COMPONENTS
+   ================================================================ */
+.section-num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--brand-accent-subtle);
+  color: var(--brand-accent);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-en);
+  flex-shrink: 0;
+}
+[data-theme="light"] .section-num-badge,
+body.light-theme .section-num-badge {
+  color: var(--brand-primary) !important;
+}
+
+.col-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: var(--status-positive-subtle);
+  border: 1px solid var(--status-positive);
+  color: var(--status-positive);
+  font-size: 13px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.col-kpi-grid {
+  display: grid !important;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr !important;
+  gap: 16px !important;
+  align-items: stretch !important;
+}
+
+.col-kpi-grid.has-other {
+  grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr !important;
+}
+
+@media (max-width: 1200px) {
+  .col-kpi-grid,
+  .col-kpi-grid.has-other {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+  }
+}
+
+.col-kpi-grid .bi-kpi-card {
+  min-height: auto !important;
+  padding: 16px 18px !important;
+}
+
+.col-kpi-grid .bi-kpi-card.hero .bi-kpi-value {
+  font-size: 36px !important;
+  line-height: 44px !important;
+  font-weight: 700 !important;
+}
+
+.col-kpi-grid .col-kpi-subcard .bi-kpi-value {
+  font-size: 28px !important;
+  line-height: 36px !important;
+  font-weight: 600 !important;
+}
+
+.tree-name-cell {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  max-width: 100% !important;
+  vertical-align: middle !important;
+  flex-wrap: nowrap !important;
+}
+
+.tree-name-cell span[data-tree-toggle="true"],
+.tree-name-cell .company-dot {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.tree-name-cell .tree-node-name {
+  display: inline !important;
+  max-width: none !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Guarantees KPI Numbers Standard Text Color */
+#gr-kpi-count,
+#gr-kpi-ledger-amt,
+body.light-theme #gr-kpi-count,
+[data-theme="light"] #gr-kpi-count,
+body.light-theme #gr-kpi-ledger-amt,
+[data-theme="light"] #gr-kpi-ledger-amt {
+  color: var(--text-primary) !important;
+}
+
+.cust-aging-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.cust-aging-bar {
+  display: flex;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-subtle);
+}
+
+.cust-aging-legend {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .cust-aging-legend {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+}
+

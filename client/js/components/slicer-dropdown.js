@@ -68,13 +68,16 @@ export class SlicerDropdown {
   constructor(options) {
     this.triggerBtn = options.triggerBtn;
     this.title = options.title || 'تصفية';
-    this.icon = options.icon || '🔍';
+    this.icon = options.icon || '';
     this.placeholder = options.placeholder || 'بحث بالاسم...';
     this.items = options.items || [];
     this.selectedIds = new Set((options.selectedIds || []).map(String));
     this.onApply = options.onApply || (() => {});
     this.groupByCompany = options.groupByCompany || false;
     this.disabled = options.disabled || false;
+    this.minSelected = options.minSelected || 0;
+    this.minWidth = options.minWidth || 380;
+    this.customTriggerLabel = options.customTriggerLabel || null;
 
     this.initTrigger();
   }
@@ -134,7 +137,9 @@ export class SlicerDropdown {
     if (!this.triggerBtn) return;
     const count = this.selectedIds.size;
     let label = 'الكل';
-    if (count === 1) {
+    if (typeof this.customTriggerLabel === 'function') {
+      label = this.customTriggerLabel(Array.from(this.selectedIds), this.items);
+    } else if (count === 1) {
       const selectedId = Array.from(this.selectedIds)[0];
       const found = this.items.find(it => String(it.id) === String(selectedId));
       label = found ? (found.name || '').replace(/\s+/g, ' ').trim() : `1 مختار`;
@@ -142,11 +147,11 @@ export class SlicerDropdown {
       label = `(${count} مختارة)`;
     }
 
-    const valEl = this.triggerBtn.querySelector('.bi-slicer-value');
+    const valEl = this.triggerBtn.querySelector('.bi-slicer-value, .bi-filter-val');
     if (valEl) {
       valEl.textContent = label;
       valEl.style.fontWeight = count > 0 ? '800' : '600';
-      valEl.style.color = count > 0 ? 'var(--exec-accent, #60a5fa)' : 'inherit';
+      valEl.style.color = count > 0 ? 'var(--brand-accent)' : 'inherit';
     }
 
     if (count > 0) {
@@ -222,7 +227,7 @@ export class SlicerDropdown {
     }
 
     const rect = this.triggerBtn.getBoundingClientRect();
-    const width = Math.min(420, window.innerWidth - 24);
+    const width = Math.min(Math.max(this.minWidth || 380, 380), Math.max(380, window.innerWidth - 24));
     const maxHeight = Math.min(500, window.innerHeight - 80);
 
     portal.style.position = 'fixed';
@@ -268,7 +273,7 @@ export class SlicerDropdown {
     portal.innerHTML = `
       <div class="slicer-drop-header">
         <div class="slicer-drop-title">
-          <span>${this.icon}</span>
+          ${this.icon ? `<span>${this.icon}</span>` : ''}
           <strong>${escapeHtml(this.title)}</strong>
           <span class="slicer-drop-badge" id="drop-selected-count"></span>
         </div>
@@ -276,17 +281,17 @@ export class SlicerDropdown {
       </div>
 
       <div class="slicer-drop-search-wrap">
-        <span class="slicer-search-icon">🔍</span>
+        <span class="slicer-search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <input type="text" class="slicer-drop-search" id="drop-search-input" placeholder="${escapeHtml(this.placeholder)}" autocomplete="off">
         <button type="button" class="slicer-drop-search-clear" id="btn-search-clear" style="display:none;" aria-label="مسح البحث">✕</button>
       </div>
 
       <div class="slicer-drop-quick-actions">
-        <button type="button" class="slicer-quick-btn" id="btn-drop-select-all">☑ تحديد الكل</button>
-        <button type="button" class="slicer-quick-btn" id="btn-drop-clear-all">☐ إلغاء التحديد</button>
+        <button type="button" class="slicer-quick-btn" id="btn-drop-select-all">تحديد الكل</button>
+        <button type="button" class="slicer-quick-btn" id="btn-drop-clear-all">إلغاء التحديد</button>
         ${hasDuplicates ? `
           <button type="button" class="slicer-quick-btn btn-match-names" id="btn-drop-match-names" title="تحديد جميع الدفاتر التي تحمل نفس اسم الدفتر المختار عبر جميع الشركات">
-            ✨ كل الدفاتر بهذا الاسم
+            كل الدفاتر بهذا الاسم
           </button>
         ` : ''}
       </div>
@@ -314,14 +319,28 @@ export class SlicerDropdown {
 
     const updateBadge = () => {
       const c = tempSelected.size;
-      if (c === 0) {
-        countBadge.textContent = 'الكل';
-        countBadge.style.background = 'rgba(148, 163, 184, 0.2)';
-        countBadge.style.color = 'var(--exec-text-muted, #94a3b8)';
+      if (this.minSelected > 0 && c < this.minSelected) {
+        countBadge.textContent = 'اختر شركة واحدة على الأقل';
+        countBadge.style.background = 'var(--status-negative-subtle)';
+        countBadge.style.color = 'var(--status-negative)';
+        applyBtn.disabled = true;
+        applyBtn.style.opacity = '0.5';
+        applyBtn.style.cursor = 'not-allowed';
+        return;
+      }
+
+      applyBtn.disabled = false;
+      applyBtn.style.opacity = '1';
+      applyBtn.style.cursor = 'pointer';
+
+      if (c === 0 || c === this.items.length) {
+        countBadge.textContent = c === 0 ? 'الكل' : `الكل (${c})`;
+        countBadge.style.background = 'var(--bg-subtle)';
+        countBadge.style.color = 'var(--text-muted)';
       } else {
         countBadge.textContent = `${c} مختارة`;
-        countBadge.style.background = 'rgba(59, 130, 246, 0.2)';
-        countBadge.style.color = 'var(--exec-accent, #60a5fa)';
+        countBadge.style.background = 'var(--brand-accent-subtle)';
+        countBadge.style.color = 'var(--brand-accent)';
       }
     };
     updateBadge();
@@ -342,7 +361,7 @@ export class SlicerDropdown {
       }
 
       if (filteredItems.length === 0) {
-        itemsList.innerHTML = `<div class="slicer-empty-msg">🔍 لا توجد نتائج مطابقة لـ «${escapeHtml(filterQuery)}»</div>`;
+        itemsList.innerHTML = `<div class="slicer-empty-msg">لا توجد نتائج مطابقة لـ «${escapeHtml(filterQuery)}»</div>`;
         return;
       }
 
@@ -376,13 +395,13 @@ export class SlicerDropdown {
           html += `
             <div class="slicer-group-block">
               <div class="slicer-company-header">
-                <span>🏢 ${escapeHtml(cName)}</span>
+                <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:4px;"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>${escapeHtml(cName)}</span>
               </div>
           `;
 
           for (const [gName, jList] of grpMap.entries()) {
             html += `
-              <div class="slicer-subgroup-header">📁 ${escapeHtml(gName)}</div>
+              <div class="slicer-subgroup-header"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-left:4px;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>${escapeHtml(gName)}</div>
               <div class="slicer-subgroup-items">
             `;
 
@@ -491,6 +510,7 @@ export class SlicerDropdown {
 
     // Apply button
     applyBtn.addEventListener('click', () => {
+      if (this.minSelected > 0 && tempSelected.size < this.minSelected) return;
       this.selectedIds = new Set(tempSelected);
       this.updateTriggerText();
       closeActiveSlicerDropdown();
@@ -516,6 +536,7 @@ export class SlicerDropdown {
       } else if (e.key === 'Enter') {
         // Submit
         e.preventDefault();
+        if (this.minSelected > 0 && tempSelected.size < this.minSelected) return;
         applyBtn.click();
       }
     });

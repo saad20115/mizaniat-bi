@@ -16,6 +16,17 @@ let currentGrain = 'vat_period';
 let currentSearchQuery = '';
 let activeDetailPeriod = null;
 
+const ICONS = {
+  expandAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>',
+  collapseAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>',
+  excel: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  spinner: '<svg class="spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+  chevronDown: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevronLeft: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  fileText: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'
+};
+
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -32,9 +43,31 @@ function fmtVal(num, showZeroDash = true, decimals = 2) {
   if (Math.abs(val) < 0.005 && showZeroDash) return '—';
   const formatted = val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   if (val < 0) {
-    return `<span class="exec-num-neg" style="color:var(--exec-danger, #ef4444);direction:ltr;display:inline-block;">(${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })})</span>`;
+    return `<span class="exec-num-neg" style="color:var(--status-negative, #ef4444);direction:ltr;display:inline-block;">(${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })})</span>`;
   }
   return `<span class="exec-num">${formatted}</span>`;
+}
+
+function formatPresentationPeriodLabel(timeFilter, periodParams) {
+  if (timeFilter?.periodLabel) {
+    const raw = String(timeFilter.periodLabel).trim();
+    const fullYearMatch1 = raw.match(/^(?:01-01-|01\/01\/)(\d{4})\s*(?:إلى|-|to)\s*(?:31-12-|31\/12\/)\1$/);
+    if (fullYearMatch1) return fullYearMatch1[1];
+    const fullYearMatch2 = raw.match(/^(\d{4})-01-01\s*(?:إلى|-|to)\s*\1-12-31$/);
+    if (fullYearMatch2) return fullYearMatch2[1];
+    return raw;
+  }
+  if (timeFilter?.isCustomDate && timeFilter.dateFrom && timeFilter.dateTo) {
+    const from = String(timeFilter.dateFrom).trim();
+    const to = String(timeFilter.dateTo).trim();
+    const mFrom = from.match(/^(\d{4})-01-01$/);
+    const mTo = to.match(/^(\d{4})-12-31$/);
+    if (mFrom && mTo && mFrom[1] === mTo[1]) {
+      return mFrom[1];
+    }
+    return `${from} إلى ${to}`;
+  }
+  return periodParams?.years || '2026';
 }
 
 function getPeriodParamsFromFilter(timeFilter) {
@@ -59,8 +92,8 @@ export async function renderVatTab(body, container, timeFilter, selectedCos) {
   body.innerHTML = `
     <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
-      <div id="vat-loading" style="text-align:center;padding:80px 20px;color:rgba(255,255,255,0.5);font-size:1.1rem;">
-        <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-left:8px;font-size:1.4rem;">⏳</span>
+      <div id="vat-loading" style="text-align:center;padding:80px 20px;color:var(--text-muted);font-size:1.05rem;">
+        <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${ICONS.spinner}</span>
         جاري تحميل تقرير ضريبة القيمة المضافة...
       </div>
       <div id="vat-main-content" style="display:none;flex-direction:column;gap:22px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
@@ -94,8 +127,8 @@ async function loadVatData(body, container, timeFilter, selectedCos) {
     console.error('[VAT Page] Error loading VAT data:', err);
     if (loadingEl) {
       loadingEl.innerHTML = `
-        <div style="color:var(--exec-danger, #ef4444);font-size:1.1rem;padding:30px;">
-          ❌ حدث خطأ أثناء تحميل بيانات ضريبة القيمة المضافة: ${escapeHtml(err.message)}
+        <div style="color:var(--status-negative);font-size:1.05rem;padding:30px;">
+          حدث خطأ أثناء تحميل بيانات ضريبة القيمة المضافة: ${escapeHtml(err.message)}
         </div>
       `;
     }
@@ -111,136 +144,126 @@ function renderVatDashboard(body, container, data, timeFilter, selectedCos) {
   mainContent.style.display = 'flex';
   const cards = data.cards || {};
   const totals = data.totals || {};
+  const periodParams = getPeriodParamsFromFilter(timeFilter);
+  const periodLabel = formatPresentationPeriodLabel(timeFilter, periodParams);
 
   mainContent.innerHTML = `
-    <!-- Top 4 KPI Cards -->
-    <div class="vat-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
+    <!-- Tab Header -->
+    <div class="exec-header" style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;">
+      <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+        ضريبة القيمة المضافة — <span>${escapeHtml(periodLabel)}</span>
+      </h1>
+      <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+        ضريبة المخرجات وضريبة المدخلات وصافي المستحق للهيئة حسب فترات الإقرار
+      </p>
+    </div>
+
+    <!-- Top 4 KPI Cards (Equal height, exactly 1 Hero Card) -->
+    <div class="vat-kpi-grid exec-kpi-grid" style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
       <!-- Card 1: Output VAT -->
-      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
-        <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#3b82f6;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المخرجات (المبيعات)</span>
-          <span style="font-size:1.2rem;">📤</span>
-        </div>
-        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
-          ${fmtVal(cards.output_tax, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
-        </div>
-        <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
-          <span>المبيعات الخاضعة: ${fmtVal(cards.taxable_sales, false, 0)} ر.س</span>
-        </div>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
+        <span class="bi-kpi-label">ضريبة المخرجات (المبيعات)</span>
+        <div class="bi-kpi-value">${fmtVal(cards.output_tax, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-sub">المبيعات الخاضعة: ${fmtVal(cards.taxable_sales, false, 0)} ر.س</span>
       </div>
 
       <!-- Card 2: Input VAT -->
-      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
-        <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#10b981;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">ضريبة المدخلات (المشتريات)</span>
-          <span style="font-size:1.2rem;">📥</span>
-        </div>
-        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
-          ${fmtVal(cards.input_tax, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
-        </div>
-        <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
-          <span>المشتريات الخاضعة: ${fmtVal(cards.taxable_purchases, false, 0)} ر.س</span>
-        </div>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
+        <span class="bi-kpi-label">ضريبة المدخلات (المشتريات)</span>
+        <div class="bi-kpi-value">${fmtVal(cards.input_tax, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-sub">المشتريات الخاضعة: ${fmtVal(cards.taxable_purchases, false, 0)} ر.س</span>
       </div>
 
-      <!-- Card 3: Net Tax Due (Highlighted) -->
-      <div class="exec-card" style="background:var(--vat-card-net-bg, linear-gradient(135deg, rgba(59,130,246,0.15) 0%, rgba(30,41,59,0.7) 100%));border:1px solid var(--vat-card-net-border, rgba(59,130,246,0.35));border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
-        <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#60a5fa;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.9rem;color:var(--vat-card-net-title, #93c5fd);font-weight:700;">صافي الضريبة المستحقة للفترة</span>
-          <span style="font-size:1.2rem;">🧾</span>
-        </div>
-        <div style="font-size:clamp(1.1rem, 2.3vw, 1.85rem);font-weight:900;color:var(--vat-card-net-num, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
-          ${fmtVal(cards.net_tax_due, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--vat-card-net-title, #93c5fd);">ر.س</span>
-        </div>
-        <div style="font-size:0.82rem;color:var(--vat-card-net-sub, #60a5fa);font-weight:500;">
-          ${cards.last_completed_period ? `آخر فترة إقرار مكتملة: ${escapeHtml(cards.last_completed_period)}` : 'المخرجات − المدخلات'}
-        </div>
+      <!-- Card 3: Net Tax Due (HERO Card) -->
+      <div class="bi-kpi bi-kpi-card hero exec-kpi-card exec-card">
+        <span class="bi-kpi-label">صافي الضريبة المستحقة للفترة</span>
+        <div class="bi-kpi-value">${fmtVal(cards.net_tax_due, false)} <span style="font-size:12px;font-weight:500;opacity:0.85;">ر.س</span></div>
+        <span class="bi-kpi-sub">${cards.last_completed_period ? `آخر فترة إقرار مكتملة: ${escapeHtml(cards.last_completed_period)}` : 'المخرجات − المدخلات'}</span>
       </div>
 
       <!-- Card 4: Ledger Balance -->
-      <div class="exec-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px;position:relative;overflow:hidden;min-width:0;">
-        <div style="position:absolute;top:0;right:0;width:4px;height:100%;background:#f59e0b;"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <span style="font-size:0.9rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">رصيد حسابات الضريبة الدفتري</span>
-          <span style="font-size:1.2rem;">🏦</span>
-        </div>
-        <div style="font-size:clamp(1.05rem, 2.2vw, 1.75rem);font-weight:800;color:var(--exec-text, #ffffff);letter-spacing:-0.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" class="vat-card-num">
-          ${fmtVal(cards.ledger_balance, false)} <span class="vat-currency" style="font-size:0.95rem;font-weight:500;color:var(--exec-text-dim, #94a3b8);">ر.س</span>
-        </div>
-        <div style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);display:flex;justify-content:space-between;">
-          <span>التسويات والسداد: ${fmtVal(cards.settlements, false, 0)} ر.س</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Toolbar: Grain toggle, search, controls, notice -->
-    <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;background:var(--exec-bg-card);padding:14px 18px;border-radius:12px;border:1px solid var(--exec-border);">
-      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;">
-        <!-- Grain Toggle -->
-        <span style="font-size:0.88rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">مفتاح العرض:</span>
-        <div class="vat-grain-pills" style="display:inline-flex;background:var(--vat-grain-bg, rgba(255,255,255,0.05));padding:3px;border-radius:8px;gap:4px;">
-          <button type="button" class="vat-grain-btn ${currentGrain === 'vat_period' ? 'active' : ''}" data-grain="vat_period"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'vat_period' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
-            حسب دورية الإقرار
-          </button>
-          <button type="button" class="vat-grain-btn ${currentGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'quarter' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
-            ربعي
-          </button>
-          <button type="button" class="vat-grain-btn ${currentGrain === 'month' ? 'active' : ''}" data-grain="month"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'month' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
-            شهري
-          </button>
-          <button type="button" class="vat-grain-btn ${currentGrain === 'year' ? 'active' : ''}" data-grain="year"
-            style="padding:5px 12px;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;${currentGrain === 'year' ? 'background:var(--vat-grain-btn-active-bg, #3b82f6);color:var(--vat-grain-btn-active-text, #fff);' : 'background:transparent;color:var(--vat-grain-btn-text, var(--exec-text-dim, #94a3b8));'}">
-            سنوي
-          </button>
-        </div>
-
-        <!-- Expand / Collapse All -->
-        <div style="display:inline-flex;gap:6px;margin-right:8px;">
-          <button type="button" id="vat-expand-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;cursor:pointer;">
-            + توسيع الكل
-          </button>
-          <button type="button" id="vat-collapse-all-btn" class="exec-btn-secondary" style="padding:5px 11px;font-size:0.8rem;border-radius:6px;cursor:pointer;">
-            − طي الكل
-          </button>
-        </div>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:12px;">
-        <!-- Search filter input -->
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="position:relative;display:inline-flex;align-items:center;">
-            <input type="text" id="vat-search-input" value="${escapeHtml(currentSearchQuery)}" placeholder="بحث…"
-              style="width:200px;padding:6px 12px 6px 30px;background:rgba(255,255,255,0.05);border:1px solid var(--exec-border, rgba(255,255,255,0.12));border-radius:6px;color:var(--exec-text, #fff);font-size:0.82rem;outline:none;" />
-            <button id="btn-vat-clear-search" type="button" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--exec-text-dim, #94a3b8);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
-          </div>
-          <span id="vat-search-counter" style="display:none;font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;padding:2px 8px;border-radius:6px;white-space:nowrap;"></span>
-        </div>
-
-        <!-- Export Buttons -->
-        <button type="button" id="vat-export-excel" style="padding:6px 12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#10b981;border-radius:6px;font-size:0.82rem;cursor:pointer;font-weight:600;">
-          📥 Excel
-        </button>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card exec-card">
+        <span class="bi-kpi-label">رصيد حسابات الضريبة الدفتري</span>
+        <div class="bi-kpi-value">${fmtVal(cards.ledger_balance, false)} <span style="font-size:12px;font-weight:500;color:var(--text-muted);">ر.س</span></div>
+        <span class="bi-kpi-sub">التسويات والسداد: ${fmtVal(cards.settlements, false, 0)} ر.س</span>
       </div>
     </div>
 
     <!-- Methodology Note -->
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(59,130,246,0.08);border-right:3px solid #3b82f6;border-radius:6px;font-size:0.82rem;color:var(--exec-text-dim, #94a3b8);">
-      <span style="color:#60a5fa;font-size:0.95rem;">ℹ️</span>
+    <div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-subtle);border-right:3px solid var(--brand-accent);border-radius:8px;font-size:12px;color:var(--text-secondary);">
       <span>الفترات محسوبة طبقاً لتاريخ القيد المحاسبي، والقيود المرحّلة فقط. أسطر الضريبة مستخرجة مباشرة من ربط القيود بضرائب أودو.</span>
     </div>
 
-    <!-- TreeTable Container -->
-    <div id="vat-tree-container" class="vat-treetable-container tree-table-wrap" data-scroll-x="true" style="background:var(--exec-bg-card, #ffffff);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
+    <!-- TreeTable Card with Integrated Header -->
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;display:flex;flex-direction:column;width:100%;box-sizing:border-box;">
+      <div class="exec-table-toolbar" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-default);flex-wrap:wrap;gap:14px;">
+        <div class="exec-table-titles" style="display:flex;flex-direction:column;gap:2px;">
+          <h3 class="exec-table-title" style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);">
+            ضريبة القيمة المضافة حسب الشركة والفترة — ${escapeHtml(periodLabel)}
+          </h3>
+          <span class="exec-table-breadcrumb" style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            الشركة ← السنة ← الربع ← الشهر
+          </span>
+        </div>
+
+        <div class="exec-table-actions" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;">
+          <!-- Grain Toggle -->
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--text-muted);font-weight:600;">مفتاح العرض:</span>
+            <div class="bi-btn-group" style="display:inline-flex;background:var(--bg-subtle);padding:3px;border-radius:10px;border:1px solid var(--border-default);">
+              <button type="button" class="vat-grain-btn bi-btn-item ${currentGrain === 'vat_period' ? 'active' : ''}" data-grain="vat_period"
+                style="padding:5px 12px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.15s;${currentGrain === 'vat_period' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                حسب دورية الإقرار
+              </button>
+              <button type="button" class="vat-grain-btn bi-btn-item ${currentGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
+                style="padding:5px 12px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.15s;${currentGrain === 'quarter' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                ربعي
+              </button>
+              <button type="button" class="vat-grain-btn bi-btn-item ${currentGrain === 'month' ? 'active' : ''}" data-grain="month"
+                style="padding:5px 12px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.15s;${currentGrain === 'month' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                شهري
+              </button>
+              <button type="button" class="vat-grain-btn bi-btn-item ${currentGrain === 'year' ? 'active' : ''}" data-grain="year"
+                style="padding:5px 12px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.15s;${currentGrain === 'year' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                سنوي
+              </button>
+            </div>
+          </div>
+
+          <!-- Search filter input -->
+          <div class="exec-search-wrap" style="position:relative;display:inline-flex;align-items:center;min-width:180px;">
+            <input type="text" id="vat-search-input" class="exec-search-input" value="${escapeHtml(currentSearchQuery)}" placeholder="بحث…"
+              style="width:180px;padding:6px 12px 6px 30px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;" />
+            <button id="btn-vat-clear-search" type="button" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+            <span class="exec-search-icon" style="position:absolute;left:8px;pointer-events:none;color:var(--text-muted);display:inline-flex;align-items:center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </span>
+          </div>
+          <span id="vat-search-counter" style="display:none;font-size:12px;color:var(--text-muted);font-weight:600;"></span>
+
+          <!-- Expand / Collapse / Export -->
+          <button type="button" id="vat-expand-all-btn" class="exec-btn-tool" title="توسيع الكل">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+            <span>توسيع الكل</span>
+          </button>
+          <button type="button" id="vat-collapse-all-btn" class="exec-btn-tool" title="طي الكل">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+            <span>طي الكل</span>
+          </button>
+          <button type="button" id="vat-export-excel" class="exec-btn-tool" title="تصدير Excel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>تصدير Excel</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TreeTable Container -->
+      <div id="vat-tree-container" class="vat-treetable-container tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
+    </div>
 
     <!-- Slide-over Drawer for Details -->
     <div id="vat-drawer-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:9998;backdrop-filter:blur(2px);transition:opacity 0.2s;"></div>
-    <div id="vat-drawer" style="position:fixed;top:0;left:0;bottom:0;width:min(720px, 92vw);background:var(--exec-bg-drawer, #ffffff);box-shadow:4px 0 24px rgba(0,0,0,0.5);z-index:9999;transform:translateX(-100%);transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);display:flex;flex-direction:column;border-right:1px solid var(--exec-border, rgba(255,255,255,0.1));">
+    <div id="vat-drawer" style="position:fixed;top:0;left:0;bottom:0;width:min(720px, 92vw);background:var(--bg-surface);box-shadow:4px 0 24px rgba(0,0,0,0.5);z-index:9999;transform:translateX(-100%);transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);display:flex;flex-direction:column;border-right:1px solid var(--border-default);">
       <div id="vat-drawer-content" style="display:flex;flex-direction:column;height:100%;"></div>
     </div>
   `;
@@ -263,8 +286,8 @@ function attachToolbarEvents(body, container, timeFilter, selectedCos) {
         body.querySelectorAll('.vat-grain-btn').forEach(b => {
           const isActive = b.getAttribute('data-grain') === currentGrain;
           b.classList.toggle('active', isActive);
-          b.style.background = isActive ? '#3b82f6' : 'transparent';
-          b.style.color = isActive ? '#fff' : 'var(--exec-text-dim, #94a3b8)';
+          b.style.background = isActive ? 'var(--brand-primary)' : 'transparent';
+          b.style.color = isActive ? 'var(--text-on-brand)' : 'var(--text-secondary)';
         });
       }
     });
@@ -277,8 +300,6 @@ function attachToolbarEvents(body, container, timeFilter, selectedCos) {
   body.querySelector('#vat-collapse-all-btn')?.addEventListener('click', () => {
     if (currentTreeTable) currentTreeTable.collapseAll();
   });
-
-
 
   // Export to Excel
   body.querySelector('#vat-export-excel')?.addEventListener('click', () => {
@@ -308,13 +329,13 @@ function renderVatTreeTable(body, data) {
     const tip = `ضريبة المخرجات: ${Math.round(outTax).toLocaleString('en-US')} (${pOut}%)\nضريبة المدخلات: ${Math.round(inTax).toLocaleString('en-US')} (${pIn}%)`;
     return `
       <div title="${escapeHtml(tip)}" style="display:flex;flex-direction:column;gap:3px;width:100%;min-width:60px;max-width:110px;margin:0 auto;cursor:help;padding:2px 2px;">
-        <div style="display:flex;width:100%;height:7px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden;">
-          <div style="width:${pOut}%;background:#3b82f6;height:100%;"></div>
-          <div style="width:${pIn}%;background:#10b981;height:100%;"></div>
+        <div style="display:flex;width:100%;height:6px;background:var(--border-default);border-radius:999px;overflow:hidden;">
+          <div style="width:${pOut}%;background:var(--brand-accent);height:100%;"></div>
+          <div style="width:${pIn}%;background:var(--status-positive);height:100%;"></div>
         </div>
-        <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--exec-text-dim, #94a3b8);padding:0 1px;">
-          <span style="color:#60a5fa;">مخرجات ${pOut}%</span>
-          <span style="color:#34d399;">مدخلات ${pIn}%</span>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);padding:0 1px;">
+          <span style="color:var(--brand-accent);">مخرجات <span dir="ltr" class="tabular-nums">${pOut}%</span></span>
+          <span style="color:var(--status-positive);">مدخلات <span dir="ltr" class="tabular-nums">${pIn}%</span></span>
         </div>
       </div>
     `;
@@ -361,61 +382,73 @@ function renderVatTreeTable(body, data) {
       return parentPath ? `${parentPath}/${node.type || 'node'}:${node.id}` : `${node.type || 'node'}:${node.id}`;
     },
     renderRow: ({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) => {
-      let icon = '';
       let badge = '';
-      let nameStyle = 'font-weight:500;';
+      let nameStyle = 'font-weight:400;color:var(--text-secondary);font-size:13px;';
 
       if (node.type === 'company') {
-        icon = '🏢';
-        nameStyle = 'font-weight:700;color:var(--exec-text, #ffffff);font-size:0.92rem;';
+        nameStyle = 'font-weight:700;color:var(--text-primary);font-size:14px;';
         const isMonthly = node.vat_period === 'monthly';
         badge = `
-          <span style="font-size:0.75rem;padding:2px 7px;border-radius:4px;font-weight:600;margin-right:6px;${isMonthly ? 'background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);' : 'background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);'}">
+          <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;margin-right:6px;${isMonthly ? 'background:var(--status-warning-subtle, rgba(245,158,11,0.15));color:var(--status-warning, #f59e0b);border:1px solid var(--border-default);' : 'background:var(--brand-accent-subtle);color:var(--brand-accent);border:1px solid var(--border-default);'}">
             ${isMonthly ? 'إقرار شهري' : 'إقرار ربعي'}
           </span>
         `;
       } else if (node.type === 'year') {
-        icon = '📅';
-        nameStyle = 'font-weight:600;color:var(--exec-text, #f1f5f9);';
+        nameStyle = 'font-weight:600;color:var(--text-primary);font-size:13px;';
       } else if (node.type === 'quarter') {
-        icon = '📊';
-        nameStyle = 'font-weight:600;color:#93c5fd;';
+        nameStyle = 'font-weight:500;color:var(--brand-accent);font-size:13px;';
       } else if (node.type === 'month') {
-        icon = '🗓️';
-        nameStyle = 'color:var(--exec-text-dim, #cbd5e1);';
+        nameStyle = 'color:var(--text-secondary);font-size:13px;';
       }
 
-      const netDueColor = node.net_tax_due > 0 ? 'var(--exec-text, #ffffff)' : (node.net_tax_due < 0 ? '#10b981' : 'var(--exec-text-dim, #94a3b8)');
+      const netDueColor = node.net_tax_due > 0 ? 'var(--text-primary)' : (node.net_tax_due < 0 ? 'var(--status-positive)' : 'var(--text-muted)');
 
       const actionBtn = (node.type === 'month' || node.type === 'quarter') ? `
         <button type="button" class="vat-detail-btn exec-btn-icon" data-cid="${node.company_id}" data-period="${escapeHtml(node.period_key || node.month || node.quarter)}" title="عرض تفاصيل الفترة"
-          style="width:30px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#60a5fa;cursor:pointer;font-size:0.85rem;padding:0;">
-          📑
+          style="width:28px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:var(--brand-accent-subtle);border:1px solid var(--border-default);color:var(--brand-accent);cursor:pointer;padding:0;">
+          ${ICONS.fileText}
         </button>
       ` : '';
 
-      const indent = depth * 14;
-      const toggleIcon = hasKids ? (isExpanded ? '▼' : '▶') : '•';
+      const indent = depth * 22;
+      const toggleChevron = hasKids ? (isExpanded ? ICONS.chevronDown : ICONS.chevronLeft) : '<span style="display:inline-block;width:14px;text-align:center;">•</span>';
       const cursor = hasKids ? 'cursor:pointer;' : '';
       const rowBg = node.type === 'company'
-        ? 'background:rgba(59,130,246,0.06);font-weight:800;'
-        : (node.type === 'year' ? 'background:rgba(255,255,255,0.03);font-weight:700;' : (node.type === 'quarter' ? 'background:rgba(255,255,255,0.015);' : ''));
+        ? 'font-weight:700;'
+        : (node.type === 'year' ? 'font-weight:600;' : '');
+
+      let nameContent = '';
+      if (node.type === 'company') {
+        const coId = node.company_id || (node.id && String(node.id).replace('co_', '')) || 1;
+        nameContent = `
+          <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;max-width:100%;">
+            <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;color:var(--text-muted);flex-shrink:0;">${toggleChevron}</span>
+            <span class="company-dot" style="background:var(--company-${coId});width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;"></span>
+            <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name" style="${nameStyle}white-space:normal;word-break:break-word;">${escapeHtml(node.name)}</span>
+            ${badge}
+          </div>
+        `;
+      } else {
+        nameContent = `
+          <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap;max-width:100%;">
+            <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;color:var(--text-muted);flex-shrink:0;">${toggleChevron}</span>
+            <span data-tree-name="true" title="${escapeHtml(node.name)}" class="tree-node-name" style="${nameStyle}white-space:normal;word-break:break-word;">${escapeHtml(node.name)}</span>
+          </div>
+        `;
+      }
 
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:6px 6px;padding-right:${indent + 8}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${toggleIcon}</span>
-            <span style="margin-left:4px;">${icon}</span>
-            <span data-tree-name="true" title="${escapeHtml(node.name)}" style="display:inline-block;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;${nameStyle}">${escapeHtml(node.name)}</span>
-            ${badge}
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:10px 12px;padding-right:${indent + 12}px;">
+            ${nameContent}
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:6px 6px;text-align:right;">${fmtVal(node.output_tax)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:6px 6px;text-align:right;">${fmtVal(node.input_tax)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:6px 6px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:6px 6px;text-align:right;">${fmtVal(node.settlements)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:6px 6px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.taxable_sales)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:10px 12px;text-align:right;">${fmtVal(node.output_tax)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.taxable_purchases)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:10px 12px;text-align:right;">${fmtVal(node.input_tax)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:10px 12px;text-align:right;font-weight:700;color:${netDueColor};">${fmtVal(node.net_tax_due)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:10px 12px;text-align:right;">${fmtVal(node.settlements)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 12px;">
             ${renderVatVisual(node)}
           </td>
           <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:36px;min-width:32px;max-width:36px;padding:4px 2px;">
@@ -427,17 +460,17 @@ function renderVatTreeTable(body, data) {
     renderTotals: (tot) => {
       const netDue = (tot.output_tax || 0) - (tot.input_tax || 0);
       return `
-        <tr class="exec-totals-row" style="background:rgba(255,255,255,0.06);font-weight:800;border-top:2px solid var(--exec-border, rgba(255,255,255,0.15));">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:8px 6px;font-size:0.92rem;color:var(--exec-text, #ffffff);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <tr class="exec-totals-row" style="background:var(--bg-subtle);font-weight:700;border-top:1px solid var(--border-default);">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:12px 14px;font-size:13px;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
             المجموع الكلي العام
           </td>
-          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
-          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:8px 6px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
-          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:8px 6px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
-          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:8px 6px;text-align:right;font-size:0.95rem;color:#60a5fa;">${fmtVal(netDue, false)}</td>
-          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:8px 6px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
-          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:8px 6px;">
+          <td class="tree-col-num" data-col-id="taxable_sales" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_sales, false)}</td>
+          <td class="tree-col-num" data-col-id="output_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.output_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="taxable_purchases" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.taxable_purchases, false)}</td>
+          <td class="tree-col-num" data-col-id="input_tax" data-priority="1" style="padding:12px 14px;text-align:right;">${fmtVal(tot.input_tax, false)}</td>
+          <td class="tree-col-num" data-col-id="net_tax_due" data-priority="1" style="padding:12px 14px;text-align:right;font-size:13px;font-weight:700;color:var(--brand-accent);">${fmtVal(netDue, false)}</td>
+          <td class="tree-col-num" data-col-id="settlements" data-priority="2" style="padding:12px 14px;text-align:right;">${fmtVal(tot.settlements, false)}</td>
+          <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:12px 14px;">
             ${renderVatVisual(tot)}
           </td>
           <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:36px;min-width:32px;max-width:36px;padding:4px 2px;"></td>
@@ -527,18 +560,18 @@ async function openVatDrawer(body, companyId, periodKey) {
   drawer.style.transform = 'translateX(0)';
 
   drawerContent.innerHTML = `
-    <div style="padding:24px 20px;border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));display:flex;justify-content:space-between;align-items:center;">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center;background:var(--bg-surface);">
       <div>
-        <h3 style="margin:0;font-size:1.15rem;font-weight:700;color:var(--exec-text, #ffffff);">
+        <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text-primary);">
           تفاصيل الإقرار الضريبي — ${escapeHtml(periodKey)}
         </h3>
-        <span style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);">جاري جلب تفاصيل العمليات والمستندات...</span>
+        <span style="font-size:12px;color:var(--text-muted);">جاري جلب تفاصيل العمليات والمستندات...</span>
       </div>
-      <button type="button" id="vat-drawer-close-btn" style="background:transparent;border:none;color:var(--exec-text-dim, #94a3b8);font-size:1.4rem;cursor:pointer;padding:4px 8px;border-radius:6px;">✕</button>
+      <button type="button" id="vat-drawer-close-btn" style="background:transparent;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;">✕</button>
     </div>
-    <div style="text-align:center;padding:60px 20px;color:rgba(255,255,255,0.5);">
-      <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;font-size:1.5rem;">⏳</span>
-      <div style="margin-top:10px;">جاري تحميل التفاصيل...</div>
+    <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+      <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${ICONS.spinner}</span>
+      <div style="margin-top:10px;font-size:13px;">جاري تحميل التفاصيل...</div>
     </div>
   `;
 
@@ -552,11 +585,11 @@ async function openVatDrawer(body, companyId, periodKey) {
   } catch (err) {
     console.error('[VAT Drawer] Error:', err);
     drawerContent.innerHTML = `
-      <div style="padding:24px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));">
-        <h3 style="margin:0;color:var(--exec-danger, #ef4444);">خطأ في جلب التفاصيل</h3>
-        <button type="button" id="vat-drawer-close-btn-err" style="background:transparent;border:none;color:#fff;font-size:1.4rem;cursor:pointer;">✕</button>
+      <div style="padding:20px 24px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border-default);background:var(--bg-surface);">
+        <h3 style="margin:0;color:var(--status-negative);font-size:15px;font-weight:700;">خطأ في جلب التفاصيل</h3>
+        <button type="button" id="vat-drawer-close-btn-err" style="background:transparent;border:none;color:var(--text-primary);font-size:18px;cursor:pointer;">✕</button>
       </div>
-      <div style="padding:30px;color:var(--exec-danger, #ef4444);font-size:0.95rem;">
+      <div style="padding:30px;color:var(--status-negative);font-size:13px;">
         ${escapeHtml(err.message)}
       </div>
     `;
@@ -581,132 +614,130 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
   drawerContent.innerHTML = `
     <!-- Drawer Header -->
-    <div style="padding:18px 20px;border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));display:flex;justify-content:space-between;align-items:center;background:rgba(255,255,255,0.02);">
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center;background:var(--bg-surface);">
       <div>
-        <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text, #ffffff);">
+        <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text-primary);">
           تفاصيل ضريبة القيمة المضافة — ${escapeHtml(periodKey)}
         </h3>
-        <span style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8);">
+        <span style="font-size:12px;color:var(--text-muted);">
           الفترة من ${escapeHtml(details.date_from)} إلى ${escapeHtml(details.date_to)}
         </span>
       </div>
-      <button type="button" id="vat-drawer-close-btn" style="background:transparent;border:none;color:var(--exec-text-dim, #94a3b8);font-size:1.4rem;cursor:pointer;padding:4px 8px;border-radius:6px;">✕</button>
+      <button type="button" id="vat-drawer-close-btn" style="background:transparent;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;border-radius:6px;">✕</button>
     </div>
 
     <!-- Drawer Tabs -->
-    <div style="display:flex;gap:6px;padding:12px 20px;background:rgba(0,0,0,0.2);border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.06));">
-      <button type="button" class="drawer-tab-btn active" data-tab="summary" style="padding:6px 14px;border:none;border-radius:6px;background:#3b82f6;color:#fff;font-size:0.82rem;font-weight:600;cursor:pointer;">
-        📊 ملخص الإقرار
+    <div style="display:flex;gap:6px;padding:10px 24px;background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+      <button type="button" class="drawer-tab-btn active" data-tab="summary" style="padding:6px 14px;border:none;border-radius:8px;background:var(--brand-primary);color:var(--text-on-brand);font-size:12px;font-weight:600;cursor:pointer;">
+        ملخص الإقرار
       </button>
-      <button type="button" class="drawer-tab-btn" data-tab="by_tax" style="padding:6px 14px;border:none;border-radius:6px;background:transparent;color:var(--exec-text-dim, #94a3b8);font-size:0.82rem;font-weight:600;cursor:pointer;">
-        🏷️ حسب نوع الضريبة (${byTaxType.length})
+      <button type="button" class="drawer-tab-btn" data-tab="by_tax" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;">
+        حسب نوع الضريبة (${byTaxType.length})
       </button>
-      <button type="button" class="drawer-tab-btn" data-tab="documents" style="padding:6px 14px;border:none;border-radius:6px;background:transparent;color:var(--exec-text-dim, #94a3b8);font-size:0.82rem;font-weight:600;cursor:pointer;">
-        📑 المستندات (${documents.length})
+      <button type="button" class="drawer-tab-btn" data-tab="documents" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;">
+        المستندات (${documents.length})
       </button>
-      <button type="button" class="drawer-tab-btn" data-tab="settlements" style="padding:6px 14px;border:none;border-radius:6px;background:transparent;color:var(--exec-text-dim, #94a3b8);font-size:0.82rem;font-weight:600;cursor:pointer;">
-        💳 التسويات (${settlementMoves.length})
+      <button type="button" class="drawer-tab-btn" data-tab="settlements" style="padding:6px 14px;border:none;border-radius:8px;background:transparent;color:var(--text-secondary);font-size:12px;font-weight:600;cursor:pointer;">
+        التسويات (${settlementMoves.length})
       </button>
     </div>
 
     <!-- Drawer Body -->
-    <div style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:18px;">
+    <div style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:18px;">
       
       <!-- TAB 1: SUMMARY -->
       <div id="dtab-summary" class="drawer-pane" style="display:flex;flex-direction:column;gap:16px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
           <!-- Sales Box -->
-          <div style="background:rgba(59,130,246,0.06);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;">
-            <div style="font-weight:700;color:#60a5fa;font-size:0.95rem;display:flex;justify-content:space-between;">
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;">
+            <div style="font-weight:700;color:var(--brand-accent);font-size:14px;display:flex;justify-content:space-between;">
               <span>المبيعات والمخرجات</span>
-              <span>📤</span>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
               <span>فواتير المبيعات:</span>
-              <span style="font-weight:600;color:var(--exec-text, #fff);">${fmtVal(summary.output_invoices)} ر.س</span>
+              <span style="font-weight:600;color:var(--text-primary);">${fmtVal(summary.output_invoices)} ر.س</span>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
               <span>مرتجعات المبيعات:</span>
-              <span style="font-weight:600;color:var(--exec-danger, #ef4444);">${fmtVal(summary.output_refunds)} ر.س</span>
+              <span style="font-weight:600;color:var(--status-negative);">${fmtVal(summary.output_refunds)} ر.س</span>
             </div>
-            <div style="height:1px;background:rgba(59,130,246,0.2);margin:4px 0;"></div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;font-weight:700;color:#93c5fd;">
+            <div style="height:1px;background:var(--border-default);margin:4px 0;"></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--brand-accent);">
               <span>صافي ضريبة المخرجات:</span>
               <span>${fmtVal(summary.output_tax)} ر.س</span>
             </div>
-            <div style="font-size:0.78rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="font-size:11px;color:var(--text-muted);">
               أساس المبيعات الخاضعة: ${fmtVal(summary.taxable_sales, false, 0)} ر.س
             </div>
           </div>
 
           <!-- Purchases Box -->
-          <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;">
-            <div style="font-weight:700;color:#34d399;font-size:0.95rem;display:flex;justify-content:space-between;">
+          <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;">
+            <div style="font-weight:700;color:var(--status-positive);font-size:14px;display:flex;justify-content:space-between;">
               <span>المشتريات والمدخلات</span>
-              <span>📥</span>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
               <span>فواتير الشراء:</span>
-              <span style="font-weight:600;color:var(--exec-text, #fff);">${fmtVal(summary.input_bills)} ر.س</span>
+              <span style="font-weight:600;color:var(--text-primary);">${fmtVal(summary.input_bills)} ر.س</span>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text-secondary);">
               <span>مرتجعات الشراء:</span>
-              <span style="font-weight:600;color:var(--exec-danger, #ef4444);">${fmtVal(summary.input_refunds)} ر.س</span>
+              <span style="font-weight:600;color:var(--status-negative);">${fmtVal(summary.input_refunds)} ر.س</span>
             </div>
-            <div style="height:1px;background:rgba(16,185,129,0.2);margin:4px 0;"></div>
-            <div style="display:flex;justify-content:space-between;font-size:0.9rem;font-weight:700;color:#6ee7b7;">
+            <div style="height:1px;background:var(--border-default);margin:4px 0;"></div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--status-positive);">
               <span>صافي ضريبة المدخلات:</span>
               <span>${fmtVal(summary.input_tax)} ر.س</span>
             </div>
-            <div style="font-size:0.78rem;color:var(--exec-text-dim, #94a3b8);">
+            <div style="font-size:11px;color:var(--text-muted);">
               أساس المشتريات الخاضعة: ${fmtVal(summary.taxable_purchases, false, 0)} ر.س
             </div>
           </div>
         </div>
 
         <!-- Net Box -->
-        <div style="background:var(--exec-bg-card, #ffffff);border:1px solid var(--exec-border, rgba(255,255,255,0.1));border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:12px;">
+        <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-weight:700;font-size:1.05rem;color:var(--exec-text, #fff);">صافي الضريبة المستحقة للإقرار:</span>
-            <span style="font-size:1.35rem;font-weight:900;color:var(--exec-accent, #60a5fa);">${fmtVal(summary.net_tax_due)} ر.س</span>
+            <span style="font-weight:700;font-size:14px;color:var(--text-primary);">صافي الضريبة المستحقة للإقرار:</span>
+            <span style="font-size:18px;font-weight:800;color:var(--brand-accent);">${fmtVal(summary.net_tax_due)} ر.س</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);font-size:0.88rem;color:var(--exec-text-dim, #94a3b8);">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border-default);font-size:13px;color:var(--text-secondary);">
             <span>التسويات وسداد الهيئة في الفترة:</span>
-            <span style="font-weight:700;color:var(--exec-text, #fff);">${fmtVal(summary.settlements)} ر.س</span>
+            <span style="font-weight:700;color:var(--text-primary);">${fmtVal(summary.settlements)} ر.س</span>
           </div>
         </div>
       </div>
 
       <!-- TAB 2: BY TAX TYPE -->
       <div id="dtab-by_tax" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table style="width:100%;border-collapse:collapse;font-size:0.82rem;text-align:right;">
+        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
-            <tr style="border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));color:var(--exec-text-dim, #94a3b8);">
-              <th style="padding:8px 10px;">اسم الضريبة</th>
-              <th style="padding:8px 10px;">النوع</th>
-              <th style="padding:8px 10px;">النسبة</th>
-              <th style="padding:8px 10px;text-align:right;">الأساس الخاضع</th>
-              <th style="padding:8px 10px;text-align:right;">مبلغ الضريبة</th>
-              <th style="padding:8px 10px;text-align:center;">السجلات</th>
+            <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;">اسم الضريبة</th>
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;">النوع</th>
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;">النسبة</th>
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;text-align:right;">الأساس الخاضع</th>
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;text-align:right;">مبلغ الضريبة</th>
+              <th style="padding:10px 12px;font-size:12px;font-weight:500;text-align:center;">السجلات</th>
             </tr>
           </thead>
           <tbody>
             ${byTaxType.length === 0 ? `
-              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--exec-text-dim, #94a3b8);">لا توجد ضرائب مستخدمة في هذه الفترة</td></tr>
+              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--text-muted);">لا توجد ضرائب مستخدمة في هذه الفترة</td></tr>
             ` : byTaxType.map(t => {
               const isSale = t.type_tax_use === 'sale';
               return `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:9px 10px;font-weight:600;color:var(--exec-text, #fff);">${escapeHtml(t.name || t.tax_name)}</td>
-                  <td style="padding:9px 10px;">
-                    <span style="padding:2px 6px;border-radius:4px;font-size:0.75rem;${isSale ? 'background:rgba(59,130,246,0.15);color:#60a5fa;' : 'background:rgba(16,185,129,0.15);color:#34d399;'}">
+                <tr style="border-bottom:1px solid var(--border-default);">
+                  <td style="padding:10px 12px;font-weight:600;color:var(--text-primary);">${escapeHtml(t.name || t.tax_name)}</td>
+                  <td style="padding:10px 12px;">
+                    <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;${isSale ? 'background:var(--brand-accent-subtle);color:var(--brand-accent);' : 'background:var(--status-positive-subtle);color:var(--status-positive);'}">
                       ${isSale ? 'مبيعات' : 'مشتريات'}
                     </span>
                   </td>
-                  <td style="padding:9px 10px;">${t.rate}%</td>
-                  <td style="padding:9px 10px;text-align:right;">${fmtVal(t.base_amount)}</td>
-                  <td style="padding:9px 10px;text-align:right;font-weight:600;">${fmtVal(t.tax_amount)}</td>
-                  <td style="padding:9px 10px;text-align:center;">${t.count}</td>
+                  <td style="padding:10px 12px;font-family:var(--font-en);">${t.rate}%</td>
+                  <td style="padding:10px 12px;text-align:right;">${fmtVal(t.base_amount)}</td>
+                  <td style="padding:10px 12px;text-align:right;font-weight:600;">${fmtVal(t.tax_amount)}</td>
+                  <td style="padding:10px 12px;text-align:center;font-family:var(--font-en);">${t.count}</td>
                 </tr>
               `;
             }).join('')}
@@ -716,33 +747,33 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
       <!-- TAB 3: DOCUMENTS -->
       <div id="dtab-documents" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;text-align:right;">
+        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
-            <tr style="border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));color:var(--exec-text-dim, #94a3b8);">
-              <th style="padding:8px 8px;">الرقم</th>
-              <th style="padding:8px 8px;">الطرف</th>
-              <th style="padding:8px 8px;">التاريخ</th>
-              <th style="padding:8px 8px;text-align:right;">الأساس</th>
-              <th style="padding:8px 8px;text-align:right;">الضريبة</th>
-              <th style="padding:8px 8px;">النوع</th>
+            <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">الرقم</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">الطرف</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">التاريخ</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;text-align:right;">الأساس</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;text-align:right;">الضريبة</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">النوع</th>
             </tr>
           </thead>
           <tbody>
             ${documents.length === 0 ? `
-              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--exec-text-dim, #94a3b8);">لا توجد مستندات مسجلة</td></tr>
+              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--text-muted);">لا توجد مستندات مسجلة</td></tr>
             ` : documents.map(d => {
               const isSale = d.tax_role === 'vat_output';
               return `
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:8px 8px;font-weight:600;color:var(--exec-text, #fff);">${escapeHtml(d.move_name)}</td>
-                  <td style="padding:8px 8px;color:var(--exec-text-dim, #cbd5e1);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.partner_name)}">
+                <tr style="border-bottom:1px solid var(--border-default);">
+                  <td style="padding:10px 10px;font-weight:600;color:var(--text-primary);font-family:var(--font-en);">${escapeHtml(d.move_name)}</td>
+                  <td style="padding:10px 10px;color:var(--text-secondary);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.partner_name)}">
                     ${escapeHtml(d.partner_name || '—')}
                   </td>
-                  <td style="padding:8px 8px;color:var(--exec-text-dim, #94a3b8);">${escapeHtml(d.date)}</td>
-                  <td style="padding:8px 8px;text-align:right;">${fmtVal(d.tax_base_amount)}</td>
-                  <td style="padding:8px 8px;text-align:right;font-weight:600;">${fmtVal(d.tax_amount)}</td>
-                  <td style="padding:8px 8px;">
-                    <span style="padding:1px 5px;border-radius:4px;font-size:0.72rem;${d.is_refund ? 'background:rgba(239,68,68,0.15);color:#ef4444;' : (isSale ? 'background:rgba(59,130,246,0.15);color:#60a5fa;' : 'background:rgba(16,185,129,0.15);color:#34d399;')}">
+                  <td style="padding:10px 10px;color:var(--text-muted);font-family:var(--font-en);">${escapeHtml(d.date)}</td>
+                  <td style="padding:10px 10px;text-align:right;">${fmtVal(d.tax_base_amount)}</td>
+                  <td style="padding:10px 10px;text-align:right;font-weight:600;">${fmtVal(d.tax_amount)}</td>
+                  <td style="padding:10px 10px;">
+                    <span style="padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;${d.is_refund ? 'background:var(--status-negative-subtle);color:var(--status-negative);' : (isSale ? 'background:var(--brand-accent-subtle);color:var(--brand-accent);' : 'background:var(--status-positive-subtle);color:var(--status-positive);')}">
                       ${d.is_refund ? 'مرتجع' : (isSale ? 'فاتورة' : 'شراء')}
                     </span>
                   </td>
@@ -755,30 +786,30 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
       <!-- TAB 4: SETTLEMENTS -->
       <div id="dtab-settlements" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;text-align:right;">
+        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
-            <tr style="border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.1));color:var(--exec-text-dim, #94a3b8);">
-              <th style="padding:8px 8px;">رقم القيد</th>
-              <th style="padding:8px 8px;">التاريخ</th>
-              <th style="padding:8px 8px;">البيان</th>
-              <th style="padding:8px 8px;text-align:right;">مدين</th>
-              <th style="padding:8px 8px;text-align:right;">دائن</th>
-              <th style="padding:8px 8px;">الحساب</th>
+            <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">رقم القيد</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">التاريخ</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">البيان</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;text-align:right;">مدين</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;text-align:right;">دائن</th>
+              <th style="padding:10px 10px;font-size:12px;font-weight:500;">الحساب</th>
             </tr>
           </thead>
           <tbody>
             ${settlementMoves.length === 0 ? `
-              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--exec-text-dim, #94a3b8);">لا توجد قيود تسوية مسجلة لهذه الفترة</td></tr>
+              <tr><td colspan="6" style="padding:30px;text-align:center;color:var(--text-muted);">لا توجد قيود تسوية مسجلة لهذه الفترة</td></tr>
             ` : settlementMoves.map(s => `
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                <td style="padding:8px 8px;font-weight:600;color:var(--exec-text, #fff);">${escapeHtml(s.move_name)}</td>
-                <td style="padding:8px 8px;color:var(--exec-text-dim, #94a3b8);">${escapeHtml(s.date)}</td>
-                <td style="padding:8px 8px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(s.label)}">
+              <tr style="border-bottom:1px solid var(--border-default);">
+                <td style="padding:10px 10px;font-weight:600;color:var(--text-primary);font-family:var(--font-en);">${escapeHtml(s.move_name)}</td>
+                <td style="padding:10px 10px;color:var(--text-muted);font-family:var(--font-en);">${escapeHtml(s.date)}</td>
+                <td style="padding:10px 10px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary);" title="${escapeHtml(s.label)}">
                   ${escapeHtml(s.label || '—')}
                 </td>
-                <td style="padding:8px 8px;text-align:right;">${fmtVal(s.debit)}</td>
-                <td style="padding:8px 8px;text-align:right;">${fmtVal(s.credit)}</td>
-                <td style="padding:8px 8px;font-size:0.75rem;color:var(--exec-text-dim, #94a3b8);">${escapeHtml(s.account_code)}</td>
+                <td style="padding:10px 10px;text-align:right;">${fmtVal(s.debit)}</td>
+                <td style="padding:10px 10px;text-align:right;">${fmtVal(s.credit)}</td>
+                <td style="padding:10px 10px;font-size:12px;color:var(--text-muted);font-family:var(--font-en);">${escapeHtml(s.account_code)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -795,8 +826,8 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
       drawerContent.querySelectorAll('.drawer-tab-btn').forEach(b => {
         const isActive = b.getAttribute('data-tab') === targetTab;
         b.classList.toggle('active', isActive);
-        b.style.background = isActive ? '#3b82f6' : 'transparent';
-        b.style.color = isActive ? '#fff' : 'var(--exec-text-dim, #94a3b8)';
+        b.style.background = isActive ? 'var(--brand-primary)' : 'transparent';
+        b.style.color = isActive ? 'var(--text-on-brand)' : 'var(--text-secondary)';
       });
       drawerContent.querySelectorAll('.drawer-pane').forEach(p => {
         p.style.display = p.id === `dtab-${targetTab}` ? 'flex' : 'none';

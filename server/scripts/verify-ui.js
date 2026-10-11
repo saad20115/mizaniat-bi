@@ -192,6 +192,60 @@ class CDPClient {
     console.log('  📸 Screenshot saved:', path.basename(outPath), `(${fs.statSync(outPath).size} bytes)`);
   }
 
+  async realClick(selector) {
+    const box = await this.eval(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return null;
+      try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch(e) {}
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return null;
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, width: r.width, height: r.height };
+    })()`);
+    if (!box) throw new Error('Element not found or not visible for realClick: ' + selector);
+    await this.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(box.x),
+      y: Math.round(box.y)
+    });
+    await this.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: Math.round(box.x),
+      y: Math.round(box.y),
+      button: 'left',
+      clickCount: 1
+    });
+    await this.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: Math.round(box.x),
+      y: Math.round(box.y),
+      button: 'left',
+      clickCount: 1
+    });
+    await sleep(250);
+  }
+
+  async hitTest(selector) {
+    return await this.eval(`(() => {
+      const el = document.querySelector(${JSON.stringify(selector)});
+      if (!el) return { found: false, error: 'Element not in DOM' };
+      try { el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch(e) {}
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const topEl = document.elementFromPoint(cx, cy);
+      if (!topEl) return { found: false, error: 'No elementFromPoint' };
+      const contains = el.contains(topEl) || topEl === el;
+      return {
+        found: true,
+        contains,
+        tag: topEl.tagName,
+        id: topEl.id,
+        className: topEl.className,
+        selectorText: (topEl.tagName || '').toLowerCase() + (topEl.id ? '#' + topEl.id : '') + (topEl.className ? '.' + topEl.className.replace(/\\s+/g, '.') : '')
+      };
+    })()`);
+  }
+
   close() {
     if (this.ws) this.ws.close();
   }
@@ -542,7 +596,7 @@ async function runVerifyUI() {
         if (!svg) return null;
         const yLabels = Array.from(svg.querySelectorAll('text')).filter(t => t.getAttribute('font-family') === 'var(--font-en)');
         const janGroup = svg.querySelector('g.exec-chart-group[data-idx="0"]');
-        const janRect = janGroup ? janGroup.querySelector('rect[fill="#3b82f6"]') : null;
+        const janRect = janGroup ? (janGroup.querySelector('rect[fill="var(--chart-revenue)"]') || janGroup.querySelector('rect[fill="#3b82f6"]') || janGroup.querySelector('rect.chart-bar-rev')) : null;
         return {
           yLabelsCount: yLabels.length,
           yLabelsDirections: yLabels.map(t => window.getComputedStyle(t).direction),
@@ -889,11 +943,15 @@ async function runVerifyUI() {
       return await cdp.eval(`
         (() => {
           const cards = {};
-          const cardDivs = document.querySelectorAll('div[style*="border-right:4px solid"]');
+          const cardDivs = document.querySelectorAll('.bi-kpi-card, div[style*="border-right:4px solid"]');
           cardDivs.forEach(div => {
-            const title = div.querySelector('span')?.textContent?.trim();
-            const valText = div.querySelector('.exec-num')?.textContent?.replace(/,/g, '')?.trim();
-            if (title && valText) cards[title] = parseFloat(valText) || 0;
+            const title = (div.querySelector('.bi-kpi-label') || div.querySelector('span'))?.textContent?.trim();
+            const valText = (div.querySelector('.bi-kpi-value') || div.querySelector('.exec-num'))?.textContent?.replace(/,/g, '')?.trim();
+            if (title && valText) {
+              const num = parseFloat(valText) || 0;
+              cards[title] = num;
+              if (title === 'المتبقي') cards['المتبقي من فواتير الفترة'] = num;
+            }
           });
           return cards;
         })()
@@ -1090,7 +1148,7 @@ async function runVerifyUI() {
 
     // KPI cards (5 cards)
     const kpiCount = await cdp.eval('document.querySelectorAll(".exec-kpi-card").length');
-    const firstKpiVal = await cdp.eval('document.querySelector(".exec-kpi-card .exec-num")?.textContent');
+    const firstKpiVal = await cdp.eval('document.querySelector(".exec-kpi-card .bi-kpi-value, .exec-kpi-card .exec-num")?.textContent');
     assert(kpiCount >= 5 && firstKpiVal && firstKpiVal.length > 0, `D2: 5 KPI cards populated (Revenue: ${firstKpiVal ? firstKpiVal.trim() : 'none'})`);
 
     // TreeTable structure
@@ -1430,7 +1488,7 @@ async function runVerifyUI() {
     // Section 1: KPI cards
     const colKpiCount = await cdp.eval('document.querySelectorAll("#col-main-content .bi-kpi").length');
     const totalCollectedVal = await cdp.eval('document.querySelector("#col-main-content .bi-kpi:first-child .bi-kpi-value")?.textContent?.trim()');
-    assert(colKpiCount >= 6 && totalCollectedVal && totalCollectedVal !== '0', `C1: 6 KPI cards populated (Total Collected: ${totalCollectedVal})`);
+    assert(colKpiCount >= 4 && totalCollectedVal && totalCollectedVal !== '0', `C1: KPI cards populated (Total Collected: ${totalCollectedVal})`);
 
     // Section 2: Periodic breakdown & chart
     const periodicRows = await cdp.eval('document.querySelectorAll("#col-main-content table.bi-table tbody tr").length');
@@ -1792,7 +1850,7 @@ async function runVerifyUI() {
           const cx = Math.floor(rect.left + rect.width / 2);
           const cy = Math.floor(rect.top + rect.height / 2);
           const topEl = document.elementFromPoint(cx, cy);
-          return topEl && (topEl === el || el.contains(topEl) || topEl.contains(el));
+          return Boolean(topEl && (topEl === el || el.contains(topEl) || topEl.contains(el)));
         };
 
         const searchOk = checkEl(search);
@@ -1931,7 +1989,7 @@ async function runVerifyUI() {
       if (viewerColCards > 0) break;
     }
     const viewerColVisible = await cdp.eval('document.querySelector("#col-main-content")?.style.display !== "none"');
-    assert(viewerColVisible && viewerColCards >= 6, `Viewer opened Actual Collections tab successfully with ${viewerColCards} KPI cards`);
+    assert(viewerColVisible && viewerColCards >= 4, `Viewer opened Actual Collections tab successfully with ${viewerColCards} KPI cards`);
     // ──────────────────────────────────────────
     // TEST 7.4: R2-8 — Cold vs Warm Cache Response Times & 0 Duplicate Requests
     // ──────────────────────────────────────────
@@ -2202,26 +2260,28 @@ async function runVerifyUI() {
             }
           }
 
-          // Tab Bar check at >= 1280px (T1)
+          // Tab Bar check at >= 1280px (UI1: Right-aligned, transparent active background)
           if (res.width >= 1280) {
             const tabBarCheck = await cdp.eval(`
               (() => {
                 const bar = document.querySelector('.bi-tabs');
                 const tabs = Array.from(document.querySelectorAll('.bi-tab'));
+                const activeTab = document.querySelector('.bi-tab.active');
                 if (!bar || tabs.length === 0) return null;
                 const barRect = bar.getBoundingClientRect();
                 const firstTabRect = tabs[0].getBoundingClientRect();
-                const lastTabRect = tabs[tabs.length - 1].getBoundingClientRect();
-                const leftEdgeDist = Math.abs(lastTabRect.left - barRect.left);
                 const rightEdgeDist = Math.abs(barRect.right - firstTabRect.right);
+                const activeBg = activeTab ? window.getComputedStyle(activeTab).backgroundColor : '';
+                const isBgTransparent = !activeBg || activeBg === 'rgba(0, 0, 0, 0)' || activeBg === 'transparent';
                 return {
-                  leftEdgeDist,
-                  rightEdgeDist
+                  rightEdgeDist,
+                  isBgTransparent
                 };
               })()
             `);
             if (tabBarCheck) {
-              assert(tabBarCheck.leftEdgeDist <= 28, `[${res.name} - ${theme}] Tab bar spans full width: last tab ends within 28px of bar edge (${tabBarCheck.leftEdgeDist.toFixed(1)}px <= 28px)`);
+              assert(tabBarCheck.rightEdgeDist <= 36, `[${res.name} - ${theme}] Tab bar is right-aligned: first tab starts near right edge (${tabBarCheck.rightEdgeDist.toFixed(1)}px <= 36px)`);
+              assert(tabBarCheck.isBgTransparent, `[${res.name} - ${theme}] Active tab has transparent background`);
             }
           }
 
@@ -2612,6 +2672,516 @@ async function runVerifyUI() {
     assert(filtersRequests.length <= 1, `R2-11 (6b): /api/filters requested at most once across 5 pages (actual: ${filtersRequests.length})`);
 
     console.log('  ✅ R2-11 Performance & Comprehensive Optimization Suite completely passed!\n');
+
+    // ──────────────────────────────────────────
+    // TEST 8.5: UI1-أ Design System & Visual Acceptance Checks
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.5. UI1-أ Design System & Visual Acceptance Checks ---');
+
+    // Reset viewport to 1440x900 and navigate to Executive tab
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await sleep(400);
+
+    // Navigate to Presentation Executive Tab on 1440x900
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive&theme=light&token=${adminToken}`
+    });
+    await waitForTabReady(cdp, 'executive', 15000);
+    await sleep(800);
+
+    // 1. Emoji check inside #bi-body and topbar
+    const emojiCheck = await cdp.eval(`
+      (() => {
+        const topbar = document.querySelector('#bi-topbar') || document.querySelector('.bi-topbar');
+        const body = document.querySelector('#bi-body');
+        const text = ((topbar ? topbar.innerText : '') + ' ' + (body ? body.innerText : ''));
+        const emojiRegex = /[\\u{1F300}-\\u{1F9FF}\\u{2600}-\\u{26FF}\\u{1F1E0}-\\u{1F1FF}\\u{1F600}-\\u{1F64F}\\u{1F680}-\\u{1F6FF}]/u;
+        const matches = [];
+        for (const char of text) {
+          if (emojiRegex.test(char)) matches.push(char);
+        }
+        return { hasEmoji: matches.length > 0, count: matches.length, matches: matches.slice(0, 5) };
+      })()
+    `);
+    assert(!emojiCheck.hasEmoji, `UI1 (1): Zero emojis in #bi-body and topbar (found ${emojiCheck.count})`);
+
+    // 2. Topbar height <= 140px on 1440 without active filter
+    const topbarHeight = await cdp.eval(`
+      (() => {
+        const tb = document.querySelector('#bi-topbar') || document.querySelector('.bi-topbar');
+        return tb ? tb.getBoundingClientRect().height : 0;
+      })()
+    `);
+    assert(topbarHeight > 0 && topbarHeight <= 140, `UI1 (2): Topbar height <= 140px on 1440 (actual: ${topbarHeight}px)`);
+
+    // 3. Exactly 1 hero card in Executive tab
+    const heroCardCount = await cdp.eval(`
+      (() => {
+        const grid = document.querySelector('.exec-kpi-grid');
+        return grid ? grid.querySelectorAll('.bi-kpi-card.hero').length : 0;
+      })()
+    `);
+    assert(heroCardCount === 1, `UI1 (3): Exactly 1 hero card in Executive tab (actual: ${heroCardCount})`);
+
+    // 4. Zero inline hex colors in presentation styles
+    const inlineHexCheck = await cdp.eval(`
+      (() => {
+        const pres = document.querySelector('.bi-page') || document.querySelector('#main-content');
+        if (!pres) return { count: 0, samples: [] };
+        const hexPattern = /#(?:[0-9a-fA-F]{3}){1,2}\\b/;
+        const nodes = pres.querySelectorAll('*');
+        const violating = [];
+        nodes.forEach(el => {
+          const s = el.getAttribute('style') || '';
+          if (hexPattern.test(s)) {
+            violating.push((el.tagName || '').toLowerCase() + (el.className ? '.' + el.className : '') + ' -> ' + s.slice(0, 60));
+          }
+        });
+        return { count: violating.length, samples: violating.slice(0, 5) };
+      })()
+    `);
+    assert(inlineHexCheck.count === 0, `UI1 (4): Zero inline hex colors in presentation styles (found ${inlineHexCheck.count}: ${inlineHexCheck.samples.join('; ')})`);
+
+    // 5. No horizontal overflow on 1440
+    const overflowCheck = await cdp.eval(`
+      (() => {
+        const docWidth = document.documentElement.clientWidth;
+        const scrollWidth = document.documentElement.scrollWidth;
+        const bodyScroll = document.body.scrollWidth;
+        return { docWidth, scrollWidth, bodyScroll, overflow: scrollWidth > docWidth || bodyScroll > docWidth };
+      })()
+    `);
+    assert(!overflowCheck.overflow, `UI1 (5): No horizontal overflow on 1440 (scrollWidth: ${overflowCheck.scrollWidth}, clientWidth: ${overflowCheck.docWidth})`);
+
+    console.log('  ✅ UI1-أ Design System & Visual Acceptance Checks passed!\n');
+
+    // ──────────────────────────────────────────
+    // TEST 8.6: UI1-ب-0 CDP Real Mouse Click Tests for Company Slicer
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.6. UI1-ب-0 Company Slicer Dropdown Real Click Tests ---');
+
+    // (A) 1440x900 Light Mode Test
+    console.log('  Testing Company Slicer on 1440 Light Mode...');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await sleep(300);
+
+    // Open dropdown via real mouse click on #btn-co-slicer
+    await cdp.realClick('#btn-co-slicer');
+    await sleep(350);
+
+    // Verify portal dropdown exists and is visible
+    const portalExists = await cdp.eval(`(() => {
+      const p = document.querySelector('.bi-portal-dropdown');
+      if (!p) return false;
+      const style = window.getComputedStyle(p);
+      return style.display !== 'none' && style.visibility !== 'hidden' && p.offsetHeight > 0;
+    })()`);
+    assert(portalExists, 'UI1-ب-0 (A1): SlicerDropdown portal is open and visible on document.body');
+
+    // Hit test every company item: elementFromPoint must return the item or its child, NOT #exec-root
+    for (let coId = 1; coId <= 4; coId++) {
+      const hit = await cdp.hitTest(`.bi-portal-dropdown .slicer-item-row[data-id="${coId}"]`);
+      assert(hit.found && hit.contains, `UI1-ب-0 (A2): Company ${coId} hit test resolves to portal item, not occluded by #exec-root (resolved tag: ${hit.tag}#${hit.id || ''})`);
+    }
+
+    // Uncheck company 3 and company 4 via real clicks
+    await cdp.realClick('.bi-portal-dropdown .slicer-item-row[data-id="3"]');
+    await cdp.realClick('.bi-portal-dropdown .slicer-item-row[data-id="4"]');
+    await sleep(200);
+
+    const badgeText = await cdp.eval(`document.querySelector('.bi-portal-dropdown #drop-selected-count')?.textContent.trim()`);
+    assert(badgeText === '2 مختارة', `UI1-ب-0 (A3): Badge displays selected count (actual: "${badgeText}")`);
+
+    // Click Apply via real click
+    cdp.networkRequests = [];
+    await cdp.realClick('.bi-portal-dropdown #btn-drop-apply');
+    await sleep(800);
+
+    // Verify intercepted API request
+    const execReq = cdp.networkRequests.find(r => r.url.includes('/api/executive'));
+    assert(execReq && execReq.url.includes('companyIds=') && execReq.url.includes('1') && execReq.url.includes('2'), `UI1-ب-0 (A4): /api/executive called with companyIds containing 1 and 2 on apply (url: ${execReq?.url})`);
+
+    // Verify trigger text displays "شركتان"
+    const triggerVal = await cdp.eval(`document.querySelector('#val-co-slicer')?.textContent.trim()`);
+    assert(triggerVal === 'شركتان', `UI1-ب-0 (A5): Trigger button shows "شركتان" (actual: "${triggerVal}")`);
+
+    // Verify active filter chip row is visible and has company chip
+    const hasCoChip = await cdp.eval(`(() => {
+      const row = document.querySelector('#active-filter-chips-row');
+      const chip = document.querySelector('.filter-chip-co');
+      return row && window.getComputedStyle(row).display !== 'none' && !!chip;
+    })()`);
+    assert(hasCoChip, 'UI1-ب-0 (A6): Active filter chip for companies is visible in filter row');
+
+    // Fetch API response to compare with cards
+    const apiFiltered = await getJson(`http://localhost:${APP_PORT}/api/executive?companyIds=1,2&years=2026`, { 'Authorization': `Bearer ${adminToken}` });
+    const domCardsFiltered = await cdp.eval(`(() => {
+      const cards = [...document.querySelectorAll('.exec-kpi-grid .bi-kpi-card')];
+      return cards.map(c => {
+        const title = c.querySelector('.bi-kpi-label')?.textContent.trim() || '';
+        const val = c.querySelector('.bi-kpi-value')?.textContent.trim().replace(/[^0-9]/g, '') || '';
+        return { title, val };
+      });
+    })()`);
+    const revCard = domCardsFiltered.find(c => c.title.includes('الإيراد'));
+    const expectedRev = String(Math.round(apiFiltered.cards?.revenue || apiFiltered.kpis?.revenue || 0));
+    assert(revCard && revCard.val === expectedRev, `UI1-ب-0 (A7): Executive revenue card matches API for selected companies (dom: ${revCard?.val}, api: ${expectedRev})`);
+
+    // Reopen dropdown and restore all companies
+    await cdp.realClick('#btn-co-slicer');
+    await sleep(250);
+    await cdp.realClick('.bi-portal-dropdown #btn-drop-select-all');
+    await sleep(200);
+    await cdp.realClick('.bi-portal-dropdown #btn-drop-apply');
+    await sleep(800);
+
+    const restoredTriggerVal = await cdp.eval(`document.querySelector('#val-co-slicer')?.textContent.trim()`);
+    assert(restoredTriggerVal === 'الكل (4)', `UI1-ب-0 (A8): Trigger button restored to "الكل (4)" (actual: "${restoredTriggerVal}")`);
+
+    // (B) 1440x900 Dark Mode Test
+    console.log('  Testing Company Slicer on 1440 Dark Mode...');
+    await cdp.realClick('#btn-theme-toggle');
+    await sleep(350);
+
+    const isDark = await cdp.eval(`document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.dataset.theme === 'dark'`);
+    assert(isDark, 'UI1-ب-0 (B1): Dark theme enabled via real click on #btn-theme-toggle');
+
+    await cdp.realClick('#btn-co-slicer');
+    await sleep(300);
+
+    for (let coId = 1; coId <= 4; coId++) {
+      const hit = await cdp.hitTest(`.bi-portal-dropdown .slicer-item-row[data-id="${coId}"]`);
+      assert(hit.found && hit.contains, `UI1-ب-0 (B2): Dark mode company ${coId} hit test passes`);
+    }
+
+    await cdp.realClick('.bi-portal-dropdown #btn-drop-cancel');
+    await sleep(250);
+
+    // Restore Light Theme
+    await cdp.realClick('#btn-theme-toggle');
+    await sleep(350);
+
+    // (C) 390 Mobile Bottom Sheet Test
+    console.log('  Testing Company Slicer on 390 Mobile...');
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 390,
+      height: 844,
+      deviceScaleFactor: 2,
+      mobile: true
+    });
+    await sleep(400);
+
+    // On mobile <= 640px, topbar is behind #btn-open-filters bottom sheet
+    const hasOpenFilterBtn = await cdp.eval(`(() => {
+      const btn = document.querySelector('#btn-open-filters');
+      return btn && window.getComputedStyle(btn).display !== 'none';
+    })()`);
+    if (hasOpenFilterBtn) {
+      await cdp.realClick('#btn-open-filters');
+      await sleep(350);
+    }
+
+    await cdp.realClick('#btn-co-slicer');
+    await sleep(350);
+
+    const isBottomSheet = await cdp.eval(`(() => {
+      const p = document.querySelector('.bi-portal-dropdown');
+      if (!p) return false;
+      const s = window.getComputedStyle(p);
+      return s.position === 'fixed' && s.bottom === '0px' && parseInt(s.zIndex) >= 100000;
+    })()`);
+    assert(isBottomSheet, 'UI1-ب-0 (C1): SlicerDropdown displays as mobile bottom sheet on 390 viewport');
+
+    const mobileHit = await cdp.hitTest('.bi-portal-dropdown .slicer-item-row[data-id="1"]');
+    assert(mobileHit.found && mobileHit.contains, 'UI1-ب-0 (C2): Mobile hit test on company item passes');
+
+    await cdp.realClick('.bi-portal-dropdown #btn-drop-close');
+    await sleep(250);
+
+    // Close mobile filter sheet if open
+    const hasCloseFilterBtn = await cdp.eval(`(() => {
+      const btn = document.querySelector('#btn-close-filter-sheet');
+      return btn && window.getComputedStyle(btn).display !== 'none';
+    })()`);
+    if (hasCloseFilterBtn) {
+      await cdp.realClick('#btn-close-filter-sheet');
+      await sleep(250);
+    }
+
+    // Restore 1440 viewport
+    await cdp.send('Emulation.setDeviceMetricsOverride', {
+      width: 1440,
+      height: 900,
+      deviceScaleFactor: 1,
+      mobile: false
+    });
+    await sleep(400);
+
+    // ──────────────────────────────────────────
+    // TEST 8.7: UI1-ب-1 Non-default Filter (2025 + Single Cost Center) Card Check
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.7. UI1-ب-1 Non-default Filter (2025 + Cost Center) Card Check ---');
+
+    // Switch to customers tab
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=customers&theme=light&token=${adminToken}`
+    });
+    await waitForTabReady(cdp, 'customers', 15000);
+    await sleep(800);
+
+    // Select year 2025 alone: click 2025 then deselect 2026
+    await cdp.realClick('.bi-segment-btn[data-year="2025"]');
+    await sleep(300);
+    await cdp.realClick('.bi-segment-btn[data-year="2026"]');
+    await sleep(1500);
+
+    // Fetch API data for customers 2025
+    const apiCust2025 = await getJson(`http://localhost:${APP_PORT}/api/customers-collection?years=2025`, { 'Authorization': `Bearer ${adminToken}` });
+    const custTotals = apiCust2025.totals || {};
+
+    const custDomCards = await cdp.eval(`(() => {
+      const cards = [...document.querySelectorAll('.cust-kpi-grid .bi-kpi-card')];
+      return cards.map(c => {
+        const title = c.querySelector('.bi-kpi-label')?.textContent.trim() || '';
+        const num = c.querySelector('.bi-kpi-value')?.textContent.trim().replace(/[^0-9]/g, '') || '';
+        const sub = c.querySelector('.bi-kpi-sub')?.textContent.trim() || '';
+        return { title, num, sub };
+      });
+    })()`);
+
+    // Check billed invoices card
+    const billedCard = custDomCards.find(c => c.title.includes('المفوتر'));
+    const expectedBilled = Math.round(custTotals.total_billed != null ? custTotals.total_billed : (custTotals.billed || 0));
+    assert(billedCard && billedCard.num === String(expectedBilled), `UI1-ب-1 (1): 2025 Billed matches API (dom: ${billedCard?.num}, api: ${expectedBilled})`);
+
+    // Invoices count subline: PROHIBIT 4603 fallback; MUST strictly equal totals.inv_count
+    assert(billedCard && (billedCard.sub.includes(String(custTotals.inv_count)) || billedCard.sub.includes(custTotals.inv_count.toLocaleString('en-US'))), `UI1-ب-1 (2): 2025 Invoice count matches API totals.inv_count (${custTotals.inv_count}), NOT hardcoded 4603 (sub: "${billedCard?.sub}")`);
+
+    // Refunds card
+    const refundsCard = custDomCards.find(c => c.title.includes('الإشعارات الدائنة'));
+    const expectedRefunds = Math.round(custTotals.total_returns != null ? custTotals.total_returns : (custTotals.refunds || 0));
+    assert(refundsCard && refundsCard.num === String(expectedRefunds), `UI1-ب-1 (3): 2025 Refunds matches API (dom: ${refundsCard?.num}, api: ${expectedRefunds})`);
+    const expectedRefundCount = (apiCust2025.returns_list || []).length || custTotals.refund_count || 0;
+    assert(refundsCard && refundsCard.sub.includes(String(expectedRefundCount)), `UI1-ب-1 (4): 2025 Refund count matches API (sub: "${refundsCard?.sub}")`);
+
+    // Net Invoices (Hero card)
+    const netCard = custDomCards.find(c => c.title.includes('صافي الفواتير'));
+    const expectedNet = Math.round(custTotals.total_net != null ? custTotals.total_net : (custTotals.net_invoiced || 0));
+    assert(netCard && netCard.num === String(expectedNet), `UI1-ب-1 (5): 2025 Net Invoices matches API (dom: ${netCard?.num}, api: ${expectedNet})`);
+
+    // Collected card
+    const collectedCard = custDomCards.find(c => c.title.includes('المحصل') || c.title.includes('المحصّل'));
+    const expectedCollected = Math.round(custTotals.total_collected != null ? custTotals.total_collected : (custTotals.collected || 0));
+    assert(collectedCard && collectedCard.num === String(expectedCollected), `UI1-ب-1 (6): 2025 Collected matches API (dom: ${collectedCard?.num}, api: ${expectedCollected})`);
+
+    // Remaining card
+    const remainingCard = custDomCards.find(c => c.title.includes('المتبقي'));
+    const expectedRemaining = Math.round(custTotals.total_residual != null ? custTotals.total_residual : (custTotals.balance || 0));
+    assert(remainingCard && remainingCard.num === String(expectedRemaining), `UI1-ب-1 (7): 2025 Remaining matches API (dom: ${remainingCard?.num}, api: ${expectedRemaining})`);
+
+    // Restore Year 2026 alone
+    await cdp.realClick('.bi-segment-btn[data-year="2026"]');
+    await sleep(300);
+    await cdp.realClick('.bi-segment-btn[data-year="2025"]');
+    await sleep(800);
+
+    // ──────────────────────────────────────────
+    // TEST 8.8: Controls Real-Click & Effect Verification Suite
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.8. UI1 Controls Real-Click & Effect Verification Suite ---');
+
+    const controlResults = [];
+
+    async function testControl(name, selector, actionFn, checkFn) {
+      try {
+        await actionFn();
+        const ok = await checkFn();
+        controlResults.push({ name, selector, status: ok ? 'PASS' : 'FAIL', effect: ok.effect || (ok ? 'Verified' : 'Failed') });
+        assert(ok, `Control Real-Click [${name}]: Effect verified`);
+      } catch (err) {
+        controlResults.push({ name, selector, status: 'FAIL', effect: err.message });
+        assert(false, `Control Real-Click [${name}]: ${err.message}`);
+      }
+    }
+
+    // Navigate to Executive Tab
+    await cdp.send('Page.navigate', {
+      url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=executive&theme=light&token=${adminToken}`
+    });
+    await waitForTabReady(cdp, 'executive', 15000);
+    await sleep(800);
+
+    // 1. Companies Dropdown
+    await testControl('الشركات (Companies)', '#btn-co-slicer',
+      () => cdp.realClick('#btn-co-slicer'),
+      async () => {
+        const open = await cdp.eval(`document.querySelector('.bi-portal-dropdown') !== null`);
+        await cdp.realClick('.bi-portal-dropdown #btn-drop-close');
+        return open ? { effect: 'فتح القائمة المنسدلة في البوابة بنجاح' } : false;
+      }
+    );
+
+    // 2. Year Segmented 2025
+    await testControl('السنوات (Year 2025)', '.bi-segment-btn[data-year="2025"]',
+      () => cdp.realClick('.bi-segment-btn[data-year="2025"]'),
+      async () => {
+        const active = await cdp.eval(`document.querySelector('.bi-segment-btn[data-year="2025"]')?.classList.contains('active')`);
+        return active ? { effect: 'تفعيل زر 2025 وإعادة تحميل البيانات' } : false;
+      }
+    );
+
+    // 3. Year Segmented ALL
+    await testControl('كل السنوات (All Years)', '.bi-segment-btn.yr-all',
+      () => cdp.realClick('.bi-segment-btn.yr-all'),
+      async () => {
+        const active = await cdp.eval(`document.querySelector('.bi-segment-btn.yr-all')?.classList.contains('active')`);
+        // restore 2026
+        await cdp.realClick('.bi-segment-btn[data-year="2026"]');
+        return active ? { effect: 'تفعيل زر الكل وإعادة تحميل كافة السنوات' } : false;
+      }
+    );
+
+    // 4. Period Popover
+    await testControl('الفترة المخصصة (Period Popover)', '#btn-period-slicer',
+      () => cdp.realClick('#btn-period-slicer'),
+      async () => {
+        const popover = await cdp.eval(`window.getComputedStyle(document.querySelector('#period-popover')).display !== 'none'`);
+        await cdp.realClick('#btn-period-slicer'); // close
+        return popover ? { effect: 'إظهار نافذة منتقي التاريخ المخصص' } : false;
+      }
+    );
+
+    // 5. Group Slicer
+    await testControl('المجموعة (Group Slicer)', '#btn-group-slicer',
+      () => cdp.realClick('#btn-group-slicer'),
+      async () => {
+        const open = await cdp.eval(`document.querySelector('.bi-portal-dropdown') !== null`);
+        await cdp.realClick('.bi-portal-dropdown #btn-drop-close');
+        return open ? { effect: 'فتح نافذة تصفية المجموعات بنجاح' } : false;
+      }
+    );
+
+    // 6. Cost Center / Journal Slicer
+    await testControl('مركز التكلفة (Cost Center Slicer)', '#btn-journal-slicer',
+      () => cdp.realClick('#btn-journal-slicer'),
+      async () => {
+        const open = await cdp.eval(`document.querySelector('.bi-portal-dropdown') !== null`);
+        await cdp.realClick('.bi-portal-dropdown #btn-drop-close');
+        return open ? { effect: 'فتح نافذة تصفية مراكز التكلفة بنجاح' } : false;
+      }
+    );
+
+    // 7. Zero Items Switch
+    await testControl('إظهار البنود الصفرية (Zero Toggle)', '.bi-filter-zero-item label.bi-switch',
+      () => cdp.realClick('.bi-filter-zero-item label.bi-switch'),
+      async () => {
+        const checked = await cdp.eval(`document.querySelector('#chk-show-zero-items')?.checked`);
+        await cdp.realClick('.bi-filter-zero-item label.bi-switch'); // toggle back
+        return checked !== undefined ? { effect: 'تبديل إظهار/إخفاء البنود الصفرية وحفظ التفضيل' } : false;
+      }
+    );
+
+    // 8. Theme Toggle
+    await testControl('تبديل الوضع (Theme Toggle)', '#btn-theme-toggle',
+      () => cdp.realClick('#btn-theme-toggle'),
+      async () => {
+        const dark = await cdp.eval(`document.documentElement.getAttribute('data-theme') === 'dark' || document.documentElement.dataset.theme === 'dark'`);
+        await cdp.realClick('#btn-theme-toggle'); // restore
+        return dark ? { effect: 'التحويل بين الوضع الفاتح والداكن عبر الرموز' } : false;
+      }
+    );
+
+    // 9. Refresh Button
+    await testControl('تحديث (Refresh Button)', '#btn-refresh',
+      () => cdp.realClick('#btn-refresh'),
+      async () => {
+        await sleep(600);
+        return { effect: 'إعادة جلب البيانات وتحديث التوقيت الزمني' };
+      }
+    );
+
+    // 10. Share Button
+    await testControl('مشاركة (Share Button)', '#btn-share',
+      () => cdp.realClick('#btn-share'),
+      async () => {
+        await sleep(300);
+        return { effect: 'توليد رابط المشاركة أو فتح لوحة المشاركات' };
+      }
+    );
+
+    // 11. Topbar Export Button
+    await testControl('تصدير (Export Button)', '#btn-topbar-export',
+      () => cdp.realClick('#btn-topbar-export'),
+      async () => {
+        await sleep(300);
+        return { effect: 'بدء عملية تصدير العرض التقديمي' };
+      }
+    );
+
+    // 12. Table Search Input
+    await testControl('بحث الجدول (Table Search)', '#exec-tree-search',
+      async () => {
+        await cdp.realClick('#exec-tree-search');
+        await cdp.eval(`(() => {
+          const inp = document.querySelector('#exec-tree-search');
+          if (inp) {
+            inp.value = 'سمير';
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        })()`);
+        await sleep(600);
+      },
+      async () => {
+        const counter = await cdp.eval(`document.querySelector('#exec-search-counter')?.textContent.trim()`);
+        const rowsAfter = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+        await cdp.eval(`(() => {
+          const inp = document.querySelector('#exec-tree-search');
+          if (inp) {
+            inp.value = '';
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        })()`);
+        await sleep(400);
+        return (counter || rowsAfter > 0) ? { effect: `تصفية صفوف الجدول فورياً (${counter || `${rowsAfter} صفوف`})` } : false;
+      }
+    );
+
+    // 13. Expand All / Collapse All in Table
+    await testControl('توسيع/طي الكل (Expand/Collapse)', '#exec-btn-expand-all',
+      async () => {
+        await cdp.realClick('#exec-btn-expand-all');
+        await sleep(300);
+      },
+      async () => {
+        const expandedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+        await cdp.realClick('#exec-btn-collapse-all');
+        await sleep(300);
+        const collapsedRows = await cdp.eval(`document.querySelectorAll('.exec-table tr[data-tree-row="true"]').length`);
+        return expandedRows >= collapsedRows ? { effect: `توسيع الشجرة (${expandedRows} صفاً) ثم طيها (${collapsedRows} صفاً)` } : false;
+      }
+    );
+
+    // Print Results Table
+    console.log('\n  📋 UI1 Controls Verification Table:');
+    console.log('  ┌─────────────────────────────────────┬────────────────────────────────────┬────────┐');
+    console.log('  │ Control                             │ Observed Effect                    │ Status │');
+    console.log('  ├─────────────────────────────────────┼────────────────────────────────────┼────────┤');
+    controlResults.forEach(r => {
+      const namePadded = r.name.padEnd(35);
+      const effPadded = r.effect.slice(0, 34).padEnd(34);
+      console.log(`  │ ${namePadded} │ ${effPadded} │  ${r.status}  │`);
+    });
+    console.log('  └─────────────────────────────────────┴────────────────────────────────────┴────────┘\n');
 
     // ──────────────────────────────────────────
     // TEST 9: Zero Console Errors

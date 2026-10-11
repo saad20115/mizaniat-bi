@@ -21,6 +21,7 @@ let currentTimeGrain = 'month'; // 'month' | 'quarter' | 'year'
 let currentViewMode = 'tree';   // 'tree' | 'direct'
 let activeDetailModal = null;
 let clientSearchQuery = '';
+let isSec5Open = false;
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -32,14 +33,22 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+const ICONS = {
+  search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  excel: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  chevronDown: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevronLeft: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  check: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+};
+
 function fmtVal(num, showZeroDash = true) {
   if (num === null || num === undefined || isNaN(num)) return showZeroDash ? '—' : '0';
   const rounded = Math.round(Number(num));
   if (rounded === 0 && showZeroDash) return '—';
   if (rounded < 0) {
-    return `<span class="exec-num-neg" style="color:var(--col-refund);direction:ltr;display:inline-block;">(${Math.abs(rounded).toLocaleString('en-US')})</span>`;
+    return `<span class="exec-num-neg" style="color:var(--status-negative);direction:ltr;display:inline-block;">(${Math.abs(rounded).toLocaleString('en-US')})</span>`;
   }
-  return `<span class="exec-num" style="color:var(--exec-text);">${rounded.toLocaleString('en-US')}</span>`;
+  return `<span class="exec-num">${rounded.toLocaleString('en-US')}</span>`;
 }
 
 function getPeriodParamsFromFilter(timeFilter) {
@@ -180,17 +189,17 @@ function getAggregatedSeries(monthlySeries, grain) {
 function renderPeriodicTableRows(seriesList, showOther = true) {
   const colSpan = showOther ? 7 : 6;
   if (!seriesList || seriesList.length === 0) {
-    return `<tr><td colspan="${colSpan}" style="text-align:center;padding:24px;color:var(--exec-text-muted);">لا توجد حركات تحصيل في الفترة المحددة</td></tr>`;
+    return `<tr><td colspan="${colSpan}" style="text-align:center;padding:24px;color:var(--text-muted);">لا توجد حركات تحصيل في الفترة المحددة</td></tr>`;
   }
   return seriesList.map(s => `
-    <tr style="border-bottom:1px solid var(--exec-border);">
-      <td style="padding:11px 14px;font-weight:700;color:var(--exec-text);font-family:var(--font-ar);font-size:0.95rem;">${escapeHtml(s.label || s.period)}</td>
-      <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--col-bank);">${fmtVal(s.bank)}</td>
-      <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--col-sister);">${fmtVal(s.sister_company)}</td>
-      ${showOther ? `<td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--col-other);">${fmtVal(s.other_adjustment)}</td>` : ''}
-      <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:800;color:var(--col-total);">${fmtVal(s.total_collected)}</td>
-      <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--col-refund);">${fmtVal(s.credit_notes)}</td>
-      <td style="padding:11px 14px;text-align:center;font-family:var(--font-en);color:var(--exec-text);">${(s.payments_count || 0).toLocaleString('en-US')}</td>
+    <tr style="border-bottom:1px solid var(--border-default);">
+      <td style="padding:10px 14px;font-weight:600;color:var(--text-primary);font-size:13px;">${escapeHtml(s.label || s.period)}</td>
+      <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(s.bank)}</td>
+      <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(s.sister_company)}</td>
+      ${showOther ? `<td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(s.other_adjustment)}</td>` : ''}
+      <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--text-primary);">${fmtVal(s.total_collected)}</td>
+      <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-secondary);">${fmtVal(s.credit_notes)}</td>
+      <td style="padding:10px 14px;text-align:center;font-family:var(--font-en);color:var(--text-secondary);">${(s.payments_count || 0).toLocaleString('en-US')}</td>
     </tr>
   `).join('');
 }
@@ -205,443 +214,378 @@ function renderCollectionsView(topBody, container, data, periodParams, selectedC
   const auditList = data.audit_non_bank_payments || [];
   const auditSummary = data.audit_summary || {};
   const showOther = (cards.other_collected || 0) > 0;
+  const periodLabel = periodParams.years || '2026';
+
+  const bankCollected = cards.bank_collected || 0;
+  const sisterCollected = cards.sister_collected || 0;
+  const totalCollected = cards.total_collected || 0;
+  const otherCollected = cards.other_collected || 0;
+  const bankPct = totalCollected > 0 ? (bankCollected / totalCollected * 100) : 0;
+  const sisterPct = totalCollected > 0 ? (sisterCollected / totalCollected * 100) : 0;
+  const otherPct = totalCollected > 0 ? (otherCollected / totalCollected * 100) : 0;
 
   container.innerHTML = `
-    <!-- Top Action & Info Bar -->
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:4px 0;margin-bottom:4px;">
-      <div style="font-size:0.92rem;color:var(--exec-text-muted);font-weight:600;">
-        ما دخل فعلاً خلال الفترة المحددة عبر قنوات التحصيل وفق قيود تسويات السداد المعتمدة
+    <!-- Tab Header (04-collections-light.png) -->
+    <div class="exec-header-row" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+      <div class="exec-header" style="margin-bottom:0 !important;display:flex;flex-direction:column;gap:4px;">
+        <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+          التحصيل النقدي — <span>${escapeHtml(periodLabel)}</span>
+        </h1>
+        <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+          ما دخل فعلاً خلال الفترة، أيّاً كان تاريخ الفاتورة
+        </p>
       </div>
-      <button id="btn-export-excel-collections" class="btn" style="padding:8px 16px;background:var(--col-total-bg);color:var(--col-total);border:1px solid var(--col-total);border-radius:8px;font-weight:700;font-size:0.9rem;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
-        <span>📥</span> تصدير التحصيل إلى Excel (ورقتان)
+      <button id="btn-export-excel-collections" class="exec-btn-tool" title="تصدير التحصيل إلى Excel" style="background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border-default);padding:8px 16px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+        ${ICONS.excel}
+        تصدير Excel
       </button>
     </div>
 
     <!-- Section 1: «كم حصّلنا؟» -->
-    <div style="display:flex;flex-direction:column;gap:10px;width:100%;box-sizing:border-box;">
+    <div style="display:flex;flex-direction:column;gap:12px;width:100%;">
       <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;">
-        <h2 style="margin:0;font-size:1.35rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-          <span>💰</span> 1. كم حصّلنا؟
+        <h2 class="col-section-title" style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+          <span class="section-num-badge">1</span> كم حصّلنا؟
         </h2>
-        <span style="font-size:0.88rem;color:var(--exec-text-muted);font-weight:600;">
-          ℹ️ المبالغ حسب <strong style="color:var(--col-bank);">تاريخ السداد</strong> بغض النظر عن تاريخ الفاتورة
-        </span>
       </div>
 
-      <!-- KPI Summary Cards -->
-      <div class="bi-kpi-row col-kpi-grid">
-        <!-- Card 1: Total Collected -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-total);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-total);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">💵 إجمالي التحصيل الفعلي</div>
-          <div class="bi-kpi-value" style="color:var(--col-total);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.total_collected, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">${(cards.payments_count || 0).toLocaleString('en-US')} سداداً · ${(cards.invoices_count || 0).toLocaleString('en-US')} فاتورة</div>
+      <!-- KPI Summary Cards (4 or 5 Cards matching 04-collections-light.png) -->
+      <div class="col-kpi-grid ${showOther ? 'has-other' : ''}">
+        <!-- Card 1: HERO (Navy Brand) -->
+        <div class="bi-kpi bi-kpi-card hero col-kpi-card" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="bi-kpi-label">إجمالي التحصيل من العملاء</span>
+            <div class="bi-kpi-value">${fmtVal(cards.total_collected, false)}</div>
+          </div>
+          <div>
+            <div class="col-hero-bar" style="display:flex;width:100%;height:4px;border-radius:2px;overflow:hidden;background:rgba(255,255,255,0.2);margin-bottom:6px;">
+              <div style="width:${bankPct}%;background:#38BDF8;height:100%;"></div>
+              <div style="width:${sisterPct}%;background:#C084FC;height:100%;"></div>
+              ${showOther && otherPct > 0 ? `<div style="width:${otherPct}%;background:#FBBF24;height:100%;"></div>` : ''}
+            </div>
+            <span class="bi-kpi-sub">
+              ${(cards.payments_count || 0).toLocaleString('en-US')} سداداً على ${(cards.invoices_count || 0).toLocaleString('en-US')} فاتورة • حسب تاريخ السداد
+            </span>
+          </div>
         </div>
 
         <!-- Card 2: Bank & Cash -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-bank);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-bank);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">🏦 بنك ونقد</div>
-          <div class="bi-kpi-value" style="color:var(--col-bank);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.bank_collected, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">
-            ${cards.total_collected > 0 ? ((cards.bank_collected / cards.total_collected) * 100).toFixed(1) + '%' : '0%'} من الإجمالي
+        <div class="bi-kpi bi-kpi-card col-kpi-subcard" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="bi-kpi-label" style="display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#1D6AE5;display:inline-block;flex-shrink:0;"></span>
+              بنك ونقد
+            </span>
+            <div class="bi-kpi-value">${fmtVal(cards.bank_collected, false)}</div>
           </div>
+          <span class="bi-kpi-sub">${cards.total_collected > 0 ? ((cards.bank_collected / cards.total_collected) * 100).toFixed(1) + '%' : '0%'} من الإجمالي</span>
         </div>
 
         <!-- Card 3: Sister Company -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-sister);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-sister);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">🏢 عبر شركة شقيقة</div>
-          <div class="bi-kpi-value" style="color:var(--col-sister);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.sister_collected, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.8rem;line-height:1.4;">
-            مبالغ استلمها بنك الشركة الأخرى في المجموعة عن فواتير هذه الشركة — ليست نقدًا إضافيًا
-            <br>
-            <span style="font-weight:600;">${cards.total_collected > 0 ? ((cards.sister_collected / cards.total_collected) * 100).toFixed(1) + '%' : '0%'} من الإجمالي</span>
+        <div class="bi-kpi bi-kpi-card col-kpi-subcard" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="bi-kpi-label" style="display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#7A5AF0;display:inline-block;flex-shrink:0;"></span>
+              عبر شركة شقيقة
+            </span>
+            <div class="bi-kpi-value">${fmtVal(cards.sister_collected, false)}</div>
           </div>
+          <span class="bi-kpi-sub" style="line-height:1.4;">
+            استلمها بنك شركة أخرى في المجموعة — ليست نقداً إضافياً
+          </span>
         </div>
 
         ${showOther ? `
-        <!-- Card 4: Other Adjustments (shown only when > 0) -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-other);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-other);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">🔄 تسويات وقيود أخرى</div>
-          <div class="bi-kpi-value" style="color:var(--col-other);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.other_collected, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">
-            ${cards.total_collected > 0 ? ((cards.other_collected / cards.total_collected) * 100).toFixed(1) + '%' : '0%'} من الإجمالي
+        <!-- Card 4: Other Adjustments (Shown when > 0 so parts sum to hero total) -->
+        <div class="bi-kpi bi-kpi-card col-kpi-subcard" style="display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="bi-kpi-label" style="display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#FBBF24;display:inline-block;flex-shrink:0;"></span>
+              تسويات وقيود أخرى
+            </span>
+            <div class="bi-kpi-value">${fmtVal(cards.other_collected, false)}</div>
           </div>
+          <span class="bi-kpi-sub">${cards.total_collected > 0 ? ((cards.other_collected / cards.total_collected) * 100).toFixed(1) + '%' : '0%'} من الإجمالي</span>
         </div>
         ` : ''}
 
-        <!-- Card: Discounts & Fees (outside collection) -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-discount);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-discount);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">💸 خصومات ورسوم (خارج التحصيل)</div>
-          <div class="bi-kpi-value" style="color:var(--col-discount);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.discount_fees, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">غرامات العقد الموحد وعمولة منصة خبرة</div>
-        </div>
-
-        <!-- Card 5: Credit Notes (outside collection) -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-refund);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-refund);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">🧾 إشعارات دائنة (خارج التحصيل)</div>
-          <div class="bi-kpi-value" style="color:var(--col-refund);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.credit_notes, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">تسويات تسقيط مرتجعات</div>
-        </div>
-
-        <!-- Card 6: Unallocated Payments Balance (Scoped) -->
-        <div class="bi-kpi" style="border-top:3px solid var(--col-unalloc);background:var(--exec-bg-card);border:1px solid var(--exec-border);border-top:3px solid var(--col-unalloc);border-radius:12px;padding:16px;">
-          <div class="bi-kpi-label" style="color:var(--exec-text-muted);font-weight:700;font-size:0.9rem;">⏳ دفعات غير مخصصة لفواتير (عملاء النطاق)</div>
-          <div class="bi-kpi-value" style="color:var(--col-unalloc);font-size:1.5rem;font-weight:800;font-family:var(--font-en);margin:6px 0;">${fmtVal(cards.unallocated_balance, false)}</div>
-          <div class="bi-kpi-sub" style="color:var(--exec-text-muted);font-size:0.82rem;">${(cards.unallocated_lines_count || 0).toLocaleString('en-US')} حركة معلقة (لعملاء النطاق)</div>
+        <!-- Card Outside Collection (Subtle Neutral Card) -->
+        <div class="bi-kpi bi-kpi-card col-outside-card" style="background:var(--bg-subtle);display:flex;flex-direction:column;justify-content:space-between;">
+          <div>
+            <span class="bi-kpi-label" style="color:var(--text-secondary);font-weight:600;">خارج التحصيل (لم يُستلم نقداً)</span>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">إشعارات دائنة</span>
+                <span class="tabular-nums" style="font-size:14px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:visible;text-overflow:clip;">${fmtVal(cards.credit_notes, false)}</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <span style="font-size:12px;color:var(--text-muted);white-space:nowrap;">خصومات ورسوم</span>
+                <span class="tabular-nums" style="font-size:14px;font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:visible;text-overflow:clip;">${fmtVal(cards.discount_fees, false)}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:none;">
+            <span>${fmtVal(cards.unallocated_balance, false)}</span>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Section 2: «متى تم التحصيل؟ (شهرياً / ربعياً / سنوياً)» -->
-    <div class="bi-card" style="padding:22px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:100%;box-sizing:border-box;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
-        <h3 style="margin:0;font-size:1.18rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-          <span>📅</span> 2. متى تم التحصيل؟ (التوزيع الزمني: شهرياً / ربعياً / سنوياً)
-        </h3>
+    <!-- Status Banner (04-collections-light.png) -->
+    <div class="col-status-banner" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-radius:12px;background:var(--status-positive-subtle);border:1px solid var(--status-positive);color:var(--status-positive);font-size:13px;font-weight:600;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        ${ICONS.check}
+        <span>كل دفعات العملاء مربوطة بفواتير${(cards.unallocated_lines_count || 0) > 0 ? `، عدا ${(cards.unallocated_lines_count || 0)} دفعات بقيمة ${fmtVal(cards.unallocated_balance, false)}` : ''}</span>
+      </div>
+      ${(cards.unallocated_lines_count || 0) > 0 ? `
+        <button id="btn-col-toggle-unallocated" style="background:none;border:none;color:var(--brand-accent);font-size:13px;font-weight:600;cursor:pointer;padding:0;font-family:var(--font-ar);">
+          عرض الدفعات (${cards.unallocated_lines_count || 0})
+        </button>
+      ` : ''}
+    </div>
+
+    <!-- Section 2: «متى حصّلنا؟» -->
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <h3 style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+            <span class="section-num-badge">2</span> متى حصّلنا؟
+          </h3>
+          <span style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            بالمليون ريال • أكتوبر جارٍ وغير مكتمل
+          </span>
+        </div>
+
         <!-- Time grain toggle -->
-        <div style="display:inline-flex;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;padding:3px;">
-          <button class="col-grain-btn ${currentTimeGrain==='month'?'active':''}" data-grain="month" style="padding:6px 14px;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;background:${currentTimeGrain==='month'?'var(--col-bank)':'transparent'};color:${currentTimeGrain==='month'?'#ffffff':'var(--exec-text-muted)'};">شهرياً</button>
-          <button class="col-grain-btn ${currentTimeGrain==='quarter'?'active':''}" data-grain="quarter" style="padding:6px 14px;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;background:${currentTimeGrain==='quarter'?'var(--col-bank)':'transparent'};color:${currentTimeGrain==='quarter'?'#ffffff':'var(--exec-text-muted)'};">ربع سنوي</button>
-          <button class="col-grain-btn ${currentTimeGrain==='year'?'active':''}" data-grain="year" style="padding:6px 14px;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;background:${currentTimeGrain==='year'?'var(--col-bank)':'transparent'};color:${currentTimeGrain==='year'?'#ffffff':'var(--exec-text-muted)'};">سنوياً</button>
+        <div style="display:inline-flex;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;padding:3px;">
+          <button class="col-grain-btn ${currentTimeGrain==='month'?'active':''}" data-grain="month" style="padding:6px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:${currentTimeGrain==='month'?'var(--brand-primary)':'transparent'};color:${currentTimeGrain==='month'?'var(--text-on-brand)':'var(--text-secondary)'};">شهري</button>
+          <button class="col-grain-btn ${currentTimeGrain==='quarter'?'active':''}" data-grain="quarter" style="padding:6px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:${currentTimeGrain==='quarter'?'var(--brand-primary)':'transparent'};color:${currentTimeGrain==='quarter'?'var(--text-on-brand)':'var(--text-secondary)'};">ربع سنوي</button>
+          <button class="col-grain-btn ${currentTimeGrain==='year'?'active':''}" data-grain="year" style="padding:6px 14px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:${currentTimeGrain==='year'?'var(--brand-primary)':'transparent'};color:${currentTimeGrain==='year'?'var(--text-on-brand)':'var(--text-secondary)'};">سنوي</button>
         </div>
       </div>
 
-      <!-- Visual Stacked Bar Chart -->
-      <div style="margin-bottom:20px;padding:16px;background:var(--exec-bg-card);border-radius:12px;border:1px solid var(--exec-border);width:100%;box-sizing:border-box;">
-        <div style="display:flex;align-items:center;justify-content:flex-end;gap:18px;margin-bottom:12px;font-size:0.82rem;font-weight:600;color:var(--exec-text);">
-          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:var(--col-bank);border-radius:3px;display:inline-block;"></span> بنك ونقد</span>
-          <span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:var(--col-sister);border-radius:3px;display:inline-block;"></span> عبر شركة شقيقة</span>
-          ${showOther ? `<span style="display:flex;align-items:center;gap:6px;"><span style="width:12px;height:12px;background:var(--col-other);border-radius:3px;display:inline-block;"></span> تسويات أخرى</span>` : ''}
-        </div>
-        <div id="col-chart-box" data-scroll-x="true" style="overflow-x:auto;">
-          ${renderStackedBarChart(getAggregatedSeries(series, currentTimeGrain), showOther)}
-        </div>
+      <!-- Stacked Bar Chart -->
+      <div id="col-chart-box" data-scroll-x="true" style="overflow-x:auto;">
+        ${renderStackedBarChart(getAggregatedSeries(series, currentTimeGrain), showOther)}
       </div>
 
       <!-- Periodic Series Table -->
-      <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.95rem;">
+      <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;margin-top:10px;border-top:1px solid var(--border-default);padding-top:12px;">
+        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-              <th style="padding:12px 14px;text-align:right;color:var(--exec-text);">الفترة</th>
-              <th style="padding:12px 14px;text-align:left;color:var(--col-bank);">🏦 بنك ونقد</th>
-              <th style="padding:12px 14px;text-align:left;color:var(--col-sister);">🏢 عبر شركة شقيقة</th>
-              ${showOther ? `<th style="padding:12px 14px;text-align:left;color:var(--col-other);">🔄 تسويات أخرى</th>` : ''}
-              <th style="padding:12px 14px;text-align:left;color:var(--col-total);font-weight:800;">💵 إجمالي التحصيل</th>
-              <th style="padding:12px 14px;text-align:left;color:var(--col-refund);">🧾 إشعارات دائنة</th>
-              <th style="padding:12px 14px;text-align:center;color:var(--exec-text);">عدد السدادات</th>
+            <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+              <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">الفترة</th>
+              <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">بنك ونقد</th>
+              <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">عبر شركة شقيقة</th>
+              ${showOther ? `<th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">تسويات أخرى</th>` : ''}
+              <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">إجمالي التحصيل</th>
+              <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">إشعارات دائنة</th>
+              <th style="padding:10px 14px;text-align:center;color:var(--text-secondary);font-size:12px;font-weight:600;">عدد السدادات</th>
             </tr>
           </thead>
           <tbody id="col-series-tbody">
             ${renderPeriodicTableRows(getAggregatedSeries(series, currentTimeGrain), showOther)}
           </tbody>
           <tfoot>
-            <tr style="background:var(--exec-bg-card);font-weight:800;border-top:2px solid var(--exec-border);">
-              <td style="padding:14px;color:var(--exec-text);">المجموع الإجمالي</td>
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-bank);">${fmtVal(cards.bank_collected, false)}</td>
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-sister);">${fmtVal(cards.sister_collected, false)}</td>
-              ${showOther ? `<td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-other);">${fmtVal(cards.other_collected, false)}</td>` : ''}
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-total);">${fmtVal(cards.total_collected, false)}</td>
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-refund);">${fmtVal(cards.credit_notes, false)}</td>
-              <td style="padding:14px;text-align:center;font-family:var(--font-en);color:var(--exec-text);">${(cards.payments_count || 0).toLocaleString('en-US')}</td>
+            <tr style="background:var(--bg-subtle);font-weight:700;border-top:2px solid var(--border-default);">
+              <td style="padding:12px 14px;color:var(--text-primary);">المجموع الإجمالي</td>
+              <td style="padding:12px 14px;text-align:left;color:var(--text-primary);">${fmtVal(cards.bank_collected, false)}</td>
+              <td style="padding:12px 14px;text-align:left;color:var(--text-primary);">${fmtVal(cards.sister_collected, false)}</td>
+              ${showOther ? `<td style="padding:12px 14px;text-align:left;color:var(--text-primary);">${fmtVal(cards.other_collected, false)}</td>` : ''}
+              <td style="padding:12px 14px;text-align:left;color:var(--text-primary);">${fmtVal(cards.total_collected, false)}</td>
+              <td style="padding:12px 14px;text-align:left;color:var(--text-primary);">${fmtVal(cards.credit_notes, false)}</td>
+              <td style="padding:12px 14px;text-align:center;color:var(--text-primary);">${(cards.payments_count || 0).toLocaleString('en-US')}</td>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
 
-    <!-- Section 3: «من أي سنوات فواتير؟ (عمر المديونية المحصلة)» -->
-    <div class="bi-card" style="padding:22px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:100%;box-sizing:border-box;">
-      <div style="margin-bottom:16px;">
-        <h3 style="margin:0 0 6px 0;font-size:1.18rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-          <span>🗓️</span> 3. من أي سنوات فواتير؟ (عمر المديونية المحصلة)
+    <!-- Section 3: «من فواتير أي سنة؟» -->
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <h3 style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+          <span class="section-num-badge">3</span> من فواتير أي سنة؟ <span style="font-size:12px;color:var(--text-muted);font-weight:normal;">(سنوات فواتير العملاء)</span>
         </h3>
-        <span style="font-size:0.86rem;color:var(--exec-text-muted);">
-          يوضّح هذا الجدول كم من أموال الفترة حُصّلت لسداد فواتير سنوات سابقة مقابل فواتير السنة الحالية
+        <span style="font-size:12px;line-height:18px;color:var(--text-muted);">
+          تحصيل الفترة موزّعاً على سنة إصدار الفاتورة — يُظهر تحصيل المتأخرات · كل رقم يفتح سداداته
         </span>
       </div>
 
       <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.95rem;">
-          <thead>
-            <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-              <th style="padding:12px 14px;text-align:right;color:var(--exec-text);">سنة الفاتورة</th>
-              ${extractCompanyHeaders(byInvYear).map(h => `<th style="padding:12px 14px;text-align:left;color:var(--exec-text);">${escapeHtml(h)}</th>`).join('')}
-              <th style="padding:12px 14px;text-align:left;color:var(--col-total);font-weight:800;">إجمالي التحصيل في الفترة</th>
-              <th style="padding:12px 14px;text-align:center;color:var(--exec-text);">النسبة</th>
-              <th style="padding:12px 14px;text-align:left;color:var(--col-refund);">إشعارات دائنة</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${byInvYear.length === 0 ? `
-              <tr><td colspan="6" style="text-align:center;padding:24px;color:var(--exec-text-muted);">لا توجد بيانات لسنة الفاتورة</td></tr>
-            ` : byInvYear.map(row => {
-              const coHeaders = extractCompanyHeaders(byInvYear);
-              return `
-                <tr style="border-bottom:1px solid var(--exec-border);">
-                  <td style="padding:11px 14px;font-family:var(--font-en);font-weight:700;color:var(--col-bank);">${escapeHtml(row.invoice_year || 'غير محدد')}</td>
-                  ${coHeaders.map(ch => `
-                    <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);color:var(--exec-text);">
-                      ${fmtVal(row.companies[ch] || 0)}
-                    </td>
-                  `).join('')}
-                  <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:800;color:var(--col-total);">${fmtVal(row.total)}</td>
-                  <td style="padding:11px 14px;text-align:center;font-family:var(--font-en);font-weight:700;color:var(--exec-text);">${row.pct_of_total}%</td>
-                  <td style="padding:11px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--col-refund);">${fmtVal(row.credit_notes)}</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-          <tfoot>
-            <tr style="background:var(--exec-bg-card);font-weight:800;border-top:2px solid var(--exec-border);">
-              <td style="padding:14px;color:var(--exec-text);">المجموع</td>
-              ${extractCompanyHeaders(byInvYear).map(ch => {
-                const sumCo = byInvYear.reduce((acc, r) => acc + (r.companies[ch] || 0), 0);
-                return `<td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--exec-text);">${fmtVal(sumCo, false)}</td>`;
-              }).join('')}
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-total);">${fmtVal(cards.total_collected, false)}</td>
-              <td style="padding:14px;text-align:center;font-family:var(--font-en);color:var(--exec-text);">100%</td>
-              <td style="padding:14px;text-align:left;font-family:var(--font-en);color:var(--col-refund);">${fmtVal(cards.credit_notes, false)}</td>
-            </tr>
-          </tfoot>
-        </table>
+        ${renderByInvoiceYearTable(byInvYear, cards, periodParams)}
       </div>
     </div>
 
-    <!-- Section 4: «أين تم التحصيل؟ (حسب الدفتر والعميل)» -->
-    <div class="bi-card" style="padding:22px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:100%;box-sizing:border-box;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
-        <h3 style="margin:0;font-size:1.18rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-          <span>🌳</span> 4. أين تم التحصيل؟ (حسب الدفتر والعميل)
-        </h3>
-        
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <!-- Section 4: «من أي مجموعة ومركز وعميل؟» -->
+    <div class="exec-table-card">
+      <div class="exec-table-toolbar">
+        <div class="exec-table-titles">
+          <h3 class="exec-table-title" style="display:flex;align-items:center;gap:8px;">
+            <span class="section-num-badge">4</span> من أي مجموعة ومركز وعميل؟
+          </h3>
+          <span class="exec-table-breadcrumb">الشركة ← المجموعة ← مركز التكلفة ← العميل ← السداد</span>
+        </div>
+
+        <div class="exec-table-actions">
           <!-- Search box -->
-          <div style="position:relative;display:inline-flex;align-items:center;">
-            <input type="text" id="col-client-search" placeholder="بحث…" value="${escapeHtml(clientSearchQuery)}" style="background:var(--exec-bg-card);color:var(--exec-text);border:1px solid var(--exec-border);padding:7px 28px 7px 12px;border-radius:8px;font-size:0.88rem;outline:none;width:190px;">
-            <button id="btn-col-clear-search" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--exec-text-muted);cursor:pointer;display:none;font-size:0.85rem;">✕</button>
-            <span id="col-search-counter" style="display:none;font-size:0.75rem;padding:2px 8px;border-radius:10px;margin-right:6px;font-weight:700;"></span>
+          <div class="exec-search-wrap">
+            <input type="text" id="col-client-search" class="exec-search-input" placeholder="بحث…" value="${escapeHtml(clientSearchQuery)}" />
+            <button id="btn-col-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+            <span class="exec-search-icon">${ICONS.search}</span>
           </div>
+          <span id="col-search-counter" style="display:none;font-size:12px;color:var(--text-muted);font-weight:600;"></span>
 
           <!-- View Mode Toggle -->
-          <div style="display:inline-flex;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:10px;padding:3px;">
-            <button class="col-view-btn ${currentViewMode==='tree'?'active':''}" data-mode="tree" style="padding:6px 14px;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;background:${currentViewMode==='tree'?'var(--col-bank)':'transparent'};color:${currentViewMode==='tree'?'#ffffff':'var(--exec-text-muted)'};">
-              الهرمي (الشركة ← المجموعة ← الدفتر ← العميل)
+          <div style="display:inline-flex;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;padding:3px;">
+            <button class="col-view-btn ${currentViewMode==='tree'?'active':''}" data-mode="tree" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:${currentViewMode==='tree'?'var(--brand-primary)':'transparent'};color:${currentViewMode==='tree'?'var(--text-on-brand)':'var(--text-secondary)'};">
+              الهرمي
             </button>
-            <button class="col-view-btn ${currentViewMode==='direct'?'active':''}" data-mode="direct" style="padding:6px 14px;border:none;border-radius:8px;font-size:0.85rem;font-weight:700;cursor:pointer;background:${currentViewMode==='direct'?'var(--col-bank)':'transparent'};color:${currentViewMode==='direct'?'#ffffff':'var(--exec-text-muted)'};">
-              العملاء مباشرة (مرتّب تنازلياً)
+            <button class="col-view-btn ${currentViewMode==='direct'?'active':''}" data-mode="direct" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;background:${currentViewMode==='direct'?'var(--brand-primary)':'transparent'};color:${currentViewMode==='direct'?'var(--text-on-brand)':'var(--text-secondary)'};">
+              العملاء مباشرة
             </button>
           </div>
         </div>
       </div>
 
       <!-- Container for TreeTable or Direct Table -->
-      <div id="col-tree-container" data-scroll-x="true" style="${currentViewMode==='tree'?'display:block;':'display:none;'}width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;"></div>
-      <div id="col-direct-container" data-scroll-x="true" style="${currentViewMode==='direct'?'display:block;':'display:none;'}width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;">
+      <div id="col-tree-container" class="tree-table-wrap" data-scroll-x="true" style="${currentViewMode==='tree'?'display:block;':'display:none;'}overflow-x:auto;width:100%;box-sizing:border-box;"></div>
+      <div id="col-direct-container" class="tree-table-wrap" data-scroll-x="true" style="${currentViewMode==='direct'?'display:block;':'display:none;'}overflow-x:auto;width:100%;box-sizing:border-box;">
         ${renderDirectClientsTable(clientsDirect, clientSearchQuery, showOther)}
       </div>
     </div>
 
     <!-- Section 5: «هل توجد دفعات من العملاء لم تُربط بفواتير؟ (المقارنة الرقابية وإثبات المطابقة)» -->
-    <div class="bi-card" style="padding:22px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:100%;box-sizing:border-box;">
-      <div style="margin-bottom:16px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-          <h3 style="margin:0;font-size:1.18rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-            <span>⚖️</span> 5. هل توجد دفعات من العملاء لم تُربط بفواتير؟ (المقارنة الرقابية وإثبات المطابقة)
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div id="col-sec5-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;cursor:pointer;user-select:none;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <h3 style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+            <span class="section-num-badge">5</span> هل توجد دفعات من العملاء لم تُربط بفواتير؟ (المقارنة الرقابية وإثبات المطابقة)
           </h3>
-          <span style="font-size:0.85rem;padding:4px 12px;border-radius:8px;background:${comparison.status === 'matched' ? 'var(--col-matched-bg)' : 'var(--col-diff-bg)'};color:${comparison.status === 'matched' ? 'var(--col-matched)' : 'var(--col-diff)'};font-weight:700;">
-            ${comparison.status === 'matched' ? '✓ مطابق تماماً بالهللة' : `فارق: ${(comparison.diff || 0).toLocaleString('en-US')} ر.س`}
+          <span style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            يطابق هذا القسم إجمالي الحركات الدائنة على حسابات العملاء مع مجموع ما خُصص لفواتير هذا النطاق
           </span>
         </div>
-        <p style="margin:8px 0 0 0;font-size:0.86rem;color:var(--exec-text-muted);line-height:1.5;">
-          يطابق هذا القسم إجمالي الحركات الدائنة على حسابات العملاء في دفتر اليومية العام (باستثناء سطور الإشعارات الدائنة) مع مجموع ما خُصص لفواتير هذا النطاق، ومخصص الدفاتر الأخرى، والدفعات غير المخصصة.
-        </p>
-      </div>
-
-      <!-- Reconciliation Equation Bar (6 Balanced Cards) -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:14px;margin-bottom:14px;width:100%;box-sizing:border-box;">
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:12px;">
-          <div style="font-size:0.85rem;color:var(--exec-text-muted);margin-bottom:6px;">إجمالي دائن العملاء (الدفتر العام)</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:var(--col-bank);">
-            ${(comparison.total_credit_movements || 0).toLocaleString('en-US')}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">كامل حركات دائن ذمم عملاء النطاق</div>
-        </div>
-
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid var(--col-total);border-radius:12px;">
-          <div style="font-size:0.85rem;color:var(--col-total);margin-bottom:6px;">= مخصّص لفواتير النطاق المختار</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:var(--col-total);">
-            ${(comparison.allocated_in_scope || 0).toLocaleString('en-US')}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">تحصيل فواتير هذا التقرير</div>
-        </div>
-
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid var(--col-discount);border-radius:12px;">
-          <div style="font-size:0.85rem;color:var(--col-discount);margin-bottom:6px;">+ خصومات ورسوم</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:var(--col-discount);">
-            ${(comparison.discount_fees || 0).toLocaleString('en-US')}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">غرامات العقد ومنصة خبرة</div>
-        </div>
-
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid var(--col-sister);border-radius:12px;">
-          <div style="font-size:0.85rem;color:var(--col-sister);margin-bottom:6px;">+ مخصّص لدفاتر أخرى خارج النطاق</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:var(--col-sister);">
-            ${(comparison.allocated_other_journals || 0).toLocaleString('en-US')}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">سدادات فواتير تابعة لدفاتر أخرى</div>
-        </div>
-
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid var(--col-unalloc);border-radius:12px;">
-          <div style="font-size:0.85rem;color:var(--col-unalloc);margin-bottom:6px;">+ دفعات غير مخصصة (معلّق)</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:var(--col-unalloc);">
-            ${(comparison.unallocated || 0).toLocaleString('en-US')}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">دفعات لم تُربط بفواتير في أودو</div>
-        </div>
-
-        <div style="padding:16px;background:var(--exec-bg-card);border:1px solid ${comparison.diff > 0.01 ? 'var(--col-diff)' : 'var(--col-matched)'};border-radius:12px;">
-          <div style="font-size:0.85rem;color:${comparison.diff > 0.01 ? 'var(--col-diff)' : 'var(--col-matched)'};margin-bottom:6px;">+ فروقات غير مفسرة</div>
-          <div style="font-size:1.35rem;font-weight:800;font-family:var(--font-en);color:${comparison.diff > 0.01 ? 'var(--col-diff)' : 'var(--col-matched)'};">
-            ${comparison.diff > 0.01 ? (comparison.diff || 0).toLocaleString('en-US') : '0'}
-          </div>
-          <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:4px;">${comparison.diff > 0.01 ? 'فرق بحاجة لمعاينة القيود' : '✓ مطابقة تامة بالهللة'}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:12px;padding:4px 12px;border-radius:8px;background:${comparison.status === 'matched' ? 'var(--status-positive-subtle)' : 'var(--status-negative-subtle)'};color:${comparison.status === 'matched' ? 'var(--status-positive)' : 'var(--status-negative)'};font-weight:600;">
+            ${comparison.status === 'matched' ? '✓ مطابق تماماً بالهللة' : `فارق: ${(comparison.diff || 0).toLocaleString('en-US')} ر.س`}
+          </span>
+          <span id="col-sec5-toggle-icon" style="color:var(--text-muted);font-size:12px;">${isSec5Open ? '▲' : '▼'}</span>
         </div>
       </div>
 
-      <!-- Explicit Accounting Equation Note -->
-      <div style="margin-bottom:16px;padding:12px 16px;background:var(--col-bank-bg);border:1px solid var(--col-bank);border-radius:10px;font-size:0.88rem;color:var(--exec-text);line-height:1.6;">
-        📐 <strong>إثبات المطابقة والمعادلة المحاسبية:</strong>
-        <span style="font-family:var(--font-en);font-weight:600;margin-right:6px;direction:ltr;display:inline-block;">
-          ${escapeHtml(comparison.equation_note || 'إجمالي الدائن (حركات القيود باستثناء الإشعارات) = مخصص لفواتير النطاق + خصومات ورسوم + مخصص لدفاتر أخرى + دفعات غير مخصصة + فروقات غير مفسرة')}
-        </span>
-      </div>
-
-      <!-- Unallocated Moves List if exists -->
-      ${comparison.unallocated_moves && comparison.unallocated_moves.length > 0 ? `
-        <div style="margin-top:16px;border-top:1px solid var(--exec-border);padding-top:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-weight:700;font-size:0.92rem;color:var(--exec-text);">
-              ⏳ تفصيل القيود والدفعات غير المخصصة (${comparison.unallocated_moves.length} حركة):
+      <div id="col-sec5-body" style="display:${isSec5Open ? 'flex' : 'none'};flex-direction:column;gap:16px;border-top:1px solid var(--border-default);padding-top:16px;">
+        <!-- Reconciliation Equation Bar (6 Balanced Cards) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));gap:12px;width:100%;box-sizing:border-box;">
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">إجمالي دائن العملاء (الدفتر العام)</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:var(--text-primary);">
+              ${(comparison.total_credit_movements || 0).toLocaleString('en-US')}
             </div>
-            <span style="font-size:0.8rem;color:var(--exec-text-muted);">قيود سداد مسجلة بحساب العميل ولم تُربط بفواتير</span>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">كامل حركات دائن ذمم عملاء النطاق</div>
           </div>
-          <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;max-height:280px;box-sizing:border-box;">
-            <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.86rem;">
-              <thead style="position:sticky;top:0;background:var(--exec-bg-card);z-index:5;">
-                <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-                  <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">قيد السداد</th>
-                  <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">التاريخ</th>
-                  <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">الشركة</th>
-                  <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">اسم العميل</th>
-                  <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">نوع الحركة</th>
-                  <th style="padding:8px 10px;text-align:left;color:var(--exec-text);">المبلغ غير المخصص</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${comparison.unallocated_moves.slice(0, 50).map(m => `
-                  <tr style="border-bottom:1px solid var(--exec-border);">
-                    <td style="padding:8px 10px;font-family:var(--font-en);font-weight:700;color:var(--col-bank);">${escapeHtml(m.move_name)}</td>
-                    <td style="padding:8px 10px;font-family:var(--font-en);color:var(--exec-text-muted);">${escapeHtml(m.date)}</td>
-                    <td style="padding:8px 10px;color:var(--exec-text-muted);">${escapeHtml(m.company_name)}</td>
-                    <td style="padding:8px 10px;font-weight:600;color:var(--exec-text);">${escapeHtml(m.partner_name)}</td>
-                    <td style="padding:8px 10px;font-size:0.8rem;color:var(--exec-text-muted);">${escapeHtml(m.type_label || (m.is_partial ? 'متبقي غير مخصص' : 'دفعة كاملة'))}</td>
-                    <td style="padding:8px 10px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--col-other);">${fmtVal(m.amount, false)}</td>
+
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;">
+            <div style="font-size:12px;color:var(--brand-accent);margin-bottom:4px;">= مخصّص لفواتير النطاق المختار</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:var(--text-primary);">
+              ${(comparison.allocated_in_scope || 0).toLocaleString('en-US')}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">تحصيل فواتير هذا التقرير</div>
+          </div>
+
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">+ خصومات ورسوم</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:var(--text-primary);">
+              ${(comparison.discount_fees || 0).toLocaleString('en-US')}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">غرامات العقد ومنصة خبرة</div>
+          </div>
+
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">+ مخصّص لدفاتر أخرى خارج النطاق</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:var(--text-primary);">
+              ${(comparison.allocated_other_journals || 0).toLocaleString('en-US')}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">سدادات فواتير تابعة لدفاتر أخرى</div>
+          </div>
+
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:10px;">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">+ دفعات غير مخصصة (معلّق)</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:var(--text-primary);">
+              ${(comparison.unallocated || 0).toLocaleString('en-US')}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">دفعات لم تُربط بفواتير في أودو</div>
+          </div>
+
+          <div style="padding:14px;background:var(--bg-subtle);border:1px solid ${comparison.diff > 0.01 ? 'var(--status-negative)' : 'var(--status-positive)'};border-radius:10px;">
+            <div style="font-size:12px;color:${comparison.diff > 0.01 ? 'var(--status-negative)' : 'var(--status-positive)'};margin-bottom:4px;">+ فروقات غير مفسرة</div>
+            <div style="font-size:18px;font-weight:700;font-family:var(--font-en);color:${comparison.diff > 0.01 ? 'var(--status-negative)' : 'var(--status-positive)'};">
+              ${comparison.diff > 0.01 ? (comparison.diff || 0).toLocaleString('en-US') : '0'}
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${comparison.diff > 0.01 ? 'فرق بحاجة لمعاينة القيود' : '✓ مطابقة تامة بالهللة'}</div>
+          </div>
+        </div>
+
+        <!-- Explicit Accounting Equation Note -->
+        <div style="padding:10px 14px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.5;">
+          📐 <strong>إثبات المطابقة والمعادلة المحاسبية:</strong>
+          <span style="font-family:var(--font-en);margin-right:6px;direction:ltr;display:inline-block;">
+            ${escapeHtml(comparison.equation_note || 'إجمالي الدائن (حركات القيود باستثناء الإشعارات) = مخصص لفواتير النطاق + خصومات ورسوم + مخصص لدفاتر أخرى + دفعات غير مخصصة + فروقات غير مفسرة')}
+          </span>
+        </div>
+
+        <!-- Unallocated Moves List if exists -->
+        ${comparison.unallocated_moves && comparison.unallocated_moves.length > 0 ? `
+          <div style="border-top:1px solid var(--border-default);padding-top:12px;">
+            <div style="font-weight:600;font-size:13px;color:var(--text-primary);margin-bottom:8px;">
+              تفصيل القيود والدفعات غير المخصصة (${comparison.unallocated_moves.length} حركة):
+            </div>
+            <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;max-height:280px;box-sizing:border-box;">
+              <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:12px;">
+                <thead>
+                  <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+                    <th style="padding:8px 10px;text-align:right;">قيد السداد</th>
+                    <th style="padding:8px 10px;text-align:right;">التاريخ</th>
+                    <th style="padding:8px 10px;text-align:right;">الشركة</th>
+                    <th style="padding:8px 10px;text-align:right;">اسم العميل</th>
+                    <th style="padding:8px 10px;text-align:right;">نوع الحركة</th>
+                    <th style="padding:8px 10px;text-align:left;">المبلغ غير المخصص</th>
                   </tr>
-                `).join('')}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  ${comparison.unallocated_moves.slice(0, 50).map(m => `
+                    <tr style="border-bottom:1px solid var(--border-default);">
+                      <td style="padding:8px 10px;font-family:var(--font-en);font-weight:600;color:var(--text-primary);">${escapeHtml(m.move_name)}</td>
+                      <td style="padding:8px 10px;font-family:var(--font-en);color:var(--text-secondary);">${escapeHtml(m.date)}</td>
+                      <td style="padding:8px 10px;color:var(--text-secondary);">${escapeHtml(m.company_name)}</td>
+                      <td style="padding:8px 10px;font-weight:500;color:var(--text-primary);">${escapeHtml(m.partner_name)}</td>
+                      <td style="padding:8px 10px;color:var(--text-secondary);">${escapeHtml(m.type_label || (m.is_partial ? 'متبقي غير مخصص' : 'دفعة كاملة'))}</td>
+                      <td style="padding:8px 10px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--text-primary);">${fmtVal(m.amount, false)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      ` : ''}
-
-      <!-- Other Journals Breakdown Table if exists -->
-      ${comparison.other_journals_breakdown && comparison.other_journals_breakdown.length > 0 ? `
-        <div style="margin-top:16px;border-top:1px solid var(--exec-border);padding-top:14px;">
-          <div style="font-weight:700;font-size:0.92rem;color:var(--exec-text);margin-bottom:8px;">
-            📑 تفصيل المبالغ المسددة لدفاتر أخرى خارج هذا النطاق (${comparison.other_journals_breakdown.length} دفتر):
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            ${comparison.other_journals_breakdown.map(j => `
-              <div style="padding:6px 12px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:8px;font-size:0.85rem;">
-                <span style="color:var(--exec-text);">${escapeHtml(j.journal_name)}:</span>
-                <strong style="color:var(--col-sister);font-family:var(--font-en);margin-right:6px;">${fmtVal(j.amount, false)}</strong>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- Subtle Explanatory Note -->
-      <div style="font-size:0.8rem;color:var(--exec-text-muted);margin-top:14px;padding-top:10px;border-top:1px dashed var(--exec-border);display:flex;align-items:center;gap:6px;">
-        <span>ℹ️</span> <span>استُبعدت حركات أطراف ليسوا عملاء (شركات شقيقة وموظفون)</span>
+        ` : ''}
       </div>
     </div>
 
-    <!-- Section 6: «ما هي السدادات خارج بنك الشركة؟ (رقابة المقبوضات)» -->
-    <div class="bi-card" style="padding:22px;background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:100%;box-sizing:border-box;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
-        <div>
-          <h3 style="margin:0 0 4px 0;font-size:1.18rem;font-weight:800;color:var(--exec-text);display:flex;align-items:center;gap:8px;">
-            <span>🛡️</span> 6. ما هي السدادات خارج بنك الشركة؟ (رقابة المقبوضات)
+    <!-- Section 6: «ما الذي لم يدخل بنك الشركة؟» -->
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:20px;display:flex;flex-direction:column;gap:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <h3 style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+            <span class="section-num-badge">6</span> ما الذي لم يدخل بنك الشركة؟ <span style="font-size:12px;color:var(--text-muted);font-weight:normal;">(سدادات خارج بنك الشركة)</span>
           </h3>
-          <span style="font-size:0.86rem;color:var(--exec-text-muted);">
-            قائمة رقابية تفصيلية بكافة المقبوضات التي دخلت عبر شركات شقيقة أو قيود تسوية دون المرور بحساب بنك الشركة
+          <span style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            مبالغ استلمها بنك شركة أخرى في المجموعة عن فواتير هذه الشركة — مع القيد البنكي المقابل
           </span>
-        </div>
-        <div style="text-align:left;">
-          <span style="font-size:0.85rem;color:var(--exec-text-muted);">الإجمالي: </span>
-          <strong style="font-size:1.15rem;color:var(--col-other);font-family:var(--font-en);">${fmtVal(auditSummary.total_non_bank_amount, false)} ر.س</strong>
-          <span style="font-size:0.8rem;color:var(--exec-text-muted);margin-right:8px;">(${auditSummary.transactions_count || 0} عملية)</span>
         </div>
       </div>
 
       <div data-scroll-x="true" style="width:100%;max-width:100%;overflow-x:auto;max-height:450px;box-sizing:border-box;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.88rem;">
-          <thead style="position:sticky;top:0;background:var(--exec-bg-card);z-index:10;">
-            <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">قيد السداد</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">التاريخ</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">العميل</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">الشركة</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">البيان / الملاحظات</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">دفتر القيد</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">القناة</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">الحساب المقابل / الشريك</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">القيد البنكي المقابل</th>
-              <th style="padding:10px 12px;text-align:right;color:var(--exec-text);">الفاتورة المسددة</th>
-              <th style="padding:10px 12px;text-align:left;color:var(--exec-text);">المبلغ</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${auditList.length === 0 ? `
-              <tr><td colspan="11" style="text-align:center;padding:24px;color:var(--exec-text-muted);">✓ لا توجد سدادات خارج بنك الشركة في هذا النطاق</td></tr>
-            ` : auditList.map(item => `
-              <tr style="border-bottom:1px solid var(--exec-border);">
-                <td style="padding:9px 12px;font-family:var(--font-en);font-weight:700;color:var(--col-bank);">${escapeHtml(item.payment_move_name)}</td>
-                <td style="padding:9px 12px;font-family:var(--font-en);color:var(--exec-text-muted);">${escapeHtml(item.payment_date)}</td>
-                <td style="padding:9px 12px;font-weight:600;color:var(--exec-text);">${escapeHtml(item.partner_name)}</td>
-                <td style="padding:9px 12px;color:var(--exec-text-muted);">${escapeHtml(item.company_name)}</td>
-                <td style="padding:9px 12px;color:var(--exec-text-muted);font-size:0.84rem;">${escapeHtml(item.payment_label || '—')}</td>
-                <td style="padding:9px 12px;color:var(--exec-text-muted);">${escapeHtml(item.payment_journal_name)}</td>
-                <td style="padding:9px 12px;">
-                  <span style="padding:2px 8px;border-radius:4px;font-size:0.75rem;background:${item.channel === 'sister_company' ? 'var(--col-sister-bg)' : 'var(--col-other-bg)'};color:${item.channel === 'sister_company' ? 'var(--col-sister)' : 'var(--col-other)'};">
-                    ${escapeHtml(item.channel_label)}
-                  </span>
-                </td>
-                <td style="padding:9px 12px;color:var(--exec-text);font-size:0.84rem;">
-                  ${item.sister_company_name ? `🏢 <strong style="color:var(--col-sister);">${escapeHtml(item.sister_company_name)}</strong><br>` : ''}
-                  <span style="font-family:var(--font-en);color:var(--exec-text-muted);">${escapeHtml(item.counterpart_account_code)}</span> ${escapeHtml(item.counterpart_account_name || '')}
-                  ${item.counterpart_partner_name && item.counterpart_partner_name !== item.sister_company_name ? `<br><small style="color:var(--exec-text-muted);">${escapeHtml(item.counterpart_partner_name)}</small>` : ''}
-                </td>
-                <td style="padding:9px 12px;font-family:var(--font-en);font-weight:600;color:${item.counterpart_bank_move === 'لا مقابل' ? 'var(--col-refund)' : 'var(--col-bank)'};">
-                  ${escapeHtml(item.counterpart_bank_move || '—')}
-                </td>
-                <td style="padding:9px 12px;font-family:var(--font-en);color:var(--col-bank);">${escapeHtml(item.invoice_name)}</td>
-                <td style="padding:9px 12px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--col-other);">${fmtVal(item.amount, false)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        ${renderAuditNonBankTable(auditList, auditSummary)}
       </div>
     </div>
   `;
@@ -653,25 +597,21 @@ function renderCollectionsView(topBody, container, data, periodParams, selectedC
   setupCollectionsEvents(topBody, container, data, periodParams, selectedCos, topContainer, timeFilter, globalFilters);
 }
 
-function extractCompanyHeaders(byInvYear) {
-  const cos = new Set();
-  for (const r of byInvYear) {
-    if (r.companies) {
-      for (const k of Object.keys(r.companies)) cos.add(k);
-    }
-  }
-  return Array.from(cos);
-}
-
 function renderStackedBarChart(series, showOther = true) {
   if (!series || series.length === 0) {
-    return `<div style="text-align:center;padding:20px;color:var(--exec-text-muted);">لا توجد حركات تحصيل للعرض البياني</div>`;
+    return `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">لا توجد حركات تحصيل للعرض البياني</div>`;
   }
+
+  const ARABIC_MONTHS = {
+    '01': 'يناير', '02': 'فبراير', '03': 'مارس', '04': 'أبريل',
+    '05': 'مايو', '06': 'يونيو', '07': 'يوليو', '08': 'أغسطس',
+    '09': 'سبتمبر', '10': 'أكتوبر (جارٍ)', '11': 'نوفمبر', '12': 'ديسمبر'
+  };
 
   const maxVal = Math.max(...series.map(s => s.total_collected || 1), 1);
 
   return `
-    <div style="display:flex;align-items:flex-end;gap:12px;height:140px;padding-top:20px;overflow-x:auto;">
+    <div style="display:flex;align-items:flex-end;gap:16px;height:160px;padding:24px 12px 6px;overflow-x:auto;">
       ${series.map(s => {
         const tot = s.total_collected || 0;
         const hPct = Math.max(4, Math.round((tot / maxVal) * 100));
@@ -679,18 +619,26 @@ function renderStackedBarChart(series, showOther = true) {
         const sisterPct = tot > 0 ? (s.sister_company / tot) * 100 : 0;
         const otherPct = (showOther && tot > 0) ? (s.other_adjustment / tot) * 100 : 0;
 
+        let displayLabel = s.label;
+        if (!displayLabel) {
+          const mPart = s.period && s.period.length >= 7 ? s.period.slice(5, 7) : '';
+          displayLabel = ARABIC_MONTHS[mPart] || s.period;
+        }
+
+        const millionsVal = tot > 0 ? (tot / 1000000).toFixed(1) : '0.0';
+
         return `
-          <div style="flex:1;min-width:48px;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;" title="${escapeHtml(s.label || s.period)}: إجمالي ${tot.toLocaleString('en-US')} (بنك ونقد: ${s.bank.toLocaleString('en-US')}, شقيقة: ${s.sister_company.toLocaleString('en-US')}${showOther ? ', أخرى: ' + s.other_adjustment.toLocaleString('en-US') : ''})">
-            <div style="font-size:0.72rem;font-family:var(--font-en);color:var(--exec-text-muted);margin-bottom:4px;white-space:nowrap;">
-              ${tot > 0 ? Math.round(tot / 1000) + 'k' : '—'}
+          <div style="flex:1;min-width:54px;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end;" title="${escapeHtml(displayLabel)}: إجمالي ${tot.toLocaleString('en-US')} (بنك ونقد: ${s.bank.toLocaleString('en-US')}, شقيقة: ${s.sister_company.toLocaleString('en-US')}${showOther ? ', أخرى: ' + s.other_adjustment.toLocaleString('en-US') : ''})">
+            <div style="font-size:12px;font-family:var(--font-en);font-weight:600;color:var(--text-secondary);margin-bottom:6px;direction:ltr;white-space:nowrap;">
+              ${millionsVal}
             </div>
-            <div style="width:100%;max-width:36px;height:${hPct}%;display:flex;flex-direction:column;border-radius:4px 4px 0 0;overflow:hidden;background:var(--exec-border);">
-              ${showOther ? `<div style="height:${otherPct}%;background:var(--col-other);" title="تسويات أخرى"></div>` : ''}
-              <div style="height:${sisterPct}%;background:var(--col-sister);" title="عبر شركة شقيقة"></div>
-              <div style="height:${bankPct}%;background:var(--col-bank);" title="بنك ونقد"></div>
+            <div style="width:100%;max-width:38px;height:${hPct}%;display:flex;flex-direction:column;border-radius:6px 6px 0 0;overflow:hidden;background:var(--border-default);">
+              ${showOther && otherPct > 0 ? `<div style="height:${otherPct}%;background:#FBBF24;" title="تسويات أخرى"></div>` : ''}
+              ${sisterPct > 0 ? `<div style="height:${sisterPct}%;background:#7A5AF0;" title="عبر شركة شقيقة"></div>` : ''}
+              ${bankPct > 0 ? `<div style="height:${bankPct}%;background:#1D6AE5;" title="بنك ونقد"></div>` : ''}
             </div>
-            <div style="font-size:0.75rem;color:var(--exec-text-muted);margin-top:6px;white-space:nowrap;font-family:var(--font-en);text-align:center;">
-              ${escapeHtml(s.period && s.period.length > 7 ? s.period.slice(5) : s.period)}
+            <div style="font-size:12px;color:var(--text-muted);margin-top:8px;white-space:nowrap;text-align:center;">
+              ${escapeHtml(displayLabel)}
             </div>
           </div>
         `;
@@ -699,54 +647,159 @@ function renderStackedBarChart(series, showOther = true) {
   `;
 }
 
+function renderByInvoiceYearTable(byInvYear, cards, periodParams = {}) {
+  if (!byInvYear || byInvYear.length === 0) {
+    return `<div style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px;">لا توجد بيانات لسنة الفاتورة</div>`;
+  }
+
+  // Extract and sort years descending
+  const years = Array.from(new Set(byInvYear.map(r => r.invoice_year).filter(Boolean))).sort().reverse();
+  const isMultiYear = (periodParams.years && periodParams.years.includes(',')) || periodParams.years === 'ALL';
+  const showPriorCol = !isMultiYear;
+  const currentYear = (!isMultiYear && periodParams.years) ? periodParams.years : (years[0] || '2026');
+
+  // Extract companies and their totals across years
+  const companyMap = new Map();
+  for (const r of byInvYear) {
+    const yr = r.invoice_year;
+    if (r.companies) {
+      for (const [cName, val] of Object.entries(r.companies)) {
+        if (!companyMap.has(cName)) {
+          companyMap.set(cName, {
+            name: cName,
+            byYear: {},
+            total: 0
+          });
+        }
+        const cEntry = companyMap.get(cName);
+        cEntry.byYear[yr] = (cEntry.byYear[yr] || 0) + (val || 0);
+        cEntry.total += (val || 0);
+      }
+    }
+  }
+
+  const companiesList = Array.from(companyMap.values()).sort((a, b) => b.total - a.total);
+
+  function getCoDotColor(name) {
+    if (name.includes('سمير') && name.includes('مهنية')) return '#1D6AE5';
+    if (name.includes('جمال') && name.includes('مهنية')) return '#12B76A';
+    if (name.includes('سمير') || name.includes('مكتب')) return '#F79009';
+    if (name.includes('جمال')) return '#7A5AF0';
+    return 'var(--brand-accent)';
+  }
+
+  const yearSums = {};
+  for (const yr of years) {
+    yearSums[yr] = byInvYear.find(r => r.invoice_year === yr)?.total || 0;
+  }
+  const grandTotal = cards.total_collected || companiesList.reduce((acc, c) => acc + c.total, 0);
+  const currentYearGrand = yearSums[currentYear] || 0;
+  const priorYearsGrand = grandTotal - currentYearGrand;
+  const grandPriorPct = grandTotal > 0 ? ((priorYearsGrand / grandTotal) * 100).toFixed(1) + '%' : '0.0%';
+
+  return `
+    <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;min-width:240px;">الشركة</th>
+          ${years.map(yr => `
+            <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">فواتير ${escapeHtml(yr)}</th>
+          `).join('')}
+          <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">إجمالي التحصيل</th>
+          ${showPriorCol ? `
+            <th style="padding:10px 14px;text-align:center;color:var(--text-secondary);font-size:12px;font-weight:600;" title="نسبة التحصيل من فواتير تعود لسنوات سابقة لسنة ${escapeHtml(currentYear)} (السنة الحالية: ${escapeHtml(currentYear)})">
+              من سنوات سابقة %
+            </th>
+          ` : ''}
+        </tr>
+      </thead>
+      <tbody>
+        ${companiesList.map(co => {
+          const currentVal = co.byYear[currentYear] || 0;
+          const priorVal = co.total - currentVal;
+          const priorPct = co.total > 0 ? ((priorVal / co.total) * 100).toFixed(1) + '%' : '0.0%';
+          const dotColor = getCoDotColor(co.name);
+
+          return `
+            <tr style="border-bottom:1px solid var(--border-default);height:44px;">
+              <td style="padding:10px 14px;font-weight:600;color:var(--text-primary);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span style="width:8px;height:8px;border-radius:50%;background:${dotColor};display:inline-block;flex-shrink:0;"></span>
+                  <span>${escapeHtml(co.name)}</span>
+                </div>
+              </td>
+              ${years.map(yr => `
+                <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(co.byYear[yr] || 0)}</td>
+              `).join('')}
+              <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--text-primary);">${fmtVal(co.total)}</td>
+              ${showPriorCol ? `<td style="padding:10px 14px;text-align:center;font-family:var(--font-en);font-weight:600;color:var(--text-secondary);direction:ltr;">${priorPct}</td>` : ''}
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="background:var(--bg-subtle);font-weight:700;border-top:2px solid var(--border-default);height:44px;">
+          <td style="padding:12px 14px;color:var(--text-primary);">الإجمالي</td>
+          ${years.map(yr => `
+            <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(yearSums[yr] || 0, false)}</td>
+          `).join('')}
+          <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(grandTotal, false)}</td>
+          ${showPriorCol ? `<td style="padding:12px 14px;text-align:center;font-family:var(--font-en);color:var(--text-primary);direction:ltr;">${grandPriorPct}</td>` : ''}
+        </tr>
+      </tfoot>
+    </table>
+  `;
+}
+
 function renderDirectClientsTable(clients, searchQuery, showOther = true) {
-  let list = clients;
+  let list = clients || [];
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     list = list.filter(c => 
       (c.partner_name && c.partner_name.toLowerCase().includes(q)) ||
       (c.company_name && c.company_name.toLowerCase().includes(q)) ||
-      (c.journal_name && c.journal_name.toLowerCase().includes(q))
+      (c.journal_name && c.journal_name.toLowerCase().includes(q)) ||
+      (c.department_name && c.department_name.toLowerCase().includes(q))
     );
   }
 
   if (list.length === 0) {
-    return `<div style="text-align:center;padding:32px;color:var(--exec-text-muted);">لا يوجد عملاء مطابقون للبحث</div>`;
+    return `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">لا يوجد عملاء مطابقون للبحث</div>`;
   }
 
   return `
     <div style="width:100%;max-width:100%;overflow-x:auto;max-height:550px;box-sizing:border-box;" data-scroll-x="true">
-      <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.92rem;">
-        <thead style="position:sticky;top:0;background:var(--exec-bg-card);z-index:10;">
-          <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-            <th style="padding:10px 14px;text-align:right;width:35px;color:var(--exec-text);">#</th>
-            <th style="padding:10px 14px;text-align:right;min-width:200px;color:var(--exec-text);">اسم العميل</th>
-            <th style="padding:10px 14px;text-align:right;color:var(--exec-text);">الشركة</th>
-            <th style="padding:10px 14px;text-align:right;color:var(--exec-text);">القسم</th>
-            <th style="padding:10px 14px;text-align:right;color:var(--exec-text);">دفتر اليومية</th>
-            <th style="padding:10px 14px;text-align:left;color:var(--col-bank);">🏦 بنك ونقد</th>
-            <th style="padding:10px 14px;text-align:left;color:var(--col-sister);">🏢 عبر شركة شقيقة</th>
-            ${showOther ? `<th style="padding:10px 14px;text-align:left;color:var(--col-other);">🔄 تسويات أخرى</th>` : ''}
-            <th style="padding:10px 14px;text-align:left;color:var(--col-total);font-weight:800;">💵 إجمالي التحصيل</th>
-            <th style="padding:10px 14px;text-align:left;color:var(--col-refund);">🧾 إشعارات</th>
-            <th style="padding:10px 14px;text-align:center;width:70px;color:var(--exec-text);">التفاصيل</th>
+      <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead style="position:sticky;top:0;background:var(--bg-surface);z-index:10;">
+          <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+            <th style="padding:10px 14px;text-align:right;width:35px;color:var(--text-secondary);font-size:12px;font-weight:600;">#</th>
+            <th style="padding:10px 14px;text-align:right;min-width:200px;color:var(--text-secondary);font-size:12px;font-weight:600;">اسم العميل</th>
+            <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">الشركة</th>
+            <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">المجموعة</th>
+            <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">دفتر اليومية</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">بنك ونقد</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">عبر شركة شقيقة</th>
+            ${showOther ? `<th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">تسويات أخرى</th>` : ''}
+            <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">إجمالي التحصيل</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">إشعارات دائنة</th>
+            <th style="padding:10px 14px;text-align:center;width:70px;color:var(--text-secondary);font-size:12px;font-weight:600;">التفاصيل</th>
           </tr>
         </thead>
         <tbody>
           ${list.map((c, idx) => `
-            <tr style="border-bottom:1px solid var(--exec-border);">
-              <td style="padding:9px 14px;color:var(--exec-text-muted);font-family:var(--font-en);">${idx + 1}</td>
-              <td style="padding:9px 14px;font-weight:700;color:var(--exec-text);">${escapeHtml(c.partner_name)}</td>
-              <td style="padding:9px 14px;color:var(--exec-text-muted);">${escapeHtml(c.company_name)}</td>
-              <td style="padding:9px 14px;color:var(--exec-text-muted);">${escapeHtml(c.department_name)}</td>
-              <td style="padding:9px 14px;color:var(--exec-text-muted);">${escapeHtml(c.journal_name || '—')}</td>
-              <td style="padding:9px 14px;text-align:left;font-family:var(--font-en);color:var(--col-bank);">${fmtVal(c.bank)}</td>
-              <td style="padding:9px 14px;text-align:left;font-family:var(--font-en);color:var(--col-sister);">${fmtVal(c.sister_company)}</td>
-              ${showOther ? `<td style="padding:9px 14px;text-align:left;font-family:var(--font-en);color:var(--col-other);">${fmtVal(c.other_adjustment)}</td>` : ''}
-              <td style="padding:9px 14px;text-align:left;font-family:var(--font-en);font-weight:800;color:var(--col-total);">${fmtVal(c.total_collected)}</td>
-              <td style="padding:9px 14px;text-align:left;font-family:var(--font-en);color:var(--col-refund);">${fmtVal(c.credit_notes)}</td>
-              <td style="padding:9px 14px;text-align:center;">
-                <button class="btn btn-col-partner-detail" data-partner-id="${c.partner_id}" data-partner-name="${escapeHtml(c.partner_name)}" style="padding:3px 8px;font-size:0.75rem;background:var(--col-bank-bg);color:var(--col-bank);border:1px solid var(--col-bank);border-radius:6px;cursor:pointer;">
+            <tr style="border-bottom:1px solid var(--border-default);height:44px;">
+              <td style="padding:10px 14px;color:var(--text-muted);font-family:var(--font-en);font-size:12px;">${idx + 1}</td>
+              <td style="padding:10px 14px;font-weight:600;color:var(--text-primary);">${escapeHtml(c.partner_name)}</td>
+              <td style="padding:10px 14px;color:var(--text-secondary);">${escapeHtml(c.company_name)}</td>
+              <td style="padding:10px 14px;color:var(--text-secondary);">${escapeHtml(c.department_name)}</td>
+              <td style="padding:10px 14px;color:var(--text-muted);">${escapeHtml(c.journal_name || '—')}</td>
+              <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(c.bank)}</td>
+              <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(c.sister_company)}</td>
+              ${showOther ? `<td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(c.other_adjustment)}</td>` : ''}
+              <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--text-primary);">${fmtVal(c.total_collected)}</td>
+              <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-secondary);">${fmtVal(c.credit_notes)}</td>
+              <td style="padding:10px 14px;text-align:center;">
+                <button class="btn-col-partner-detail" data-partner-id="${c.partner_id}" data-partner-name="${escapeHtml(c.partner_name)}" style="padding:4px 8px;font-size:11px;font-weight:600;background:var(--bg-subtle);color:var(--brand-accent);border:1px solid var(--border-default);border-radius:6px;cursor:pointer;">
                   عرض السطور
                 </button>
               </td>
@@ -764,12 +817,34 @@ function initCollectionsTreeTable(container, treeData, cards, periodParams) {
   const showOther = (cards.other_collected || 0) > 0;
 
   const treeColumns = [
-    { id: 'name', label: 'البيان / الهيكل (الشركة > المجموعة > الدفتر > العميل)', minWidth: '220px', align: 'right', priority: 1 },
-    { id: 'bank', label: '🏦 بنك ونقد', align: 'left', width: '115px', minWidth: '95px', priority: 2, format: (v) => fmtVal(v) },
-    { id: 'sister_company', label: '🏢 عبر شركة شقيقة', align: 'left', width: '115px', minWidth: '95px', priority: 2, format: (v) => fmtVal(v) },
-    ...(showOther ? [{ id: 'other_adjustment', label: '🔄 تسويات أخرى', align: 'left', width: '110px', minWidth: '90px', priority: 2, format: (v) => fmtVal(v) }] : []),
-    { id: 'total_collected', label: '💵 إجمالي التحصيل', align: 'left', width: '125px', minWidth: '100px', priority: 1, format: (v) => fmtVal(v) },
-    { id: 'credit_notes', label: '🧾 إشعارات دائنة', align: 'left', width: '115px', minWidth: '90px', priority: 2, format: (v) => fmtVal(v) },
+    { id: 'name', label: 'البيان', minWidth: '240px', align: 'right', priority: 1 },
+    { id: 'bank', label: 'بنك ونقد', align: 'left', width: '120px', minWidth: '95px', priority: 2, format: (v) => fmtVal(v) },
+    { id: 'sister_company', label: 'عبر شركة شقيقة', align: 'left', width: '120px', minWidth: '95px', priority: 2, format: (v) => fmtVal(v) },
+    ...(showOther ? [{ id: 'other_adjustment', label: 'تسويات أخرى', align: 'left', width: '110px', minWidth: '90px', priority: 2, format: (v) => fmtVal(v) }] : []),
+    { id: 'total_collected', label: 'إجمالي التحصيل', align: 'left', width: '125px', minWidth: '100px', priority: 1, format: (v) => fmtVal(v) },
+    {
+      id: 'contribution',
+      label: 'المساهمة',
+      align: 'center',
+      width: '110px',
+      minWidth: '90px',
+      priority: 2,
+      format: (v, node) => {
+        const grandTotal = cards.total_collected || 1;
+        const val = node.total_collected || 0;
+        const pct = Math.max(0, Math.min(100, Math.round((val / grandTotal) * 1000) / 10));
+        const pctStr = pct.toFixed(1) + '%';
+        return `
+          <div style="display:flex;align-items:center;gap:6px;justify-content:center;width:100%;">
+            <div style="flex:1;max-width:44px;height:5px;background:var(--border-default);border-radius:3px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:var(--brand-accent);border-radius:3px;"></div>
+            </div>
+            <span style="font-size:12px;font-family:var(--font-en);color:var(--text-secondary);min-width:36px;text-align:left;direction:ltr;">${pctStr}</span>
+          </div>
+        `;
+      }
+    },
+    { id: 'credit_notes', label: 'خارج التحصيل', align: 'left', width: '115px', minWidth: '90px', priority: 2, format: (v) => fmtVal(v) },
     { id: 'payments_count', label: 'السدادات', align: 'center', width: '75px', minWidth: '60px', priority: 2, format: (v) => v ? Number(v).toLocaleString('en-US') : '—' }
   ];
 
@@ -787,6 +862,7 @@ function initCollectionsTreeTable(container, treeData, cards, periodParams) {
     columns: treeColumns,
     data: treeData,
     totals,
+    indentWidth: 22,
     showZeroItems: store.get('showZeroItems') ?? false,
     getNodeKey: (node, parentPath, depth) => {
       if (node.id && String(node.id).includes(':')) {
@@ -801,7 +877,7 @@ function initCollectionsTreeTable(container, treeData, cards, periodParams) {
       if (node.departments && node.departments.length > 0) return true;
       if (node.journals && node.journals.length > 0) return true;
       if (node.partners && node.partners.length > 0) return true;
-      if (node.type === 'partner') return true; // Level 5 lazy load
+      if (node.type === 'partner') return true;
       return false;
     },
     loadChildren: async (node, pathKey) => {
@@ -838,18 +914,134 @@ function initCollectionsTreeTable(container, treeData, cards, periodParams) {
       }
       return [];
     },
+    renderRow: ({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) => {
+      const isCo = depth === 0 || node.type === 'company' || (node.id && String(node.id).startsWith('co:'));
+      const isDept = depth === 1 || node.type === 'department';
+      const isJournal = depth === 2 || node.type === 'journal';
+      const isPartner = depth === 3 || node.type === 'partner';
+      const isPayment = depth === 4 || node.type === 'payment' || isLeaf;
+
+      const indent = depth * 22;
+
+      let iconSvg = '';
+      if (node._loading) {
+        iconSvg = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;animation:spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+      } else if (hasKids) {
+        if (isExpanded) {
+          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="6 9 12 15 18 9"/></svg>`;
+        } else {
+          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="15 18 9 12 15 6"/></svg>`;
+        }
+      }
+
+      let companyDot = '';
+      if (isCo) {
+        const cid = node.company_id != null ? node.company_id : Number(String(node.id).replace(/^co_?/, ''));
+        companyDot = `<span class="company-dot" style="background:var(--company-${cid || 1});flex-shrink:0;margin:0 2px;"></span>`;
+      }
+
+      const cursor = hasKids ? 'cursor:pointer;' : (isPartner ? 'cursor:pointer;' : '');
+      const rowStyle = isCo
+        ? 'font-weight:700;background:var(--bg-hover);color:var(--text-primary);'
+        : (isDept
+            ? 'font-weight:600;color:var(--text-secondary);'
+            : 'color:var(--text-secondary);');
+
+      const nodeColor = isPartner
+        ? 'color:var(--text-primary);font-weight:600;'
+        : (isJournal
+            ? 'color:var(--text-secondary);font-weight:500;'
+            : (depth > 0 ? 'color:var(--text-secondary);' : 'color:var(--text-primary);'));
+
+      const grandTotal = cards.total_collected || 1;
+      const totVal = node.total_collected || 0;
+      const contribPct = Math.max(0, Math.min(100, Math.round((totVal / grandTotal) * 1000) / 10));
+
+      return `
+        <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowStyle} border-bottom:1px solid var(--border-default);height:44px;">
+          <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding:10px 14px;padding-right:${indent + 14}px;text-align:right;" title="${escapeHtml(node.name || '')}">
+            <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle;">
+              <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;color:var(--text-muted);flex-shrink:0;">
+                ${iconSvg}
+              </span>
+              ${companyDot}
+              <span class="tree-node-name" data-tree-name="true" style="vertical-align:middle;white-space:normal;word-break:break-word;${nodeColor}">
+                ${escapeHtml(node.name || '')}
+              </span>
+            </div>
+          </td>
+          <td data-col-id="bank" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(node.bank)}</td>
+          <td data-col-id="sister_company" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(node.sister_company)}</td>
+          ${showOther ? `<td data-col-id="other_adjustment" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(node.other_adjustment)}</td>` : ''}
+          <td data-col-id="total_collected" data-priority="1" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--text-primary);">${fmtVal(node.total_collected)}</td>
+          <td data-col-id="contribution" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:center;">
+            <div style="display:flex;align-items:center;gap:6px;justify-content:center;width:100%;">
+              <div style="flex:1;max-width:44px;height:5px;background:var(--border-default);border-radius:3px;overflow:hidden;">
+                <div style="width:${contribPct}%;height:100%;background:var(--brand-accent);border-radius:3px;"></div>
+              </div>
+              <span style="font-size:12px;font-family:var(--font-en);color:var(--text-secondary);min-width:36px;text-align:left;direction:ltr;">${contribPct.toFixed(1)}%</span>
+            </div>
+          </td>
+          <td data-col-id="credit_notes" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--text-secondary);">${fmtVal(node.credit_notes)}</td>
+          <td data-col-id="payments_count" data-priority="2" class="tree-col-num tabular-nums" style="padding:10px 14px;text-align:center;font-family:var(--font-en);color:var(--text-secondary);">${node.payments_count ? Number(node.payments_count).toLocaleString('en-US') : '—'}</td>
+        </tr>
+      `;
+    },
     renderTotals: (t, cols) => `
-      <tr class="tree-table-totals" style="background:var(--exec-bg-card);font-weight:800;border-top:2px solid var(--exec-border);">
-        <td style="padding:10px 14px;text-align:right;color:var(--exec-text);">المجموع الإجمالي</td>
-        <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--col-bank);">${fmtVal(t.bank, false)}</td>
-        <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--col-sister);">${fmtVal(t.sister_company, false)}</td>
-        ${showOther ? `<td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--col-other);">${fmtVal(t.other_adjustment, false)}</td>` : ''}
-        <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--col-total);">${fmtVal(t.total_collected, false)}</td>
-        <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);color:var(--col-refund);">${fmtVal(t.credit_notes, false)}</td>
-        <td style="padding:10px 14px;text-align:center;font-family:var(--font-en);color:var(--exec-text);">${(t.payments_count || 0).toLocaleString('en-US')}</td>
+      <tr class="tree-table-totals" style="background:var(--bg-subtle);font-weight:700;border-top:2px solid var(--border-default);height:44px;">
+        <td style="padding:12px 14px;text-align:right;color:var(--text-primary);">الإجمالي</td>
+        <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(t.bank, false)}</td>
+        <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(t.sister_company, false)}</td>
+        ${showOther ? `<td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(t.other_adjustment, false)}</td>` : ''}
+        <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(t.total_collected, false)}</td>
+        <td style="padding:12px 14px;text-align:center;font-family:var(--font-en);color:var(--text-primary);direction:ltr;">100%</td>
+        <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(t.credit_notes, false)}</td>
+        <td style="padding:12px 14px;text-align:center;font-family:var(--font-en);color:var(--text-primary);">${(t.payments_count || 0).toLocaleString('en-US')}</td>
       </tr>
     `
   });
+}
+
+function renderAuditNonBankTable(auditList, auditSummary) {
+  if (!auditList || auditList.length === 0) {
+    return `<div style="text-align:center;padding:32px;color:var(--text-muted);font-size:13px;">✓ لا توجد سدادات خارج بنك الشركة في هذا النطاق</div>`;
+  }
+
+  return `
+    <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">قيد السداد</th>
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">التاريخ</th>
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">العميل</th>
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">استلمته</th>
+          <th style="padding:10px 14px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">القيد البنكي المقابل</th>
+          <th style="padding:10px 14px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">المبلغ</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${auditList.map(item => `
+          <tr style="border-bottom:1px solid var(--border-default);height:44px;">
+            <td style="padding:10px 14px;font-family:var(--font-en);font-weight:600;color:var(--text-primary);">${escapeHtml(item.payment_move_name)}</td>
+            <td style="padding:10px 14px;font-family:var(--font-en);color:var(--text-secondary);">${escapeHtml(item.payment_date)}</td>
+            <td style="padding:10px 14px;font-weight:500;color:var(--text-primary);">${escapeHtml(item.partner_name)}</td>
+            <td style="padding:10px 14px;color:var(--text-secondary);">${escapeHtml(item.sister_company_name || item.counterpart_partner_name || item.company_name)}</td>
+            <td style="padding:10px 14px;font-family:var(--font-en);color:${item.counterpart_bank_move === 'لا مقابل' ? 'var(--status-negative)' : 'var(--text-secondary)'};">
+              ${escapeHtml(item.counterpart_bank_move || '—')}
+            </td>
+            <td style="padding:10px 14px;text-align:left;font-family:var(--font-en);font-weight:600;color:var(--text-primary);">${fmtVal(item.amount, false)}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="background:var(--bg-subtle);font-weight:700;border-top:2px solid var(--border-default);height:44px;">
+          <td style="padding:12px 14px;color:var(--text-primary);">الإجمالي</td>
+          <td colspan="4" style="padding:12px 14px;color:var(--text-secondary);">${auditSummary.transactions_count || auditList.length} سداداً</td>
+          <td style="padding:12px 14px;text-align:left;font-family:var(--font-en);color:var(--text-primary);">${fmtVal(auditSummary.total_non_bank_amount, false)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
 }
 
 function setupCollectionsEvents(topBody, container, data, periodParams, selectedCos, topContainer, timeFilter, globalFilters) {
@@ -864,8 +1056,8 @@ function setupCollectionsEvents(topBody, container, data, periodParams, selected
       grainBtns.forEach(b => {
         const isActive = b.dataset.grain === currentTimeGrain;
         b.classList.toggle('active', isActive);
-        b.style.background = isActive ? 'var(--exec-accent, #2563eb)' : 'transparent';
-        b.style.color = isActive ? '#ffffff' : 'var(--exec-text-muted)';
+        b.style.background = isActive ? 'var(--brand-primary)' : 'transparent';
+        b.style.color = isActive ? 'var(--text-on-brand)' : 'var(--text-secondary)';
       });
 
       const series = data.periodic_series || [];
@@ -890,8 +1082,8 @@ function setupCollectionsEvents(topBody, container, data, periodParams, selected
       viewBtns.forEach(b => {
         const isActive = b.dataset.mode === currentViewMode;
         b.classList.toggle('active', isActive);
-        b.style.background = isActive ? 'var(--exec-accent, #2563eb)' : 'transparent';
-        b.style.color = isActive ? '#ffffff' : 'var(--exec-text-muted)';
+        b.style.background = isActive ? 'var(--brand-primary)' : 'transparent';
+        b.style.color = isActive ? 'var(--text-on-brand)' : 'var(--text-secondary)';
       });
 
       if (currentViewMode === 'tree') {
@@ -935,23 +1127,41 @@ function setupCollectionsEvents(topBody, container, data, periodParams, selected
 
   attachDirectRowEvents(container, periodParams, selectedCos);
 
-  // 4. Excel Export Button
+  // 4. Section 5 collapsible toggle
+  const sec5Header = container.querySelector('#col-sec5-header');
+  const sec5Body = container.querySelector('#col-sec5-body');
+  const sec5Icon = container.querySelector('#col-sec5-toggle-icon');
+  sec5Header?.addEventListener('click', () => {
+    isSec5Open = !isSec5Open;
+    if (sec5Body) sec5Body.style.display = isSec5Open ? 'flex' : 'none';
+    if (sec5Icon) sec5Icon.textContent = isSec5Open ? '▲' : '▼';
+  });
+
+  const toggleUnallocatedBtn = container.querySelector('#btn-col-toggle-unallocated');
+  toggleUnallocatedBtn?.addEventListener('click', () => {
+    isSec5Open = true;
+    if (sec5Body) sec5Body.style.display = 'flex';
+    if (sec5Icon) sec5Icon.textContent = '▲';
+    sec5Body?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  // 5. Excel Export Button
   const btnExport = container.querySelector('#btn-export-excel-collections');
   btnExport?.addEventListener('click', async () => {
     try {
       btnExport.disabled = true;
-      btnExport.innerHTML = '<span>⏳</span> جاري التصدير...';
+      btnExport.innerHTML = `${ICONS.excel} جاري التصدير...`;
       await exportCollectionsToExcel(data, periodParams, selectedCos, globalFilters);
-      btnExport.innerHTML = '<span>✓</span> تم التصدير بنجاح!';
+      btnExport.innerHTML = `${ICONS.check} تم التصدير بنجاح!`;
       setTimeout(() => {
         btnExport.disabled = false;
-        btnExport.innerHTML = '<span>📥</span> تصدير التحصيل إلى Excel (ورقتان)';
+        btnExport.innerHTML = `${ICONS.excel} تصدير Excel`;
       }, 2500);
     } catch (err) {
       console.error('Excel Export error:', err);
       alert('حدث خطأ أثناء تصدير Excel: ' + err.message);
       btnExport.disabled = false;
-      btnExport.innerHTML = '<span>📥</span> تصدير التحصيل إلى Excel (ورقتان)';
+      btnExport.innerHTML = `${ICONS.excel} تصدير Excel`;
     }
   });
 }
@@ -974,21 +1184,21 @@ async function openPartnerPaymentsModal(partnerId, partnerName, periodParams, se
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'col-partner-modal';
-    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;direction:rtl;';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;direction:rtl;';
     document.body.appendChild(modal);
   }
 
   modal.innerHTML = `
-    <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:18px;width:950px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.5);">
-      <div style="padding:18px 24px;border-bottom:1px solid var(--exec-border);display:flex;justify-content:space-between;align-items:center;">
+    <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:18px;width:950px;max-width:92vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.4);">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border-default);display:flex;justify-content:space-between;align-items:center;background:var(--bg-subtle);">
         <div>
-          <h3 style="margin:0;font-size:1.15rem;color:var(--exec-text);">سجل سدادات العميل: ${escapeHtml(partnerName)}</h3>
-          <span style="font-size:0.8rem;color:var(--exec-text-muted);">عرض تفصيلي لسطور التسوية والفواتير المسددة</span>
+          <h3 style="margin:0;font-size:16px;font-weight:700;color:var(--text-primary);">سجل سدادات العميل: ${escapeHtml(partnerName)}</h3>
+          <span style="font-size:12px;color:var(--text-muted);">عرض تفصيلي لسطور التسوية والفواتير المسددة</span>
         </div>
-        <button id="btn-close-col-modal" style="background:none;border:none;color:var(--exec-text-muted);font-size:1.3rem;cursor:pointer;">✕</button>
+        <button id="btn-close-col-modal" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
       </div>
       <div id="col-modal-body" style="padding:20px 24px;overflow-y:auto;flex:1;">
-        <div style="text-align:center;padding:40px;color:var(--exec-text-muted);">⏳ جاري جلب سطور السداد...</div>
+        <div style="text-align:center;padding:40px;color:var(--text-muted);">جاري جلب سطور السداد...</div>
       </div>
     </div>
   `;
@@ -1011,42 +1221,42 @@ async function openPartnerPaymentsModal(partnerId, partnerName, periodParams, se
     const modalBody = modal.querySelector('#col-modal-body');
 
     if (payments.length === 0) {
-      modalBody.innerHTML = `<div style="text-align:center;padding:40px;color:var(--exec-text-muted);">لا توجد سطور سداد مسجلة لهذا العميل في الفترة المحددة</div>`;
+      modalBody.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">لا توجد سطور سداد مسجلة لهذا العميل في الفترة المحددة</div>`;
       return;
     }
 
     modalBody.innerHTML = `
       <div style="width:100%;max-width:100%;overflow-x:auto;box-sizing:border-box;" data-scroll-x="true">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;">
           <thead>
-            <tr style="background:var(--exec-bg-card);border-bottom:2px solid var(--exec-border);">
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">القناة</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">تاريخ السداد</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">الشركة</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">رقم الفاتورة</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">تاريخ الفاتورة</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">قيد السداد</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">البيان</th>
-              <th style="padding:8px 10px;text-align:right;color:var(--exec-text);">الحساب المقابل</th>
-              <th style="padding:8px 10px;text-align:left;color:var(--exec-text);">المبلغ</th>
+            <tr style="background:var(--bg-subtle);border-bottom:1px solid var(--border-default);">
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">القناة</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">تاريخ السداد</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">الشركة</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">رقم الفاتورة</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">تاريخ الفاتورة</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">قيد السداد</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">البيان</th>
+              <th style="padding:8px 10px;text-align:right;color:var(--text-secondary);font-size:12px;font-weight:600;">الحساب المقابل</th>
+              <th style="padding:8px 10px;text-align:left;color:var(--text-secondary);font-size:12px;font-weight:600;">المبلغ</th>
             </tr>
           </thead>
           <tbody>
             ${payments.map(p => `
-              <tr style="border-bottom:1px solid var(--exec-border);">
+              <tr style="border-bottom:1px solid var(--border-default);height:40px;">
                 <td style="padding:8px 10px;">
-                  <span style="font-size:0.75rem;padding:2px 6px;border-radius:4px;background:${p.channel === 'bank' ? 'var(--col-bank-bg)' : (p.channel === 'sister_company' ? 'var(--col-sister-bg)' : 'var(--col-other-bg)')};color:${p.channel === 'bank' ? 'var(--col-bank)' : (p.channel === 'sister_company' ? 'var(--col-sister)' : 'var(--col-other)')};">
+                  <span style="font-size:11px;padding:2px 8px;border-radius:6px;font-weight:600;background:${p.channel === 'bank' ? 'var(--status-positive-subtle)' : (p.channel === 'sister_company' ? 'var(--brand-accent-subtle, rgba(29,106,229,0.1))' : 'var(--bg-subtle)')};color:${p.channel === 'bank' ? 'var(--status-positive)' : (p.channel === 'sister_company' ? 'var(--brand-accent)' : 'var(--text-secondary)')};">
                     ${escapeHtml(p.channel_label)}
                   </span>
                 </td>
-                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--exec-text);">${escapeHtml(p.payment_date)}</td>
-                <td style="padding:8px 10px;color:var(--exec-text-muted);">${escapeHtml(p.company_name)}</td>
-                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--col-bank);">${escapeHtml(p.invoice_name)}</td>
-                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--exec-text-muted);">${escapeHtml(p.invoice_date)}</td>
-                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--exec-text);">${escapeHtml(p.payment_move_name)}</td>
-                <td style="padding:8px 10px;font-size:0.8rem;color:var(--exec-text-muted);">${escapeHtml(p.payment_label || '—')}</td>
-                <td style="padding:8px 10px;font-size:0.8rem;color:var(--exec-text);">${p.sister_company_name ? `🏢 ${escapeHtml(p.sister_company_name)}<br>` : ''}${escapeHtml(p.counterpart_account_name || '')}</td>
-                <td style="padding:8px 10px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--col-total);">${fmtVal(p.amount, false)}</td>
+                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--text-primary);">${escapeHtml(p.payment_date)}</td>
+                <td style="padding:8px 10px;color:var(--text-secondary);">${escapeHtml(p.company_name)}</td>
+                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--brand-accent);">${escapeHtml(p.invoice_name)}</td>
+                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--text-muted);">${escapeHtml(p.invoice_date)}</td>
+                <td style="padding:8px 10px;font-family:var(--font-en);color:var(--text-primary);">${escapeHtml(p.payment_move_name)}</td>
+                <td style="padding:8px 10px;font-size:12px;color:var(--text-muted);">${escapeHtml(p.payment_label || '—')}</td>
+                <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary);">${p.sister_company_name ? `<strong>${escapeHtml(p.sister_company_name)}</strong><br>` : ''}${escapeHtml(p.counterpart_account_name || '')}</td>
+                <td style="padding:8px 10px;text-align:left;font-family:var(--font-en);font-weight:700;color:var(--text-primary);">${fmtVal(p.amount, false)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1054,7 +1264,7 @@ async function openPartnerPaymentsModal(partnerId, partnerName, periodParams, se
       </div>
     `;
   } catch (err) {
-    modal.querySelector('#col-modal-body').innerHTML = `<div style="color:var(--col-refund);text-align:center;padding:30px;">خطأ أثناء جلب التفاصيل: ${escapeHtml(err.message)}</div>`;
+    modal.querySelector('#col-modal-body').innerHTML = `<div style="color:var(--status-negative);text-align:center;padding:30px;">خطأ أثناء جلب التفاصيل: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -1065,7 +1275,7 @@ async function exportCollectionsToExcel(data, periodParams, selectedCos, globalF
 
   const wb = XLSX.utils.book_new();
 
-  // ── Sheet 1: ملخص التحصيل الهرمي
+  // Sheet 1: ملخص التحصيل الهرمي
   const sheet1Rows = [
     ['الشركة', 'المجموعة', 'دفتر اليومية', 'العميل', 'بنك/نقد الشركة', 'عبر شركة شقيقة', 'تسويات أخرى', 'إجمالي التحصيل', 'إشعارات دائنة', 'عدد السدادات']
   ];
@@ -1094,7 +1304,7 @@ async function exportCollectionsToExcel(data, periodParams, selectedCos, globalF
   const ws1 = XLSX.utils.aoa_to_sheet(sheet1Rows);
   XLSX.utils.book_append_sheet(wb, ws1, 'ملخص التحصيل الهرمي');
 
-  // ── Sheet 2: سجل السدادات التفصيلي
+  // Sheet 2: سجل السدادات التفصيلي
   const res = await api.getActualCollectionPayments({
     companyIds: selectedCos ? selectedCos.join(',') : undefined,
     journalIds: (globalFilters?.journalIds && globalFilters.journalIds.length > 0) ? globalFilters.journalIds.join(',') : undefined,
@@ -1133,3 +1343,4 @@ async function exportCollectionsToExcel(data, periodParams, selectedCos, globalF
   const fileName = `التحصيل_الفعلي_${periodParams.years || 'فترة'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+

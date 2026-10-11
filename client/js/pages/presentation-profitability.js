@@ -77,6 +77,14 @@ function getPeriodParamsFromFilter(timeFilter) {
   return { years: yearsParam, dateFrom, dateTo };
 }
 
+const ICONS = {
+  expandAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>',
+  collapseAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>',
+  excel: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  spinner: '<svg class="spin-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'
+};
+
 export async function renderDepartmentsProfitabilityTab(body, container, timeFilter, selectedCos, globalFilters) {
   if (globalFilters) {
     currentGlobalFilters = globalFilters;
@@ -84,8 +92,8 @@ export async function renderDepartmentsProfitabilityTab(body, container, timeFil
   body.innerHTML = `
     <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
-      <div id="prof-loading" style="text-align:center;padding:80px 20px;color:rgba(255,255,255,0.5);font-size:1.1rem;">
-        <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-left:8px;font-size:1.4rem;">⏳</span>
+      <div id="prof-loading" style="text-align:center;padding:80px 20px;color:var(--text-muted);font-size:1.05rem;">
+        <span style="display:inline-block;vertical-align:middle;margin-left:8px;">${ICONS.spinner}</span>
         جاري تحميل تقرير الأقسام والربحية...
       </div>
       <div id="prof-main-content" style="display:none;flex-direction:column;gap:22px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
@@ -130,8 +138,8 @@ async function loadAndRender(body, container, timeFilter, selectedCos) {
     console.error('[Profitability] Failed to load data:', err);
     if (loadingEl) {
       loadingEl.innerHTML = `
-        <div style="color:#ef4444;font-size:1.05rem;">
-          ❌ حدث خطأ أثناء تحميل بيانات الأقسام والربحية: ${escapeHtml(err.message || 'خطأ غير متوقع')}
+        <div style="color:var(--status-negative);font-size:1.05rem;">
+          حدث خطأ أثناء تحميل بيانات الأقسام والربحية: ${escapeHtml(err.message || 'خطأ غير متوقع')}
         </div>
       `;
     }
@@ -140,6 +148,8 @@ async function loadAndRender(body, container, timeFilter, selectedCos) {
 
 function renderContent(contentEl, body, container, timeFilter, selectedCos, data) {
   const s = data.summary || {};
+  const periodParams = getPeriodParamsFromFilter(timeFilter);
+  const periodLabel = timeFilter?.periodLabel || periodParams?.years || '2026';
   const measureLabels = {
     net: 'صافي الربح',
     revenue: 'الإيرادات',
@@ -147,169 +157,144 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
   };
 
   contentEl.innerHTML = `
-    <!-- Top Toolbar: Controls & Filters -->
-    <div style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px 20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;">
-      
-      <!-- Measure & Grain Selectors -->
-      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;">
-        
-        <!-- Measure Selector -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">المقياس:</span>
-          <div class="bi-btn-group" style="display:inline-flex;background:var(--exec-bg-btn, rgba(255,255,255,0.05));padding:3px;border-radius:8px;border:1px solid var(--exec-border);">
-            <button class="prof-measure-btn ${currentMeasure === 'net' ? 'active' : ''}" data-measure="net"
-              style="border:none;border-radius:6px;padding:5px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentMeasure === 'net' ? 'var(--exec-accent, #3b82f6)' : 'transparent'};color:${currentMeasure === 'net' ? '#fff' : 'var(--exec-text-dim, #94a3b8)'};">
-              📈 صافي الربح
-            </button>
-            <button class="prof-measure-btn ${currentMeasure === 'revenue' ? 'active' : ''}" data-measure="revenue"
-              style="border:none;border-radius:6px;padding:5px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentMeasure === 'revenue' ? 'var(--exec-accent, #3b82f6)' : 'transparent'};color:${currentMeasure === 'revenue' ? '#fff' : 'var(--exec-text-dim, #94a3b8)'};">
-              💰 الإيرادات
-            </button>
-            <button class="prof-measure-btn ${currentMeasure === 'expense' ? 'active' : ''}" data-measure="expense"
-              style="border:none;border-radius:6px;padding:5px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentMeasure === 'expense' ? 'var(--exec-accent, #3b82f6)' : 'transparent'};color:${currentMeasure === 'expense' ? '#fff' : 'var(--exec-text-dim, #94a3b8)'};">
-              📉 المصروفات
-            </button>
-          </div>
-        </div>
-
-        <!-- Grain Selector -->
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">التدرج:</span>
-          <div class="bi-btn-group" style="display:inline-flex;background:var(--exec-bg-btn, rgba(255,255,255,0.05));padding:3px;border-radius:8px;border:1px solid var(--exec-border);">
-            <button class="prof-grain-btn ${currentTimeGrain === 'year' ? 'active' : ''}" data-grain="year"
-              style="border:none;border-radius:6px;padding:5px 10px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentTimeGrain === 'year' ? 'rgba(59,130,246,0.25)' : 'transparent'};color:${currentTimeGrain === 'year' ? '#60a5fa' : 'var(--exec-text-dim, #94a3b8)'};">
-              سنوي
-            </button>
-            <button class="prof-grain-btn ${currentTimeGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
-              style="border:none;border-radius:6px;padding:5px 10px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentTimeGrain === 'quarter' ? 'rgba(59,130,246,0.25)' : 'transparent'};color:${currentTimeGrain === 'quarter' ? '#60a5fa' : 'var(--exec-text-dim, #94a3b8)'};">
-              ربع سنوي
-            </button>
-            <button class="prof-grain-btn ${currentTimeGrain === 'month' ? 'active' : ''}" data-grain="month"
-              style="border:none;border-radius:6px;padding:5px 10px;font-size:0.82rem;font-weight:700;cursor:pointer;background:${currentTimeGrain === 'month' ? 'rgba(59,130,246,0.25)' : 'transparent'};color:${currentTimeGrain === 'month' ? '#60a5fa' : 'var(--exec-text-dim, #94a3b8)'};">
-              شهري
-            </button>
-          </div>
-        </div>
-
-        <!-- Administrative Expense Redistribution Switch -->
-        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;background:var(--exec-bg-btn, rgba(255,255,255,0.04));border:1px solid ${currentRedistribute ? 'rgba(245,158,11,0.4)' : 'var(--exec-border)'};padding:5px 12px;border-radius:8px;transition:all 0.2s;" title="توزيع مصروفات المراكز الإدارية (مثل الإدارة العامة) تناسبياً على مراكز العمليات">
-          <input type="checkbox" id="prof-redist-toggle" ${currentRedistribute ? 'checked' : ''} style="cursor:pointer;accent-color:#f59e0b;width:15px;height:15px;">
-          <span style="font-size:0.84rem;font-weight:700;color:${currentRedistribute ? '#f59e0b' : 'var(--exec-text, rgba(255,255,255,0.8))'};">
-            🔄 توزيع المصروفات الإدارية
-          </span>
-        </label>
-      </div>
-
-      <!-- Action Buttons -->
-      <div style="display:flex;align-items:center;gap:10px;">
-        <button id="prof-btn-expand-all" class="exec-btn-secondary" style="border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
-          📂 توسيع الكل
-        </button>
-        <button id="prof-btn-collapse-all" class="exec-btn-secondary" style="border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
-          📁 طي الكل
-        </button>
-        <button id="prof-btn-export-excel" style="background:rgba(16,185,129,0.12);color:#10b981;border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
-          📥 تصدير Excel
-        </button>
-      </div>
+    <!-- Tab Header -->
+    <div class="exec-header" style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px;">
+      <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+        الربحية — <span>${escapeHtml(periodLabel)}</span>
+      </h1>
+      <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+        تحليل الإيرادات والمصروفات وصافي الربح حسب الشركات والمجموعات ومراكز التكلفة
+      </p>
     </div>
 
     <!-- KPI Summary Cards (5 cards) -->
-    <div class="prof-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:14px;">
+    <div class="prof-kpi-grid exec-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;">
       
       <!-- Card 1: Revenue -->
-      <div class="exec-kpi-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-right:4px solid #3b82f6;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">إجمالي الإيرادات</span>
-          <span style="font-size:1.15rem;">💰</span>
-        </div>
-        <div class="exec-num" style="font-size:1.45rem;font-weight:800;color:#3b82f6;">
-          ${(s.total_revenue || 0).toLocaleString('en-US')}
-        </div>
-        <span style="font-size:0.75rem;color:var(--exec-text-muted, #64748b);">عن الفترة المحددة</span>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card">
+        <span class="bi-kpi-label">إجمالي الإيرادات</span>
+        <div class="bi-kpi-value">${(s.total_revenue || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">عن الفترة المحددة</span>
       </div>
 
       <!-- Card 2: Expenses -->
-      <div class="exec-kpi-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-right:4px solid #ef4444;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">إجمالي المصروفات</span>
-          <span style="font-size:1.15rem;">📉</span>
-        </div>
-        <div class="exec-num" style="font-size:1.45rem;font-weight:800;color:#ef4444;">
-          ${(s.total_expenses || 0).toLocaleString('en-US')}
-        </div>
-        <span style="font-size:0.75rem;color:var(--exec-text-muted, #64748b);">
-          ${currentRedistribute ? 'تشمل المصروفات الإدارية الموزعة' : 'المصروفات الفعلية المباشرة'}
-        </span>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card">
+        <span class="bi-kpi-label">إجمالي المصروفات</span>
+        <div class="bi-kpi-value">${(s.total_expenses || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">${currentRedistribute ? 'تشمل المصروفات الإدارية الموزعة' : 'المصروفات الفعلية المباشرة'}</span>
       </div>
 
-      <!-- Card 3: Net Profit -->
-      <div class="exec-kpi-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-right:4px solid #10b981;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">صافي الربح</span>
-          <span style="font-size:1.15rem;">💎</span>
-        </div>
-        <div class="exec-num" style="font-size:1.45rem;font-weight:800;color:${(s.net_profit || 0) >= 0 ? '#10b981' : '#ef4444'};">
-          ${(s.net_profit || 0) < 0 ? `(${Math.abs(s.net_profit).toLocaleString('en-US')})` : (s.net_profit || 0).toLocaleString('en-US')}
-        </div>
-        <span style="font-size:0.75rem;color:var(--exec-text-muted, #64748b);">الإيرادات − المصروفات</span>
+      <!-- Card 3: Net Profit (HERO Card) -->
+      <div class="bi-kpi bi-kpi-card hero exec-kpi-card">
+        <span class="bi-kpi-label">صافي الربح</span>
+        <div class="bi-kpi-value">${(s.net_profit || 0) < 0 ? `(${Math.abs(s.net_profit).toLocaleString('en-US')})` : (s.net_profit || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">الإيرادات − المصروفات</span>
       </div>
 
       <!-- Card 4: Profit Margin -->
-      <div class="exec-kpi-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-right:4px solid #06b6d4;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">هامش الربح</span>
-          <span style="font-size:1.15rem;">📊</span>
-        </div>
-        <div class="exec-num" style="font-size:1.45rem;font-weight:800;color:${(s.profit_margin || 0) >= 0 ? '#06b6d4' : '#ef4444'};">
-          ${(s.profit_margin || 0).toFixed(1)}%
-        </div>
-        <span style="font-size:0.75rem;color:var(--exec-text-muted, #64748b);">نسبة صافي الربح من الإيرادات</span>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card">
+        <span class="bi-kpi-label">هامش الربح</span>
+        <div class="bi-kpi-value"><span dir="ltr" class="tabular-nums">${(s.profit_margin || 0).toFixed(1)}%</span></div>
+        <span class="bi-kpi-sub">نسبة صافي الربح من الإيرادات</span>
       </div>
 
       <!-- Card 5: Admin Redistribution -->
-      <div class="exec-kpi-card" style="background:var(--exec-bg-card);border:1px solid var(--exec-border);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-right:4px solid #f59e0b;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:0.85rem;color:var(--exec-text-dim, #94a3b8);font-weight:600;">المصروفات الإدارية القابلة للتوزيع</span>
-          <span style="font-size:1.15rem;">🔄</span>
-        </div>
-        <div class="exec-num" style="font-size:1.45rem;font-weight:800;color:#f59e0b;">
-          ${(s.admin_expenses_redistributed || 0).toLocaleString('en-US')}
-        </div>
-        <span style="font-size:0.75rem;color:${currentRedistribute ? '#10b981' : 'var(--exec-text-muted, #64748b)'};">
-          ${currentRedistribute ? '✓ موزعة تناسبياً على الأقسام' : 'معروضة كمركز مستقل'}
-        </span>
+      <div class="bi-kpi bi-kpi-card exec-kpi-card">
+        <span class="bi-kpi-label">المصروفات الإدارية القابلة للتوزيع</span>
+        <div class="bi-kpi-value">${(s.admin_expenses_redistributed || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">${currentRedistribute ? 'موزعة تناسبياً على الأقسام' : 'معروضة كمركز مستقل'}</span>
       </div>
 
     </div>
 
     <!-- TreeTable Section -->
-    <div style="background:var(--exec-bg-card, #ffffff);border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:14px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
+    <div class="exec-table-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;display:flex;flex-direction:column;width:100%;box-sizing:border-box;">
       
-      <!-- Table Header Bar with Search -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <h3 style="margin:0;font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">
-            جدول الربحية الهرمي (${measureLabels[currentMeasure]})
+      <!-- Table Header Bar with Titles and Toolbar -->
+      <div class="exec-table-toolbar" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-default);flex-wrap:wrap;gap:14px;">
+        <div class="exec-table-titles" style="display:flex;flex-direction:column;gap:2px;">
+          <h3 class="exec-table-title" style="margin:0;font-size:17px;line-height:26px;font-weight:700;color:var(--text-primary);">
+            الربحية حسب الشركة والمجموعة — ${escapeHtml(periodLabel)}
           </h3>
-          <span style="font-size:0.8rem;background:var(--exec-bg-btn, rgba(255,255,255,0.08));padding:2px 8px;border-radius:10px;color:var(--exec-text-dim, #94a3b8);">
-            4 مستويات: الشركة ← القسم ← مركز التكلفة ← الحساب
+          <span class="exec-table-breadcrumb" style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            الشركة ← المجموعة ← مركز التكلفة ← الحساب
           </span>
         </div>
 
-        <!-- Search Bar -->
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div style="position:relative;display:inline-flex;align-items:center;min-width:240px;">
-            <input type="text" id="prof-tree-search" placeholder="بحث…" 
-              style="width:100%;padding:6px 28px 6px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;color:#fff;font-size:0.84rem;outline:none;">
-            <button id="btn-prof-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+        <!-- Controls Bar -->
+        <div class="exec-table-actions" style="display:flex;align-items:center;flex-wrap:wrap;gap:10px;">
+          <!-- Measure Selector -->
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--text-muted);font-weight:600;">المقياس:</span>
+            <div class="bi-btn-group" style="display:inline-flex;background:var(--bg-subtle);padding:3px;border-radius:10px;border:1px solid var(--border-default);">
+              <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'net' ? 'active' : ''}" data-measure="net"
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'net' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                صافي الربح
+              </button>
+              <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'revenue' ? 'active' : ''}" data-measure="revenue"
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'revenue' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                الإيرادات
+              </button>
+              <button type="button" class="prof-measure-btn bi-btn-item ${currentMeasure === 'expense' ? 'active' : ''}" data-measure="expense"
+                style="border:none;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;${currentMeasure === 'expense' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                المصروفات
+              </button>
+            </div>
           </div>
-          <span id="prof-search-counter" style="font-size:0.8rem;color:rgba(255,255,255,0.6);font-weight:600;display:none;"></span>
+
+          <!-- Grain Selector -->
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;color:var(--text-muted);font-weight:600;">التدرج:</span>
+            <div class="bi-btn-group" style="display:inline-flex;background:var(--bg-subtle);padding:3px;border-radius:10px;border:1px solid var(--border-default);">
+              <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'year' ? 'active' : ''}" data-grain="year"
+                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'year' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                سنوي
+              </button>
+              <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'quarter' ? 'active' : ''}" data-grain="quarter"
+                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'quarter' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                ربع سنوي
+              </button>
+              <button type="button" class="prof-grain-btn bi-btn-item ${currentTimeGrain === 'month' ? 'active' : ''}" data-grain="month"
+                style="border:none;border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;${currentTimeGrain === 'month' ? 'background:var(--brand-primary);color:var(--text-on-brand);' : 'background:transparent;color:var(--text-secondary);'}">
+                شهري
+              </button>
+            </div>
+          </div>
+
+          <!-- Administrative Expense Redistribution Switch -->
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;background:var(--bg-subtle);border:1px solid ${currentRedistribute ? 'var(--brand-accent)' : 'var(--border-default)'};padding:5px 12px;border-radius:10px;font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;" title="توزيع مصروفات المراكز الإدارية (مثل الإدارة العامة) تناسبياً على مراكز العمليات">
+            <input type="checkbox" id="prof-redist-toggle" ${currentRedistribute ? 'checked' : ''} style="cursor:pointer;accent-color:var(--brand-primary);width:15px;height:15px;">
+            <span>توزيع المصروفات الإدارية</span>
+          </label>
+
+          <!-- Search Bar -->
+          <div class="exec-search-wrap" style="position:relative;display:inline-flex;align-items:center;min-width:180px;">
+            <input type="text" id="prof-tree-search" class="exec-search-input" placeholder="بحث…" style="width:180px;padding:6px 12px 6px 30px;background:var(--bg-subtle);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;" />
+            <button id="btn-prof-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+            <span class="exec-search-icon" style="position:absolute;left:8px;pointer-events:none;color:var(--text-muted);display:inline-flex;align-items:center;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            </span>
+          </div>
+          <span id="prof-search-counter" style="display:none;font-size:12px;color:var(--text-muted);font-weight:600;"></span>
+
+          <!-- Expand / Collapse / Export -->
+          <button id="prof-btn-expand-all" class="exec-btn-tool" title="توسيع الكل">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>
+            توسيع الكل
+          </button>
+          <button id="prof-btn-collapse-all" class="exec-btn-tool" title="طي الكل">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+            طي الكل
+          </button>
+          <button id="prof-btn-export-excel" class="exec-btn-tool" title="تصدير Excel">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            تصدير Excel
+          </button>
         </div>
       </div>
 
       <!-- TreeTable Container -->
-      <div id="prof-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
+      <div id="prof-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;"></div>
     </div>
   `;
 
@@ -534,32 +519,34 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
       const isAcc = depth === 3 || node.type === 'account';
 
       const indent = depth * 22;
-      const icon = hasKids ? (isExpanded ? '▼' : '▶') : '•';
+      const chevronDown = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+      const chevronLeft = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+      const icon = hasKids ? (isExpanded ? chevronDown : chevronLeft) : '•';
 
-      let namePrefix = '';
-      if (isCo) namePrefix = '🏢 ';
-      else if (isDept) namePrefix = '📁 ';
-      else if (isCC) namePrefix = '🏷️ ';
-      else if (isAcc) namePrefix = '📄 ';
+      let companyDot = '';
+      if (isCo) {
+        const cid = node.company_id != null ? node.company_id : Number(String(node.id || '').replace(/^co_?/, ''));
+        companyDot = `<span class="company-dot" style="background:var(--company-${cid || 1});flex-shrink:0;margin:0 2px;"></span>`;
+      }
 
       const rowBg = isCo
-        ? 'background:rgba(59,130,246,0.06);font-weight:800;'
-        : (isDept ? 'background:rgba(255,255,255,0.02);font-weight:700;' : '');
+        ? 'background:var(--bg-subtle);font-weight:700;'
+        : (isDept ? 'background:transparent;font-weight:600;' : '');
 
       const cursor = hasKids ? 'cursor:pointer;' : '';
 
       // R2-9: 1. Contribution calculation (relative to direct parent)
       const parentTot = node._parentTotal !== undefined ? node._parentTotal : (totals.total || 0);
       const nodeTot = node.total !== undefined ? node.total : 0;
-      let contribHtml = '<span style="color:var(--exec-text-dim, #94a3b8);">—</span>';
+      let contribHtml = '<span style="color:var(--text-muted);">—</span>';
       if (parentTot > 0 && nodeTot !== undefined) {
         const pct = (nodeTot / parentTot) * 100;
         const isNeg = pct < 0;
         const absPct = Math.abs(pct);
         const barW = Math.min(100, Math.round(absPct));
         const pctStr = isNeg ? `-${absPct.toFixed(1)}%` : `${absPct.toFixed(1)}%`;
-        const barColor = isNeg ? 'var(--prof-bar-neg, #ef4444)' : 'var(--prof-bar-pos, #10b981)';
-        const textColor = isNeg ? 'var(--prof-text-neg, #ef4444)' : 'var(--prof-text-pos, #10b981)';
+        const barColor = isNeg ? 'var(--status-negative)' : 'var(--status-positive)';
+        const textColor = isNeg ? 'var(--status-negative)' : 'var(--status-positive)';
         const tip = `حصة من إجمالي ${escapeHtml(node._parentName || 'الأب')}: ${Math.round(nodeTot).toLocaleString('en-US')} من أصل ${Math.round(parentTot).toLocaleString('en-US')}`;
         contribHtml = `
           <div class="prof-contrib-cell" title="${escapeHtml(tip)}">
@@ -574,11 +561,13 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
       return `
         <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
           <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
-            <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, #94a3b8);font-size:0.85rem;">${icon}</span>
-            ${namePrefix}
-            <span title="${escapeHtml(node.name || '')}" style="display:inline-block;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;${isCC ? 'color:#60a5fa;' : ''}">${escapeHtml(node.name || '')}</span>
-            ${node.is_redistributable ? '<span style="font-size:0.72rem;padding:2px 6px;border-radius:4px;background:rgba(245,158,11,0.15);color:#f59e0b;margin-right:6px;">إداري 🔄</span>' : ''}
-            ${isAcc && node.code ? `<span style="font-size:0.75rem;color:var(--exec-text-dim, #94a3b8);margin-right:6px;">(${escapeHtml(node.code)})</span>` : ''}
+            <div class="tree-name-cell" style="display:inline-flex;align-items:center;gap:6px;max-width:100%;vertical-align:middle;">
+              <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;color:var(--text-muted);flex-shrink:0;">${icon}</span>
+              ${companyDot}
+              <span class="tree-node-name" data-tree-name="true" title="${escapeHtml(node.name || '')}" style="vertical-align:middle;white-space:normal;word-break:break-word;">${escapeHtml(node.name || '')}</span>
+              ${node.is_redistributable ? '<span style="font-size:11px;padding:2px 6px;border-radius:4px;background:var(--status-warning-subtle);color:var(--status-warning);margin-right:6px;">إداري</span>' : ''}
+              ${isAcc && node.code ? `<span style="font-size:11px;color:var(--text-muted);margin-right:4px;">(${escapeHtml(node.code)})</span>` : ''}
+            </div>
           </td>
           ${periodCols.map((col, idx) => {
             const val = node.values?.[col.key] || 0;

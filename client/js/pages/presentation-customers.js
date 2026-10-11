@@ -47,7 +47,7 @@ function fmtVal(num, showZeroDash = true) {
 
 function fmtRate(rate) {
   if (rate === null || rate === undefined || isNaN(rate)) return '—';
-  return `${Number(rate).toFixed(1)}%`;
+  return `<span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${Number(rate).toFixed(1)}%</span>`;
 }
 
 function getPeriodParamsFromFilter(timeFilter) {
@@ -94,7 +94,7 @@ export async function renderCustomersCollectionTab(body, container, timeFilter, 
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) {
       contentEl.style.display = 'flex';
-      renderContent(contentEl, container, data, periodParams, selectedCos);
+      renderContent(contentEl, container, data, periodParams, selectedCos, timeFilter);
     }
     return;
   }
@@ -118,7 +118,7 @@ export async function renderCustomersCollectionTab(body, container, timeFilter, 
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) {
       contentEl.style.display = 'flex';
-      renderContent(contentEl, container, data, periodParams, selectedCos);
+      renderContent(contentEl, container, data, periodParams, selectedCos, timeFilter);
     }
   } catch (err) {
     console.error('[CustomersCollectionTab] Error:', err);
@@ -138,102 +138,211 @@ export async function renderCustomersCollectionTab(body, container, timeFilter, 
   }
 }
 
-function renderContent(contentEl, container, data, periodParams, selectedCos) {
+const ICONS = {
+  search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  expandAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 13 12 18 17 13"/><polyline points="7 6 12 11 17 6"/></svg>',
+  collapseAll: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>',
+  excel: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  chevronDown: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  chevronLeft: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>',
+  statement: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>'
+};
+
+function formatPresentationPeriodLabel(rawLabel, periodParams) {
+  if (periodParams?.years && !periodParams.years.includes(',') && periodParams.years !== 'ALL') {
+    return periodParams.years;
+  }
+  const str = String(rawLabel || '').trim();
+  const m1 = str.match(/^(?:01-01-)?(\d{4})\s*إلى\s*31-12-\1$/);
+  if (m1) return m1[1];
+  const m2 = str.match(/^(\d{4})-01-01\s*إلى\s*\1-12-31$/);
+  if (m2) return m2[1];
+  const m3 = str.match(/^01\/01\/(\d{4})\s*إلى\s*31\/12\/\1$/);
+  if (m3) return m3[1];
+  return str || periodParams?.years || '2026';
+}
+
+function renderContent(contentEl, container, data, periodParams, selectedCos, timeFilter) {
   const totals = data.totals || {};
   const meta = data.meta || {};
   const buckets = totals.buckets || {};
   const totalResidual = totals.total_residual || 0;
+  
+  const rawPeriod = timeFilter?.periodLabel || meta.period_label || periodParams?.years || '2026';
+  const periodLabel = formatPresentationPeriodLabel(rawPeriod, periodParams);
+
+  // 5 Aging buckets calculations
+  const notDue = Math.max(0, buckets.not_due || 0);
+  const b1_30 = Math.max(0, buckets.b1_30 || 0);
+  const b31_60 = Math.max(0, buckets.b31_60 || 0);
+  const b61_90 = Math.max(0, buckets.b61_90 || 0);
+  const over90 = Math.max(0, (buckets.b91_180 || 0) + (buckets.b181_365 || 0) + (buckets.over_365 || 0));
+
+  const pNotDue = totalResidual > 0 ? (notDue / totalResidual * 100) : 0;
+  const p1_30 = totalResidual > 0 ? (b1_30 / totalResidual * 100) : 0;
+  const p31_60 = totalResidual > 0 ? (b31_60 / totalResidual * 100) : 0;
+  const p61_90 = totalResidual > 0 ? (b61_90 / totalResidual * 100) : 0;
+  const pOver90 = totalResidual > 0 ? (over90 / totalResidual * 100) : 0;
 
   contentEl.innerHTML = `
-    <!-- Top KPI Cards (5 Cards per Claude B6) -->
-    <div class="cust-kpi-grid" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:16px;width:100%;min-width:0;box-sizing:border-box;">
+    <!-- Tab Header -->
+    <div class="exec-header" style="display:flex;flex-direction:column;gap:4px;">
+      <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+        فواتير العملاء — <span>${escapeHtml(periodLabel)}</span>
+      </h1>
+      <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+        ما فُوّتر خلال الفترة وما بقي منه دون تحصيل، حسب تاريخ الفاتورة
+      </p>
+    </div>
+
+    <!-- Top KPI Cards (5 Cards matching 03-customers-light.png) -->
+    <div class="cust-kpi-grid exec-kpi-grid">
       
       <!-- 1. Billed -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #3b82f6;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">إجمالي المفوتر</span>
-        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#3b82f6;" class="exec-num">${Math.round(totals.total_billed || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">الفواتير الصادرة شاملة الضريبة</span>
+      <div class="bi-kpi-card">
+        <span class="bi-kpi-label">المفوتر</span>
+        <div class="bi-kpi-value">${Math.round(totals.total_billed || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">شامل الضريبة • ${totals.inv_count ? totals.inv_count.toLocaleString('en-US') : (data.meta?.invoices_count ? data.meta.invoices_count.toLocaleString('en-US') : '—')} فاتورة</span>
       </div>
 
-      <!-- 2. Returns -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #f59e0b;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المرتجعات والإشعارات</span>
-        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#f59e0b;" class="exec-num">${Math.round(totals.total_returns || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">${(data.returns_list || []).length} إشعار دائن ومرتجع</span>
+      <!-- 2. Returns / Credit Notes -->
+      <div class="bi-kpi-card">
+        <span class="bi-kpi-label">الإشعارات الدائنة</span>
+        <div class="bi-kpi-value">${Math.round(totals.total_returns || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">${(data.returns_list || []).length > 0 ? `${(data.returns_list || []).length.toLocaleString('en-US')} إشعاراً` : '—'}</span>
       </div>
 
-      <!-- 3. Net Billed -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #8b5cf6;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">الصافي بعد المرتجعات</span>
-        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#a78bfa;" class="exec-num">${Math.round(totals.total_net || 0).toLocaleString('en-US')}</div>
-        <span style="font-size:0.78rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">المفوتر − المرتجعات</span>
+      <!-- 3. Net Billed (HERO Card) -->
+      <div class="bi-kpi-card hero">
+        <span class="bi-kpi-label">صافي الفواتير</span>
+        <div class="bi-kpi-value">${Math.round(totals.total_net || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">المفوتر – الإشعارات</span>
       </div>
 
-      <!-- 4. Collected (with rate below) -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #10b981;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المحصّل الفعلي</span>
-        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#10b981;" class="exec-num">${Math.round(totals.total_collected || 0).toLocaleString('en-US')}</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;">
-          <span style="font-size:0.8rem;font-weight:700;color:#06b6d4;">نسبة التحصيل: ${totals.collection_rate || 0}%</span>
+      <!-- 4. Collected -->
+      <div class="bi-kpi-card">
+        <span class="bi-kpi-label">المحصّل</span>
+        <div class="bi-kpi-value">${Math.round(totals.total_collected || 0).toLocaleString('en-US')}</div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div class="bi-progress-bar-wrap">
+            <div class="bi-progress-bar-fill" style="width:${Math.min(100, Math.max(0, totals.collection_rate || 0))}%;"></div>
+          </div>
+          <span class="bi-kpi-sub">نسبة التحصيل <strong class="text-positive tabular-nums" dir="ltr" style="display:inline-block;direction:ltr;">${totals.collection_rate != null ? Number(totals.collection_rate).toFixed(1) : 0}%</strong></span>
         </div>
-        <div style="width:100%;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
-          <div style="width:${Math.min(100, totals.collection_rate || 0)}%;height:100%;background:#06b6d4;"></div>
-        </div>
       </div>
 
-      <!-- 5. Remaining (with overdue +90 below) -->
-      <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:18px 20px;border-right:4px solid #ef4444;display:flex;flex-direction:column;gap:6px;min-width:0;box-sizing:border-box;">
-        <span style="font-size:0.9rem;font-weight:700;color:var(--exec-text-muted, rgba(255,255,255,0.55));">المتبقي للتحصيل</span>
-        <div style="font-size:clamp(1.1rem, 2.5vw, 1.75rem);font-weight:900;color:#ef4444;" class="exec-num">${Math.round(totals.total_residual || 0).toLocaleString('en-US')}</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:2px;">
-          <span style="font-size:0.78rem;font-weight:700;color:#f43f5e;">المتأخر (+90 يوم): ${Math.round(totals.overdue_90 || 0).toLocaleString('en-US')}</span>
-          <span style="font-size:0.75rem;color:var(--exec-text-muted, rgba(255,255,255,0.45));">${totalResidual > 0 ? ((totals.overdue_90 / totalResidual) * 100).toFixed(1) : 0}%</span>
-        </div>
+      <!-- 5. Remaining / Residual -->
+      <div class="bi-kpi-card">
+        <span class="bi-kpi-label">المتبقي</span>
+        <div class="bi-kpi-value">${Math.round(totals.total_residual || 0).toLocaleString('en-US')}</div>
+        <span class="bi-kpi-sub">منه متأخر +90 يوماً <strong class="text-negative tabular-nums">${totals.overdue_90 != null ? Math.round(totals.overdue_90).toLocaleString('en-US') : '—'}</strong></span>
       </div>
 
     </div>
 
-    <!-- Collapsible 1: Aging Buckets (مطوية) -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;box-sizing:border-box;">
-      <div id="cust-aging-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">⏳ أعمار ذمم فواتير الفترة (الشرائح السبع) — حسب تاريخ استحقاق الفاتورة</span>
-          <span id="cust-aging-badge" style="font-size:0.82rem;color:#3b82f6;background:rgba(59,130,246,0.12);padding:2px 10px;border-radius:6px;font-weight:700;">
-            ${isAgingOpen ? 'إخفاء ▲' : 'عرض الشرائح ▾'}
+    <!-- Aging Card (03-customers-light.png) -->
+    <div class="cust-aging-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;flex-direction:column;gap:2px;">
+          <h2 style="margin:0;font-size:17px;line-height:26px;font-weight:600;color:var(--text-primary);">كم عمر المبالغ غير المحصّلة؟</h2>
+          <span style="font-size:12px;line-height:18px;color:var(--text-muted);">
+            حسب تاريخ استحقاق الفاتورة • الإجمالي <strong class="tabular-nums" style="color:var(--text-primary);">${Math.round(totalResidual).toLocaleString('en-US')}</strong>
           </span>
         </div>
-        <span style="font-size:0.88rem;color:var(--exec-text-muted, rgba(255,255,255,0.55));font-weight:700;">
-          إجمالي المتبقي: <strong class="exec-num" style="color:#ef4444;">${Math.round(totalResidual).toLocaleString('en-US')} ريال</strong>
-        </span>
+        <button id="cust-aging-toggle" style="background:none;border:none;color:var(--brand-accent);font-size:13px;font-weight:600;cursor:pointer;padding:4px 0;text-decoration:none;font-family:var(--font-ar);">
+          ${isAgingOpen ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+        </button>
       </div>
 
-      <div id="cust-aging-body" style="display:${isAgingOpen ? 'grid' : 'none'};grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+      <!-- Multi-segment Progress Bar -->
+      <div class="cust-aging-bar">
+        ${pNotDue > 0 ? `<div style="width:${pNotDue}%;background:#9AA8BC;"></div>` : ''}
+        ${p1_30 > 0 ? `<div style="width:${p1_30}%;background:#1D6AE5;"></div>` : ''}
+        ${p31_60 > 0 ? `<div style="width:${p31_60}%;background:#7A5AF0;"></div>` : ''}
+        ${p61_90 > 0 ? `<div style="width:${p61_90}%;background:#A85A07;"></div>` : ''}
+        ${pOver90 > 0 ? `<div style="width:${pOver90}%;background:#C2281B;"></div>` : ''}
+      </div>
+
+      <!-- 5-Bucket Legend -->
+      <div class="cust-aging-legend">
+        <!-- 1. Not Due -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);">
+            <span style="width:8px;height:8px;border-radius:50%;background:#9AA8BC;flex-shrink:0;"></span>
+            <span>لم يستحق بعد</span>
+          </div>
+          <div class="tabular-nums" style="font-size:14px;font-weight:600;color:var(--text-primary);">${Math.round(notDue).toLocaleString('en-US')}</div>
+          <span style="font-size:11px;color:var(--text-muted);"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${pNotDue.toFixed(1)}%</span></span>
+        </div>
+
+        <!-- 2. 1-30 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);">
+            <span style="width:8px;height:8px;border-radius:50%;background:#1D6AE5;flex-shrink:0;"></span>
+            <span>1–30 يوماً</span>
+          </div>
+          <div class="tabular-nums" style="font-size:14px;font-weight:600;color:var(--text-primary);">${Math.round(b1_30).toLocaleString('en-US')}</div>
+          <span style="font-size:11px;color:var(--text-muted);"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${p1_30.toFixed(1)}%</span></span>
+        </div>
+
+        <!-- 3. 31-60 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);">
+            <span style="width:8px;height:8px;border-radius:50%;background:#7A5AF0;flex-shrink:0;"></span>
+            <span>31–60 يوماً</span>
+          </div>
+          <div class="tabular-nums" style="font-size:14px;font-weight:600;color:var(--text-primary);">${Math.round(b31_60).toLocaleString('en-US')}</div>
+          <span style="font-size:11px;color:var(--text-muted);"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${p31_60.toFixed(1)}%</span></span>
+        </div>
+
+        <!-- 4. 61-90 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);">
+            <span style="width:8px;height:8px;border-radius:50%;background:#A85A07;flex-shrink:0;"></span>
+            <span>61–90 يوماً</span>
+          </div>
+          <div class="tabular-nums" style="font-size:14px;font-weight:600;color:var(--text-primary);">${Math.round(b61_90).toLocaleString('en-US')}</div>
+          <span style="font-size:11px;color:var(--text-muted);"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${p61_90.toFixed(1)}%</span></span>
+        </div>
+
+        <!-- 5. Over 90 -->
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--status-negative);">
+            <span style="width:8px;height:8px;border-radius:50%;background:#C2281B;flex-shrink:0;"></span>
+            <span>أكثر من 90 يوماً</span>
+          </div>
+          <div class="tabular-nums text-negative" style="font-size:14px;font-weight:600;">${Math.round(over90).toLocaleString('en-US')}</div>
+          <span style="font-size:11px;color:var(--text-muted);"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${pOver90.toFixed(1)}%</span></span>
+        </div>
+      </div>
+
+      <!-- Collapsible Detailed 7 Buckets Container (supports interactive test assert) -->
+      <div id="cust-aging-body" style="display:${isAgingOpen ? 'grid' : 'none'};grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:12px;padding-top:14px;border-top:1px solid var(--border-default);">
         ${renderAgingBucketsGrid(buckets, totalResidual)}
       </div>
     </div>
 
-    <!-- Collapsible 2: Returns List (مطوية) -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:14px;width:100%;min-width:0;box-sizing:border-box;">
+    <!-- Collapsible Returns Section -->
+    <div style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:14px;padding:16px 20px;display:flex;flex-direction:column;gap:12px;width:100%;box-sizing:border-box;">
       <div id="cust-returns-toggle" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:1.05rem;font-weight:800;color:var(--exec-text, #fff);">↩️ قائمة المرتجعات والإشعارات الدائنة</span>
-          <span id="cust-returns-badge" style="font-size:0.82rem;color:#f59e0b;background:rgba(245,158,11,0.12);padding:2px 10px;border-radius:6px;font-weight:700;">
-            ${isReturnsOpen ? 'إخفاء ▲' : `عرض (${(data.returns_list || []).length}) ▾`}
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:14px;font-weight:600;color:var(--text-primary);">قائمة المرتجعات والإشعارات الدائنة</span>
+          <span id="cust-returns-badge" style="font-size:12px;color:var(--brand-accent);background:var(--brand-accent-subtle);padding:2px 8px;border-radius:999px;font-weight:600;">
+            ${(data.returns_list || []).length} إشعاراً
           </span>
         </div>
-        <span style="font-size:0.88rem;color:var(--exec-text-muted, rgba(255,255,255,0.55));font-weight:700;">
-          إجمالي المرتجعات: <strong class="exec-num" style="color:#f59e0b;">${Math.round(totals.total_returns || 0).toLocaleString('en-US')} ريال</strong>
+        <span style="font-size:12px;color:var(--text-secondary);font-weight:600;">
+          الإجمالي: <strong class="tabular-nums" style="color:var(--status-warning);">${Math.round(totals.total_returns || 0).toLocaleString('en-US')}</strong> ريال
         </span>
       </div>
 
-      <div id="cust-returns-body" style="display:${isReturnsOpen ? 'flex' : 'none'};flex-direction:column;gap:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
-        <!-- Filter bar for returns -->
+      <div id="cust-returns-body" style="display:${isReturnsOpen ? 'flex' : 'none'};flex-direction:column;gap:12px;padding-top:10px;border-top:1px solid var(--border-default);">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <input type="text" id="cust-returns-search" placeholder="🔍 بحث في المرتجعات (رقم المستند، العميل، القسم...)" 
+          <input type="text" id="cust-returns-search" placeholder="بحث في المرتجعات…" 
             value="${escapeHtml(returnsSearchQuery)}" 
-            style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 14px;color:#fff;font-size:0.88rem;width:340px;max-width:100%;">
-          <span style="font-size:0.82rem;color:var(--exec-text-muted, rgba(255,255,255,0.5));">
-            * المرتجعات تخصم مباشرة من المفوتر ولا تحتسب كتحصيل نقدي
+            class="exec-search-input" style="width:280px;">
+          <span style="font-size:12px;color:var(--text-muted);">
+            * المرتجعات تُخصم من المفوتر ولا تحتسب كتحصيل نقدي
           </span>
         </div>
         <div id="cust-returns-table-wrapper" data-scroll-x="true" style="overflow-x:auto;max-height:360px;width:100%;box-sizing:border-box;">
@@ -242,70 +351,65 @@ function renderContent(contentEl, container, data, periodParams, selectedCos) {
       </div>
     </div>
 
-    <!-- Main Section: 4-Level Hierarchical TreeTable -->
-    <div style="background:var(--exec-bg-card, rgba(255,255,255,0.03));border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
+    <!-- Main Section: 4-Level Hierarchical TreeTable Card -->
+    <div class="exec-table-card">
       
       <!-- Table Header & Controls -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;">
-        <div>
-          <h3 style="margin:0;font-size:1.15rem;font-weight:800;color:var(--exec-text, #fff);">
-            👥 سجل العملاء والتحصيل الهرمي — ${escapeHtml(meta.period_label || '')}
-          </h3>
-          <span style="font-size:0.85rem;color:var(--exec-text-muted, rgba(255,255,255,0.5));">
-            الشركة ← المجموعة ← مركز التكلفة (دفتر اليومية) ← العميل ← الفاتورة | النقر على العميل أو زر كشف الحساب يفتح كشف الحساب المتسلسل
-          </span>
+      <div class="exec-table-toolbar">
+        <div class="exec-table-titles">
+          <h2 class="exec-table-title">الفواتير حسب الشركة والمجموعة والعميل — ${escapeHtml(periodLabel)}</h2>
+          <span class="exec-table-breadcrumb">الشركة ← المجموعة ← مركز التكلفة ← العميل ← الفاتورة</span>
         </div>
 
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div style="position:relative;display:inline-flex;align-items:center;">
-            <input type="text" id="cust-tree-search" placeholder="بحث…" 
-              style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 28px 6px 14px;color:#fff;font-size:0.88rem;width:240px;outline:none;">
-            <button id="btn-cust-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:rgba(255,255,255,0.5);cursor:pointer;font-size:0.8rem;padding:0;">✕</button>
+        <div class="exec-table-actions">
+          <div class="exec-search-wrap">
+            <input type="text" id="cust-tree-search" class="exec-search-input" placeholder="بحث…" />
+            <button id="btn-cust-clear-search" style="display:none;position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+            <span class="exec-search-icon">${ICONS.search}</span>
           </div>
-          <span id="cust-search-counter" style="font-size:0.8rem;color:rgba(255,255,255,0.6);font-weight:600;display:none;"></span>
+          <span id="cust-search-counter" style="font-size:12px;color:var(--text-muted);font-weight:600;display:none;"></span>
           
-          <button id="cust-btn-expand-all" style="background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
-            📂 توسيع الكل
+          <button id="cust-btn-expand-all" class="exec-btn-tool" title="توسيع الكل">
+            ${ICONS.expandAll}
+            توسيع الكل
           </button>
-          <button id="cust-btn-collapse-all" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
-            📁 طي الكل
+          <button id="cust-btn-collapse-all" class="exec-btn-tool" title="طي الكل">
+            ${ICONS.collapseAll}
+            طي الكل
           </button>
-          <button id="cust-btn-export-excel" style="background:rgba(16,185,129,0.1);color:#34d399;border:1px solid rgba(16,185,129,0.25);border-radius:8px;padding:6px 12px;font-size:0.82rem;font-weight:700;cursor:pointer;">
-            📊 تصدير Excel
+          <button id="cust-btn-export-excel" class="exec-btn-tool" title="تصدير Excel">
+            ${ICONS.excel}
+            تصدير Excel
           </button>
         </div>
       </div>
 
       <!-- TreeTable Mount Point -->
-      <div id="cust-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;max-width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--exec-border, rgba(255,255,255,0.08));border-radius:12px;"></div>
+      <div id="cust-tree-container" class="tree-table-wrap" data-scroll-x="true" style="overflow-x:auto;width:100%;box-sizing:border-box;"></div>
     </div>
 
     <!-- Statement Slide-over / Modal Container -->
-    <div id="cust-statement-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.75);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px;">
-      <div id="cust-statement-card" style="background:linear-gradient(180deg, #1e293b, #0f172a);border:1px solid rgba(255,255,255,0.15);border-radius:18px;width:1100px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 25px 50px -12px rgba(0,0,0,0.5);overflow:hidden;">
+    <div id="cust-statement-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:20px;">
+      <div id="cust-statement-card" style="background:var(--bg-surface);border:1px solid var(--border-default);border-radius:18px;width:1100px;max-width:96vw;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 25px 50px rgba(0,0,0,0.4);overflow:hidden;">
         <!-- Header -->
-        <div style="padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:space-between;background:rgba(255,255,255,0.02);">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border-default);display:flex;align-items:center;justify-content:space-between;background:var(--bg-subtle);">
           <div style="display:flex;align-items:center;gap:12px;">
-            <span style="font-size:1.6rem;">📄</span>
             <div>
-              <h3 id="stmt-partner-name" style="margin:0;font-size:1.2rem;font-weight:800;color:#fff;">كشف حساب عميل</h3>
-              <span id="stmt-meta-info" style="font-size:0.84rem;color:rgba(255,255,255,0.55);">—</span>
+              <h3 id="stmt-partner-name" style="margin:0;font-size:1.15rem;font-weight:700;color:var(--text-primary);">كشف حساب عميل</h3>
+              <span id="stmt-meta-info" style="font-size:12px;color:var(--text-muted);">—</span>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
-            <button id="stmt-btn-pdf" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35);border-radius:8px;padding:7px 16px;font-size:0.85rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;">
-              📥 تصدير PDF
+            <button id="stmt-btn-pdf" class="bi-btn bi-btn-primary" style="padding:6px 14px;font-size:12px;">
+              تصدير PDF
             </button>
-            <button id="stmt-btn-close" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:7px 14px;font-size:0.85rem;font-weight:700;cursor:pointer;">
+            <button id="stmt-btn-close" class="bi-btn bi-btn-secondary" style="padding:6px 12px;font-size:12px;">
               ✕ إغلاق
             </button>
           </div>
         </div>
-
-        <!-- Statement Body -->
-        <div id="stmt-content-body" style="padding:22px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:18px;">
-          <!-- Injected dynamically -->
-        </div>
+        <!-- Body -->
+        <div id="stmt-content-body" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;"></div>
       </div>
     </div>
   `;
@@ -471,18 +575,15 @@ function renderReturnsTable(returnsList, query) {
 }
 
 const mainColumns = [
-  { id: 'name', label: 'البيان / الهيكل', minWidth: '135px', align: 'right', priority: 1 },
-  { id: 'inv_count', label: 'الفواتير', align: 'center', width: '44px', minWidth: '38px', priority: 2 },
-  { id: 'billed', label: 'المفوتر', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
-  { id: 'returns', label: 'المرتجعات', align: 'left', width: '65px', minWidth: '55px', priority: 2 },
-  { id: 'net', label: 'الصافي', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
-  { id: 'collected', label: 'المحصّل', align: 'left', width: '72px', minWidth: '60px', priority: 1 },
-  { id: 'residual', label: 'المتبقي', align: 'left', width: '72px', minWidth: '60px', color: 'var(--exec-danger, #f87171)', priority: 1 },
-  { id: 'collection_rate', label: '% التحصيل', align: 'center', width: '55px', minWidth: '50px', priority: 2 },
-  { id: 'overdue_90', label: 'متأخر +90', align: 'left', width: '70px', minWidth: '60px', color: 'var(--exec-danger, #f87171)', priority: 2 },
-  { id: 'avg_age', label: 'العمر', title: 'متوسط عمر الدين المرجّح بالمبلغ — حسب تاريخ استحقاق الفاتورة', align: 'center', width: '48px', minWidth: '42px', priority: 2 },
-  { id: 'aging_visual', label: 'توزيع الأعمار', align: 'center', flex: true, minWidth: '90px', priority: 1 },
-  { id: 'actions', label: '', align: 'center', width: '36px', minWidth: '36px', maxWidth: '36px', priority: 1 }
+  { id: 'name', label: 'البيان', minWidth: '180px', align: 'right', priority: 1 },
+  { id: 'inv_count', label: 'الفواتير', align: 'center', width: '55px', minWidth: '45px', priority: 2 },
+  { id: 'billed', label: 'المفوتر', align: 'left', width: '85px', minWidth: '70px', priority: 1 },
+  { id: 'returns', label: 'الإشعارات', align: 'left', width: '80px', minWidth: '65px', priority: 2 },
+  { id: 'net', label: 'صافي الفواتير', align: 'left', width: '85px', minWidth: '70px', priority: 1 },
+  { id: 'collected', label: 'المحصّل', align: 'left', width: '85px', minWidth: '70px', priority: 1 },
+  { id: 'residual', label: 'المتبقي', align: 'left', width: '85px', minWidth: '70px', priority: 1 },
+  { id: 'collection_rate', label: 'نسبة التحصيل', align: 'center', width: '100px', minWidth: '85px', priority: 2 },
+  { id: 'overdue_90', label: 'متأخر +90', align: 'left', width: '85px', minWidth: '70px', priority: 2 }
 ];
 
 function renderAgingVisual(node) {
@@ -612,44 +713,45 @@ function initTreeTable(container, data, periodParams) {
       const isPartner = depth === 3 || node.type === 'partner';
       const isInvoice = depth === 4 || node.type === 'invoice';
 
-      const indent = depth * 18;
-      const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
+      const indent = depth * 22;
 
-      let namePrefix = '';
-      if (isCo) namePrefix = '🏢 ';
-      else if (isDept) namePrefix = '📁 ';
-      else if (isJournal) namePrefix = '📒 ';
-      else if (isPartner) namePrefix = '👤 ';
-      else if (isInvoice) namePrefix = node.isReturn ? '↩️ ' : '🧾 ';
+      let iconSvg = '';
+      if (node._loading) {
+        iconSvg = `<svg class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;animation:spin 0.8s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`;
+      } else if (hasKids) {
+        if (isExpanded) {
+          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="6 9 12 15 18 9"/></svg>`;
+        } else {
+          iconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;"><polyline points="15 18 9 12 15 6"/></svg>`;
+        }
+      }
 
-      const rowBg = isCo
-        ? 'background:rgba(59,130,246,0.06);font-weight:800;'
-        : (isDept ? 'background:rgba(255,255,255,0.025);font-weight:700;' : (isJournal ? 'background:rgba(245,158,11,0.025);font-weight:600;' : ''));
+      let companyDot = '';
+      if (isCo) {
+        const cid = node.company_id != null ? node.company_id : Number(String(node.id).replace(/^co_?/, ''));
+        companyDot = `<span class="company-dot" style="background:var(--company-${cid || 1});"></span>`;
+      }
 
       const cursor = hasKids ? 'cursor:pointer;' : (isPartner ? 'cursor:pointer;' : '');
+      const rowStyle = isCo
+        ? 'font-weight:700;background:var(--bg-hover);color:var(--text-primary);'
+        : (isDept
+            ? 'font-weight:600;color:var(--text-secondary);'
+            : 'color:var(--text-secondary);');
 
-      // Action button: compact icon only on partner row per T1
-      let actionCell = '';
+      const nodeColor = isPartner
+        ? 'color:var(--text-primary);font-weight:600;'
+        : (isJournal
+            ? 'color:var(--text-secondary);font-weight:500;'
+            : (depth > 0 ? 'color:var(--text-secondary);' : 'color:var(--text-primary);'));
+
+      // Action button on partner row: subtle SVG statement trigger
+      let stmtBtn = '';
       if (isPartner) {
-        actionCell = `
-          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" data-journal="${node.journal_id || ''}" title="كشف حساب العميل على مستوى الشركة كاملة (يشمل كافة دفاتر وأقسام الشركة)"
-            style="background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-size:0.9rem;cursor:pointer;padding:0;">
-            📄
+        stmtBtn = `
+          <button class="btn-stmt-trigger" data-co="${node.company_id}" data-pid="${node.id}" data-dept="${node.department_id || ''}" data-journal="${node.journal_id || ''}" title="كشف حساب العميل" style="background:var(--bg-subtle);color:var(--brand-accent);border:1px solid var(--border-default);border-radius:6px;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;margin-right:6px;padding:0;vertical-align:middle;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           </button>
-        `;
-      } else if (isInvoice) {
-        const isPaid = node.payment_state === 'paid'
-          || (node.residual !== undefined && Math.abs(node.residual) <= 0.01 && (node.collected > 0 || node.billed === 0))
-          || (node.collection_rate !== undefined && node.collection_rate === 100);
-        const isPartial = !isPaid && (node.collected > 0 || node.payment_state === 'partial');
-        const icon = isPaid ? '✅' : '⏳';
-        const title = isPaid
-          ? 'مسددة بالكامل (100%)'
-          : (isPartial ? `مسددة جزئياً (${node.collection_rate || 0}%) — متبقي: ${Number(node.residual || 0).toLocaleString('en-US')} ر.س` : 'غير مسددة (متبقية بالكامل)');
-        actionCell = `
-          <span title="${title}" style="font-size:0.85rem;cursor:help;">
-            ${icon}
-          </span>
         `;
       }
 
@@ -657,70 +759,72 @@ function initTreeTable(container, data, periodParams) {
         ? Number(node.inv_count).toLocaleString('en-US')
         : (isInvoice ? '1' : '—');
 
-      const overdueColor = (node.overdue_90 || 0) > 0 ? 'color:#ef4444;font-weight:700;' : '';
+      const overdueVal = (node.overdue_90 || 0) > 0
+        ? `<span class="exec-num text-negative" style="color:var(--status-negative);font-weight:600;">${fmtVal(node.overdue_90)}</span>`
+        : '—';
+
+      // Collection Rate bar
+      let rateCell = '—';
+      if (node.collection_rate !== null && node.collection_rate !== undefined) {
+        const rateNum = Number(node.collection_rate);
+        const rateColor = rateNum >= 60 ? 'var(--status-positive)' : 'var(--status-warning)';
+        rateCell = `
+          <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+            <div style="width:36px;height:4px;background:var(--bg-subtle);border-radius:2px;overflow:hidden;">
+              <div style="width:${Math.min(100, Math.max(0, rateNum))}%;height:100%;background:${rateColor};"></div>
+            </div>
+            <span class="exec-num" style="font-size:12px;font-weight:600;"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${rateNum.toFixed(1)}%</span></span>
+          </div>
+        `;
+      }
 
       return `
-        <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-right:${indent + 14}px;">
-            <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted, rgba(255,255,255,0.4));font-size:0.85rem;">${icon}</span>
-            ${namePrefix}
-            <span style="${isPartner ? 'color:#60a5fa;font-weight:700;' : (isJournal ? 'color:#fbbf24;font-weight:600;' : '')}">${escapeHtml(node.name || '')}</span>
-            ${isInvoice ? `<span style="font-size:0.75rem;color:rgba(255,255,255,0.4);margin-right:6px;">(${escapeHtml(node.invoice_date || '')})</span>` : ''}
-            ${isInvoice && node.journal_name ? `<span class="badge-journal" style="font-size:0.72rem;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);padding:1px 6px;border-radius:4px;margin-right:6px;" title="الدفتر الأصلي: ${escapeHtml(node.journal_name)}">${escapeHtml(node.journal_name)}</span>` : ''}
-            ${node._loading ? `<span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;margin-right:6px;">⏳</span>` : ''}
+        <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowStyle}">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding-top:12px !important;padding-bottom:12px !important;padding-left:14px !important;padding-right:${indent + 14}px !important;text-align:right;">
+            <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--text-muted);">${iconSvg}</span>
+            ${companyDot}
+            <span style="${nodeColor}">${escapeHtml(node.name || '')}</span>
+            ${stmtBtn}
+            ${isInvoice ? `<span style="font-size:11px;color:var(--text-muted);margin-right:6px;">(${escapeHtml(node.invoice_date || '')})</span>` : ''}
+            ${isInvoice && node.journal_name ? `<span class="badge-journal" style="font-size:11px;background:var(--bg-subtle);color:var(--text-secondary);border:1px solid var(--border-default);padding:1px 6px;border-radius:4px;margin-right:6px;" title="الدفتر الأصلي: ${escapeHtml(node.journal_name)}">${escapeHtml(node.journal_name)}</span>` : ''}
           </td>
           <td class="tree-col-num" data-col-id="inv_count" data-priority="2" style="text-align:center;">${invCountDisplay}</td>
           <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;">${fmtVal(node.billed)}</td>
-          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;color:#f59e0b;">${fmtVal(node.returns)}</td>
-          <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;font-weight:700;">${fmtVal(node.net)}</td>
-          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;color:#10b981;">${fmtVal(node.collected)}</td>
-          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;color:#ef4444;font-weight:700;">${fmtVal(node.residual)}</td>
-          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;">
-            ${node.collection_rate !== null && node.collection_rate !== undefined ? `
-              <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
-                <span class="exec-num" style="font-size:0.82rem;font-weight:700;">${fmtRate(node.collection_rate)}</span>
-                <div style="width:36px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
-                  <div style="width:${Math.min(100, node.collection_rate || 0)}%;height:100%;background:#06b6d4;"></div>
-                </div>
-              </div>
-            ` : '—'}
-          </td>
-          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;${overdueColor}">${fmtVal(node.overdue_90)}</td>
-          <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;">
-            ${(node.avg_age || 0) > 0 ? `
-              <span class="exec-num cust-age-pill ${node.avg_age > 90 ? 'cust-age-over90' : ''}" style="font-size:0.8rem;padding:2px 6px;border-radius:4px;">
-                ${node.avg_age} يوم
-              </span>
-            ` : '—'}
-          </td>
-          <td class="tree-col-visual" data-col-id="aging_visual" data-priority="1" style="text-align:center;padding:8px 12px;">
-            ${renderAgingVisual(node)}
-          </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:44px;min-width:44px;max-width:44px;padding:4px 2px;">
-            ${actionCell}
-          </td>
+          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;">${fmtVal(node.returns)}</td>
+          <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;font-weight:600;">${fmtVal(node.net)}</td>
+          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;">${fmtVal(node.collected)}</td>
+          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;font-weight:600;color:var(--text-primary);">${fmtVal(node.residual)}</td>
+          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;">${rateCell}</td>
+          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;">${overdueVal}</td>
         </tr>
       `;
     },
     renderTotals: (totals) => {
-      const totInv = totals.inv_count !== undefined ? Number(totals.inv_count).toLocaleString('en-US') : '—';
-      const overdueColor = (totals.overdue_90 || 0) > 0 ? 'color:#ef4444;' : '';
+      const totInv = totals.inv_count !== undefined ? Number(totals.inv_count).toLocaleString('en-US') : (totals.invoices_count ? Number(totals.invoices_count).toLocaleString('en-US') : '—');
+      const totRate = totals.collection_rate != null ? Number(totals.collection_rate) : 0;
+      const rateColor = totRate >= 60 ? 'var(--status-positive)' : 'var(--status-warning)';
+      const overdueVal = (totals.overdue_90 || 0) > 0
+        ? `<span class="exec-num text-negative" style="color:var(--status-negative);font-weight:700;">${fmtVal(totals.overdue_90)}</span>`
+        : '—';
+
       return `
-        <tr style="background:rgba(59,130,246,0.12);font-weight:900;border-top:2px solid rgba(59,130,246,0.3);font-size:0.98rem;">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
+        <tr class="exec-sticky-footer" style="background:var(--bg-subtle);font-weight:700;border-top:2px solid var(--border-default);">
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;font-size:14px;color:var(--text-primary);">الإجمالي</td>
           <td class="tree-col-num" data-col-id="inv_count" data-priority="2" style="text-align:center;padding:14px 8px;">${totInv}</td>
           <td class="tree-col-num" data-col-id="billed" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_billed)}</td>
-          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;padding:14px 18px;color:#f59e0b;">${fmtVal(totals.total_returns)}</td>
+          <td class="tree-col-num" data-col-id="returns" data-priority="2" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_returns)}</td>
           <td class="tree-col-num" data-col-id="net" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_net)}</td>
-          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;padding:14px 18px;color:#10b981;">${fmtVal(totals.total_collected)}</td>
-          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;padding:14px 18px;color:#ef4444;">${fmtVal(totals.total_residual)}</td>
-          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;padding:14px 18px;color:#06b6d4;">${totals.collection_rate || 0}%</td>
-          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;padding:14px 18px;${overdueColor}">${fmtVal(totals.overdue_90)}</td>
-          <td class="tree-col-num" data-col-id="avg_age" data-priority="2" style="text-align:center;padding:14px 18px;">—</td>
-          <td class="tree-col-visual" data-col-id="aging_visual" data-priority="1" style="text-align:center;padding:14px 12px;">
-            ${renderAgingVisual(totals)}
+          <td class="tree-col-num" data-col-id="collected" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total_collected)}</td>
+          <td class="tree-col-num" data-col-id="residual" data-priority="1" style="text-align:left;padding:14px 18px;color:var(--text-primary);">${fmtVal(totals.total_residual)}</td>
+          <td class="tree-col-num" data-col-id="collection_rate" data-priority="2" style="text-align:center;padding:14px 18px;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+              <div style="width:36px;height:4px;background:var(--bg-surface);border-radius:2px;overflow:hidden;">
+                <div style="width:${Math.min(100, Math.max(0, totRate))}%;height:100%;background:${rateColor};"></div>
+              </div>
+              <span class="exec-num" style="font-size:12px;font-weight:700;"><span dir="ltr" class="tabular-nums" style="display:inline-block;direction:ltr;">${totRate.toFixed(1)}%</span></span>
+            </div>
           </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;padding:14px 2px;width:44px;"></td>
+          <td class="tree-col-num" data-col-id="overdue_90" data-priority="2" style="text-align:left;padding:14px 18px;">${overdueVal}</td>
         </tr>
       `;
     },
@@ -802,9 +906,9 @@ async function openCustomerStatement(companyId, partnerId, departmentId, periodP
   if (titleEl) titleEl.textContent = 'جاري تحميل كشف الحساب...';
   if (metaEl) metaEl.textContent = 'يرجى الانتظار';
   bodyEl.innerHTML = `
-    <div style="text-align:center;padding:60px 20px;color:rgba(255,255,255,0.5);">
-      <span class="spin-icon" style="display:inline-block;animation:bi-spin 0.8s linear infinite;font-size:1.4rem;">⏳</span>
-      جاري تجميع حركات العميل والرصيد التراكمي...
+    <div style="text-align:center;padding:60px 20px;color:var(--text-muted);">
+      <svg class="spin-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;animation:spin 0.8s linear infinite;margin-bottom:8px;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+      <div>جاري تجميع حركات العميل والرصيد التراكمي...</div>
     </div>
   `;
 

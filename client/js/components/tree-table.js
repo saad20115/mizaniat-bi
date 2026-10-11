@@ -71,7 +71,7 @@ export function highlightMatch(text, query) {
   const matched = escapeHtml(rawText.slice(rawStart, rawEnd));
   const after = escapeHtml(rawText.slice(rawEnd));
 
-  return `${before}<mark class="tree-search-match" style="background:rgba(234,179,8,0.35);color:#fbbf24;border-radius:3px;padding:0 2px;font-weight:800;">${matched}</mark>${after}`;
+  return `${before}<mark class="tree-search-match" style="background:var(--status-warning-subtle);color:var(--status-warning);border-radius:3px;padding:0 2px;font-weight:700;">${matched}</mark>${after}`;
 }
 
 export function getInvoiceBucket(ageDays) {
@@ -491,7 +491,7 @@ export class TreeTable {
       
       const hasKids = forceShowZeros 
         ? this.hasChildren(node)
-        : (kids.length > 0 || (!!node._canLoad && !this.isNodeSelfZero(node)));
+        : (kids.length > 0 || (this.hasChildren(node) && !this.isNodeSelfZero(node)));
       
       const isLeaf = !hasKids;
 
@@ -521,18 +521,21 @@ export class TreeTable {
   }
 
   defaultRenderRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf }) {
-    const indent = depth * 14;
-    const icon = node._loading ? '⏳' : hasKids ? (isExpanded ? '▼' : '▶') : '•';
+    const chevronDown = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+    const chevronLeft = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>';
+    const spinIcon = '<svg class="spin-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>';
+    const icon = node._loading ? spinIcon : hasKids ? (isExpanded ? chevronDown : chevronLeft) : '•';
     const cursor = hasKids ? 'cursor:pointer;' : (this.onLeafClick ? 'cursor:pointer;' : '');
-    const bg = depth === 0 ? 'background:rgba(59,130,246,0.06);font-weight:800;' : '';
+    const bg = depth === 0 ? 'background:var(--bg-subtle);font-weight:700;' : '';
     const nodeName = node.name || node.label || '';
     const firstCol = this.columns[0] || { id: 'name' };
+    const indent = depth * (this.indentWidth || 20);
 
     return `
       <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${bg}">
-        <td data-col-id="${firstCol.id}" data-priority="1" class="tree-col-name" style="padding:6px 8px;padding-right:${indent + 10}px;text-align:right;" title="${escapeHtml(nodeName)}">
-          <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--exec-text-muted);font-size:0.85rem;">${icon}</span>
-          <span class="tree-node-name" data-tree-name="true" title="${escapeHtml(nodeName)}" style="display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;">${escapeHtml(nodeName)}</span>
+        <td data-col-id="${firstCol.id}" data-priority="1" class="tree-col-name" style="padding:8px 12px;padding-right:${indent + 12}px;text-align:right;" title="${escapeHtml(nodeName)}">
+          <span data-tree-toggle="true" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;margin-left:4px;color:var(--text-muted);vertical-align:middle;">${icon}</span>
+          <span class="tree-node-name" data-tree-name="true" title="${escapeHtml(nodeName)}" style="display:inline;vertical-align:middle;word-break:break-word;">${escapeHtml(nodeName)}</span>
         </td>
         ${this.columns.slice(1).map(col => {
           const val = node[col.id] !== undefined ? node[col.id] : '';
@@ -633,13 +636,13 @@ export class TreeTable {
         } else if (count > 0) {
           counterEl.style.display = 'inline-block';
           counterEl.textContent = `${count} نتيجة`;
-          counterEl.style.background = 'rgba(16,185,129,0.15)';
-          counterEl.style.color = '#10b981';
+          counterEl.style.background = 'var(--status-positive-subtle)';
+          counterEl.style.color = 'var(--status-positive)';
         } else {
           counterEl.style.display = 'inline-block';
           counterEl.textContent = 'لا توجد نتائج';
-          counterEl.style.background = 'rgba(239,68,68,0.15)';
-          counterEl.style.color = '#ef4444';
+          counterEl.style.background = 'var(--status-negative-subtle)';
+          counterEl.style.color = 'var(--status-negative)';
         }
       }
       if (clearBtnEl) {
@@ -712,10 +715,10 @@ export class TreeTable {
             const maxW = isFirst ? '' : (isAction ? 'max-width:36px;' : (isFlex ? '' : (col.maxWidth ? `max-width:${col.maxWidth};` : '')));
             const align = col.align || (isFirst ? 'right' : 'left');
             const colColor = col.color ? `color:${col.color};` : '';
-            const padStyle = isAction ? 'padding:6px 2px;' : 'padding:6px 8px;';
+            const padStyle = isAction ? 'padding:6px 2px;' : 'padding:12px 10px;';
             const colClass = isFirst ? 'tree-col-name' : (isAction ? 'tree-col-action' : (isFlex ? 'tree-col-visual' : 'tree-col-num'));
             return `
-              <th data-col-id="${col.id}" data-priority="${prio}" ${col.title ? `title="${escapeHtml(col.title)}"` : ''} class="${colClass}" style="text-align:${align};${wStyle}${minW}${maxW}${colColor}${padStyle}">
+              <th data-col-id="${col.id}" data-priority="${prio}" ${col.title ? `title="${escapeHtml(col.title)}"` : ''} class="${colClass}" style="text-align:${align};font-size:12px;font-weight:500;${wStyle}${minW}${maxW}${colColor}${padStyle}">
                 ${escapeHtml(col.label)}
               </th>
             `;
@@ -727,12 +730,12 @@ export class TreeTable {
     let tbodyHtml = '';
     if (visibleRows.length === 0) {
       const msg = this.searchQuery 
-        ? `🔍 لا توجد نتائج مطابقة للبحث «${escapeHtml(this.searchQuery)}»`
+        ? `لا توجد نتائج مطابقة للبحث «${escapeHtml(this.searchQuery)}»`
         : (this.emptyMessage || 'لا توجد بيانات متاحة');
       tbodyHtml = `
         <tbody>
           <tr>
-            <td colspan="${this.columns.length}" style="text-align:center;padding:36px;color:var(--exec-text-muted);font-size:1.05rem;">
+            <td colspan="${this.columns.length}" style="text-align:center;padding:36px;color:var(--text-muted);font-size:1.05rem;">
               ${escapeHtml(msg)}
             </td>
           </tr>
@@ -765,9 +768,9 @@ export class TreeTable {
       }
 
       searchSubtotalRow = `
-        <tr class="tree-search-subtotal-row" style="background:rgba(234,179,8,0.12);border-top:2px solid rgba(234,179,8,0.4);border-bottom:2px solid rgba(234,179,8,0.4);font-weight:800;font-size:0.95rem;color:var(--exec-text);">
-          <td class="tree-col-name" data-col-id="name" style="padding:12px 16px;color:#fbbf24;">
-            🔍 مجموع النتائج الظاهرة (${this.matchedCount} نتيجة):
+        <tr class="tree-search-subtotal-row" style="background:var(--status-warning-subtle);border-top:1px solid var(--status-warning);border-bottom:1px solid var(--status-warning);font-weight:700;font-size:0.95rem;color:var(--text-primary);">
+          <td class="tree-col-name" data-col-id="name" style="padding:12px 16px;color:var(--status-warning);">
+            مجموع النتائج الظاهرة (${this.matchedCount} نتيجة):
           </td>
           ${this.columns.slice(1).map(col => {
             if (col.id === 'actions' || col.id === 'visual' || col.id === 'aging_visual') {
@@ -778,7 +781,7 @@ export class TreeTable {
             if (val !== null && !isNaN(val)) {
               formatted = col.format ? col.format(val, searchTotals) : Math.round(val).toLocaleString('en-US');
             }
-            return `<td class="tree-col-num" data-col-id="${col.id}" style="text-align:${col.align || 'left'};padding:12px 14px;color:#fbbf24;">${formatted}</td>`;
+            return `<td class="tree-col-num" data-col-id="${col.id}" style="text-align:${col.align || 'left'};padding:12px 14px;color:var(--status-warning);">${formatted}</td>`;
           }).join('')}
         </tr>
       `;

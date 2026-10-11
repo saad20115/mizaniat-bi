@@ -16,6 +16,24 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function formatArabicFullDate(dateStr) {
+  if (!dateStr) return '';
+  const months = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+  ];
+  const parts = String(dateStr).split('-');
+  if (parts.length === 3) {
+    const y = parts[0];
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!isNaN(m) && m >= 0 && m < 12 && !isNaN(d)) {
+      return `حتى ${d} ${months[m]} ${y}`;
+    }
+  }
+  return `حتى ${dateStr}`;
+}
+
 let showReleasedState = false;
 
 /**
@@ -102,44 +120,57 @@ export async function renderGuaranteesComponent(container, options = {}) {
     </style>
 
     <div class="gr-wrap">
-      ${!isPresentation ? `
-        <div class="gr-header">
-          <div class="gr-title-group">
-            <h1>🏦 إدارة الضمانات البنكية</h1>
-            <p>متابعة الكفالات والضمانات البنكية النشطة ومطابقتها التامة مع أرصدة الأستاذ العام</p>
-          </div>
-          <div style="display:flex;gap:10px;align-items:center;">
-            <button class="btn btn-secondary" id="gr-btn-refresh" style="font-size:0.85rem">🔄 تحديث</button>
-          </div>
+      ${isPresentation ? `
+        <div class="exec-header" style="display:flex;flex-direction:column;gap:4px;margin-bottom:20px;">
+          <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+            الضمانات البنكية — <span>${escapeHtml(formatArabicFullDate(options.asOfDate || new Date().toISOString().slice(0, 10)))}</span>
+          </h1>
+          <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+            متابعة الكفالات والضمانات البنكية النشطة ومطابقتها التامة مع أرصدة الأستاذ العام
+          </p>
         </div>
-      ` : ''}
+      ` : `
+        <div class="exec-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <h1 class="exec-title" style="margin:0;font-size:22px;line-height:32px;font-weight:700;color:var(--text-primary);">
+              إدارة الضمانات البنكية
+            </h1>
+            <p class="exec-subtitle" style="margin:0;font-size:12px;line-height:18px;color:var(--text-muted);">
+              متابعة الكفالات والضمانات البنكية النشطة ومطابقتها التامة مع أرصدة الأستاذ العام
+            </p>
+          </div>
+          <button class="exec-btn-tool" id="gr-btn-refresh" style="background:var(--bg-surface);color:var(--text-primary);border:1px solid var(--border-default);padding:8px 16px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">
+            تحديث
+          </button>
+        </div>
+      `}
 
-      <div class="gr-kpis" id="gr-kpis">
-        <div class="gr-kpi-card">
-          <div class="gr-kpi-label">🏦 إجمالي الضمانات المعلّقة</div>
-          <div class="gr-kpi-val" id="gr-kpi-pending-amt" style="color:#06b6d4;">—</div>
-          <div class="gr-kpi-sub">المجموع الفعلي للضمانات النشطة</div>
+      <div class="gr-kpis exec-kpi-grid" id="gr-kpis">
+        <div class="bi-kpi bi-kpi-card hero gr-kpi-card">
+          <div class="bi-kpi-label gr-kpi-label">إجمالي الضمانات القائمة</div>
+          <div class="bi-kpi-value gr-kpi-val" id="gr-kpi-pending-amt">—</div>
+          <div class="bi-kpi-sub gr-kpi-sub">المجموع الفعلي للضمانات النشطة</div>
         </div>
-        <div class="gr-kpi-card">
-          <div class="gr-kpi-label">📋 عدد الضمانات المعلّقة</div>
-          <div class="gr-kpi-val" id="gr-kpi-count" style="color:#a78bfa;">—</div>
-          <div class="gr-kpi-sub">عدد البنود غير المفرجة</div>
+        <div class="bi-kpi bi-kpi-card gr-kpi-card">
+          <div class="bi-kpi-label gr-kpi-label">عدد الضمانات القائمة</div>
+          <div class="bi-kpi-value gr-kpi-val" id="gr-kpi-count">—</div>
+          <div class="bi-kpi-sub gr-kpi-sub">عدد البنود غير المفرجة</div>
         </div>
-        <div class="gr-kpi-card">
-          <div class="gr-kpi-label">⚖️ رصيد الأستاذ العام</div>
-          <div class="gr-kpi-val" id="gr-kpi-ledger-amt" style="color:#3b82f6;">—</div>
-          <div class="gr-kpi-sub">رصيد حسابات الضمانات بالأستاذ</div>
+        <div class="bi-kpi bi-kpi-card gr-kpi-card">
+          <div class="bi-kpi-label gr-kpi-label">رصيد الأستاذ العام</div>
+          <div class="bi-kpi-value gr-kpi-val" id="gr-kpi-ledger-amt">—</div>
+          <div class="bi-kpi-sub gr-kpi-sub">رصيد حسابات الضمانات بالأستاذ</div>
         </div>
-        <div class="gr-kpi-card">
-          <div class="gr-kpi-label">🎯 حالة المطابقة مع الأستاذ</div>
-          <div class="gr-kpi-val" id="gr-kpi-match-status" style="font-size:1.15rem;">—</div>
-          <div class="gr-kpi-sub" id="gr-kpi-match-sub">الفرق الإجمالي بين القائمة والأستاذ</div>
+        <div class="bi-kpi bi-kpi-card gr-kpi-card">
+          <div class="bi-kpi-label gr-kpi-label">حالة المطابقة مع الأستاذ</div>
+          <div class="bi-kpi-value gr-kpi-val" id="gr-kpi-match-status">—</div>
+          <div class="bi-kpi-sub gr-kpi-sub" id="gr-kpi-match-sub">الفرق الإجمالي بين القائمة والأستاذ</div>
         </div>
       </div>
 
       <div class="gr-toolbar">
         <div class="gr-legend">
-          <div class="gr-legend-item"><span class="gr-dot" style="background:#60a5fa"></span> معلّقة</div>
+          <div class="gr-legend-item"><span class="gr-dot" style="background:#60a5fa"></span> قائمة</div>
           <div class="gr-legend-item"><span class="gr-dot" style="background:#c084fc"></span> بند فرعي</div>
           <div class="gr-legend-item"><span class="gr-dot" style="background:#fbbf24"></span> مفرج تلقائياً (مطابق)</div>
           <div class="gr-legend-item"><span class="gr-dot" style="background:#facc15"></span> استثناء يدوي</div>
@@ -259,21 +290,24 @@ async function loadGuaranteesData(container, options = {}) {
       html += `
         <div class="gr-company">
           <div class="gr-company-header">
-            <div class="gr-company-name">🏢 ${escapeHtml(co.companyName)}</div>
+            <div class="gr-company-name">
+              <span class="company-dot" style="background:var(--company-${co.companyId || 1});display:inline-block;flex-shrink:0;width:8px;height:8px;border-radius:50%;margin-left:6px;"></span>
+              ${escapeHtml(co.companyName)}
+            </div>
             <div class="gr-company-stats">
-              <div>رصيد الأستاذ: <b style="color:var(--text-primary, #e2e8f0);font-family:var(--font-en, 'Inter')">${fmt(coLedger)}</b></div>
-              <div>معلّق: <b style="color:var(--gr-amt-cyan, #06b6d4);font-family:var(--font-en, 'Inter')">${fmt(coPending)}</b></div>
+              <div>رصيد الأستاذ: <b style="color:var(--text-primary);font-family:var(--font-en, 'Inter')">${fmt(coLedger)}</b></div>
+              <div>قائم: <b style="color:var(--text-primary);font-family:var(--font-en, 'Inter')">${fmt(coPending)}</b></div>
               ${isMatched
-                ? '<span class="gr-badge-success">✓ مطابقة تامة مع الأستاذ</span>'
+                ? '<span class="gr-badge-success">مطابقة تامة مع الأستاذ</span>'
                 : (co.isPendingOdoo
-                  ? `<span class="gr-badge-pending" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:4px 10px;border-radius:6px;font-size:0.85rem;font-weight:700;" title="${(co.pendingReleases || []).map(r => `${r.moveName}: ${r.releaseNotes || 'إفراج يدوي'}`).join(' | ')}">⏳ بانتظار تسجيل قيد الإفراج في أودو: ${fmt(co.pendingAmount || Math.abs(coDiff))}</span>`
-                  : `<span class="gr-badge-danger">⚠️ فرق: ${fmt(coDiff)}</span>`)}
+                  ? `<span class="gr-badge-pending" style="background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);padding:4px 10px;border-radius:6px;font-size:0.85rem;font-weight:700;" title="${(co.pendingReleases || []).map(r => `${r.moveName}: ${r.releaseNotes || 'إفراج يدوي'}`).join(' | ')}">بانتظار تسجيل قيد الإفراج في أودو: ${fmt(co.pendingAmount || Math.abs(coDiff))}</span>`
+                  : `<span class="gr-badge-danger">فرق: ${fmt(coDiff)}</span>`)}
             </div>
           </div>
 
           ${!isMatched && !co.isPendingOdoo && co.unmatchedCredits && co.unmatchedCredits.length ? `
             <div class="gr-unmatched-box">
-              <b>⚠️ إفراجات بالأستاذ لم تُطابَق مع إصدار ولا بند فرعي:</b>
+              <b>إفراجات بالأستاذ لم تُطابَق مع إصدار ولا بند فرعي:</b>
               <ul style="margin:6px 0 0 16px;padding:0;line-height:1.6">
                 ${co.unmatchedCredits.map(c => `
                   <li>التاريخ: <b>${c.date}</b> | القيد: <b>${escapeHtml(c.moveName)}</b> | المبلغ: <b>${fmt(c.amount)}</b> | البيان: ${escapeHtml(c.label || '')}</li>
@@ -315,7 +349,7 @@ async function loadGuaranteesData(container, options = {}) {
         activeItems.forEach(item => {
           const isSub = item.type === 'sub';
           const badgeClass = isSub ? 'gr-badge-sub' : 'gr-badge-pending';
-          const badgeLabel = isSub ? 'بند فرعي' : 'معلّقة';
+          const badgeLabel = isSub ? 'بند فرعي' : 'قائمة';
           const key = `${co.companyId}|${item.accountCode}|${item.moveName}`;
 
           html += `
@@ -329,7 +363,7 @@ async function loadGuaranteesData(container, options = {}) {
                 <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                 ${item.releaseNotes ? `
                   <div style="font-size:0.73rem;color:#facc15;margin-top:2px;background:rgba(234,179,8,0.08);padding:2px 6px;border-radius:4px;display:inline-block">
-                    📌 ${escapeHtml(item.releaseNotes)}
+                    ${escapeHtml(item.releaseNotes)}
                   </div>
                 ` : ''}
               </td>
@@ -339,11 +373,11 @@ async function loadGuaranteesData(container, options = {}) {
                 <td style="text-align:center;white-space:nowrap">
                   <div style="display:inline-flex;gap:4px;align-items:center;">
                     ${isSub ? `
-                      <button class="gr-btn gr-btn-release" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="0" title="إفراج عن البند الفرعي">✅ إفراج</button>
-                      <button class="gr-btn gr-btn-del" data-action="del-sub" data-subid="${item.subItemId}" title="حذف البند الفرعي">🗑️</button>
+                      <button class="gr-btn gr-btn-release" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="0" title="إفراج عن البند الفرعي">إفراج</button>
+                      <button class="gr-btn gr-btn-del" data-action="del-sub" data-subid="${item.subItemId}" title="حذف البند الفرعي">حذف</button>
                     ` : `
-                      <button class="gr-btn gr-btn-release" data-action="release" data-cid="${co.companyId}" data-acc="${item.accountCode}" data-move="${item.moveName}" title="إفراج يدوي أو استثناء">✅ إفراج</button>
-                      <button class="gr-btn gr-btn-break" data-action="breakdown" data-key="${key}" title="تقسيم الضمان إلى بنود فرعية">📋 تفصيل</button>
+                      <button class="gr-btn gr-btn-release" data-action="release" data-cid="${co.companyId}" data-acc="${item.accountCode}" data-move="${item.moveName}" title="إفراج يدوي أو استثناء">إفراج</button>
+                      <button class="gr-btn gr-btn-break" data-action="breakdown" data-key="${key}" title="تقسيم الضمان إلى بنود فرعية">تفصيل</button>
                     `}
                   </div>
                 </td>
@@ -377,7 +411,7 @@ async function loadGuaranteesData(container, options = {}) {
                   <div>${isSub ? '<span class="gr-sub-marker">↳</span> ' : ''}${escapeHtml(item.description || item.accountName || '')}</div>
                   ${item.releaseNotes ? `
                     <div style="font-size:0.73rem;color:#facc15;margin-top:2px;background:rgba(234,179,8,0.08);padding:2px 6px;border-radius:4px;display:inline-block">
-                      📌 ${escapeHtml(item.releaseNotes)}
+                      ${escapeHtml(item.releaseNotes)}
                     </div>
                   ` : ''}
                 </td>
@@ -387,9 +421,9 @@ async function loadGuaranteesData(container, options = {}) {
                   <td style="text-align:center;white-space:nowrap">
                     <div style="display:inline-flex;gap:4px;align-items:center;">
                       ${isSub ? `
-                        <button class="gr-btn gr-btn-unrelease" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="1" title="إلغاء إفراج البند الفرعي">↩️ إلغاء</button>
+                        <button class="gr-btn gr-btn-unrelease" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="1" title="إلغاء إفراج البند الفرعي">إلغاء</button>
                       ` : (item.matchType === 'manual' ? `
-                        <button class="gr-btn gr-btn-unrelease" data-action="unrelease" data-cid="${co.companyId}" data-acc="${item.accountCode}" data-move="${item.moveName}" title="إلغاء الاستثناء اليدوي">↩️ إلغاء الاستثناء</button>
+                        <button class="gr-btn gr-btn-unrelease" data-action="unrelease" data-cid="${co.companyId}" data-acc="${item.accountCode}" data-move="${item.moveName}" title="إلغاء الاستثناء اليدوي">إلغاء الاستثناء</button>
                       ` : `<span style="font-size:0.75rem;color:var(--text-muted,#64748b)">مطابق بالأستاذ</span>`)}
                     </div>
                   </td>
@@ -403,9 +437,9 @@ async function loadGuaranteesData(container, options = {}) {
       html += `
               </tbody>
               <tfoot>
-                <tr style="background:var(--exec-surface, rgba(15,23,42,0.4));font-weight:700">
-                  <td colspan="7" style="text-align:left;padding:10px 14px;color:var(--exec-text-dim,#cbd5e1)">إجمالي المعلّق للشركة:</td>
-                  <td class="num" style="color:#06b6d4;font-size:0.95rem;font-weight:800">${fmt(coPending)}</td>
+                <tr style="background:var(--bg-subtle);font-weight:700">
+                  <td colspan="7" style="text-align:left;padding:10px 14px;color:var(--text-secondary)">إجمالي القائم للشركة:</td>
+                  <td class="num" style="color:var(--text-primary);font-size:0.95rem;font-weight:800">${fmt(coPending)}</td>
                   ${!isViewer ? '<td></td>' : ''}
                 </tr>
               </tfoot>
@@ -427,7 +461,7 @@ async function loadGuaranteesData(container, options = {}) {
     }
   } catch (err) {
     console.error('Guarantees loading error:', err);
-    content.innerHTML = `<div class="gr-empty" style="color:#ef4444">❌ خطأ في تحميل الضمانات: ${escapeHtml(err.message)}</div>`;
+    content.innerHTML = `<div class="gr-empty" style="color:#ef4444">خطأ في تحميل الضمانات: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -512,10 +546,10 @@ function updateKpis(container, pending, count, ledger, diff) {
   if (mEl) {
     const isMatched = Math.abs(diff) <= 0.05;
     if (isMatched) {
-      mEl.innerHTML = '<span style="color:#10b981;font-weight:800">✓ مطابقة تامة</span>';
+      mEl.innerHTML = '<span style="color:#10b981;font-weight:800">مطابقة تامة</span>';
       if (sEl) sEl.textContent = 'الأستاذ مطابق 100% مع القائمة النشطة';
     } else {
-      mEl.innerHTML = `<span style="color:#ef4444;font-weight:800">⚠️ فرق: ${fmt(diff)}</span>`;
+      mEl.innerHTML = `<span style="color:#ef4444;font-weight:800">فرق: ${fmt(diff)}</span>`;
       if (sEl) sEl.textContent = 'يوجد فرق بين القائمة ورصيد الأستاذ';
     }
   }
@@ -531,7 +565,7 @@ function bindAdminActions(container, options) {
       const notes = prompt('ملاحظات الإفراج أو الاستثناء (اختياري):', '');
       if (notes === null) return; // user cancelled prompt
       btn.disabled = true;
-      btn.textContent = '⏳';
+      btn.textContent = 'جاري الحفظ...';
       try {
         await api.releaseGuarantee({
           companyId: parseInt(cid),
@@ -539,12 +573,12 @@ function bindAdminActions(container, options) {
           moveName: move,
           notes: notes.trim()
         });
-        showToast('✅ تم إفراج / استثناء الضمان بنجاح', 'success');
+        showToast('تم إفراج / استثناء الضمان بنجاح', 'success');
         await loadGuaranteesData(container, options);
       } catch (err) {
-        showToast('❌ ' + err.message, 'error');
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = '✅ إفراج';
+        btn.textContent = 'إفراج';
       }
     });
   });
@@ -553,17 +587,17 @@ function bindAdminActions(container, options) {
   content.querySelectorAll('[data-action="unrelease"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const { cid, acc, move } = btn.dataset;
-      if (!confirm('هل تريد إلغاء الاستثناء وإعادة الضمان إلى القائمة المعلّقة؟')) return;
+      if (!confirm('هل تريد إلغاء الاستثناء وإعادة الضمان إلى قائمة الضمانات القائمة؟')) return;
       btn.disabled = true;
-      btn.textContent = '⏳';
+      btn.textContent = 'جاري الحفظ...';
       try {
         await api.unreleaseGuarantee({ companyId: cid, accountCode: acc, moveName: move });
-        showToast('↩️ تم إلغاء الاستثناء بنجاح', 'success');
+        showToast('تم إلغاء الاستثناء بنجاح', 'success');
         await loadGuaranteesData(container, options);
       } catch (err) {
-        showToast('❌ ' + err.message, 'error');
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = '↩️ إلغاء الاستثناء';
+        btn.textContent = 'إلغاء الاستثناء';
       }
     });
   });
@@ -574,15 +608,15 @@ function bindAdminActions(container, options) {
       const { subid, released } = btn.dataset;
       const willRelease = released === '0';
       btn.disabled = true;
-      btn.textContent = '⏳';
+      btn.textContent = 'جاري الحفظ...';
       try {
         await api.toggleGuaranteeSubItem(subid, { isReleased: willRelease });
-        showToast(willRelease ? '✅ تم إفراج البند الفرعي' : '↩️ تم إلغاء إفراج البند الفرعي', 'success');
+        showToast(willRelease ? 'تم إفراج البند الفرعي' : 'تم إلغاء إفراج البند الفرعي', 'success');
         await loadGuaranteesData(container, options);
       } catch (err) {
-        showToast('❌ ' + err.message, 'error');
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = willRelease ? '✅ إفراج' : '↩️ إلغاء';
+        btn.textContent = willRelease ? 'إفراج' : 'إلغاء';
       }
     });
   });
@@ -594,10 +628,10 @@ function bindAdminActions(container, options) {
       btn.disabled = true;
       try {
         await api.deleteGuaranteeSubItem(btn.dataset.subid);
-        showToast('🗑️ تم حذف البند الفرعي', 'success');
+        showToast('تم حذف البند الفرعي', 'success');
         await loadGuaranteesData(container, options);
       } catch (err) {
-        showToast('❌ ' + err.message, 'error');
+        showToast(err.message, 'error');
         btn.disabled = false;
       }
     });
@@ -622,12 +656,12 @@ function bindAdminActions(container, options) {
       formRow.innerHTML = `
         <td colspan="9">
           <div class="gr-add-form-inner">
-            <span style="font-weight:700;color:#c084fc;font-size:0.82rem">➕ إضافة بند فرعي:</span>
+            <span style="font-weight:700;color:var(--brand-accent, #1D6AE5);font-size:0.82rem">إضافة بند فرعي:</span>
             <input type="text" placeholder="وصف البند / المشروع..." class="gr-input sub-desc" style="flex:2;min-width:180px">
             <input type="number" placeholder="المبلغ (ريال)" class="gr-input sub-amt" style="width:130px">
             <input type="text" placeholder="ملاحظات..." class="gr-input sub-notes" style="flex:1;min-width:140px">
-            <button class="gr-btn gr-btn-add" data-action="submit-sub" data-cid="${cid}" data-acc="${acc}" data-move="${move}">💾 حفظ البند</button>
-            <button class="gr-btn" data-action="cancel-sub" style="background:rgba(255,255,255,0.06);color:#cbd5e1">إلغاء</button>
+            <button class="gr-btn gr-btn-add" data-action="submit-sub" data-cid="${cid}" data-acc="${acc}" data-move="${move}">حفظ البند</button>
+            <button class="gr-btn" data-action="cancel-sub" style="background:var(--bg-subtle, rgba(255,255,255,0.06));color:var(--text-secondary, #cbd5e1)">إلغاء</button>
           </div>
         </td>
       `;
@@ -648,7 +682,7 @@ function bindAdminActions(container, options) {
         }
 
         submitBtn.disabled = true;
-        submitBtn.textContent = '⏳';
+        submitBtn.textContent = 'جاري الحفظ...';
         try {
           await api.addGuaranteeSubItem({
             parentCompanyId: parseInt(cid),
@@ -658,12 +692,12 @@ function bindAdminActions(container, options) {
             amount: amt,
             notes
           });
-          showToast('✅ تمت إضافة البند الفرعي بنجاح', 'success');
+          showToast('تمت إضافة البند الفرعي بنجاح', 'success');
           await loadGuaranteesData(container, options);
         } catch (err) {
-          showToast('❌ ' + err.message, 'error');
+          showToast(err.message, 'error');
           submitBtn.disabled = false;
-          submitBtn.textContent = '💾 حفظ البند';
+          submitBtn.textContent = 'حفظ البند';
         }
       });
     });

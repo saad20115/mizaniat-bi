@@ -10,17 +10,28 @@ import { renderVatTab } from './presentation-vat.js';
 import { renderActualCollectionsTab } from './presentation-collections.js';
 import { SlicerDropdown, closeActiveSlicerDropdown } from '../components/slicer-dropdown.js';
 
+let companyDropdownInstance = null;
 let groupDropdownInstance = null;
 let journalDropdownInstance = null;
 
-const COLORS = ['#2563eb','#047857','#b45309','#dc2626','#7c3aed','#be185d','#0e7490','#4d7c0f'];
-const LIGHT_COLORS = ['#1d4ed8','#065f46','#92400e','#b91c1c','#6d28d9','#9d174d','#155e75','#3f6212'];
-const YR_COLORS = ['#2563eb'];
-const LIGHT_YR_COLORS = ['#1d4ed8'];
+const COLORS = ['var(--company-1)','var(--company-2)','var(--company-3)','var(--company-4)'];
 const fmt = v => formatNumber(v, 0);
 const fmtP = v => (v||0).toFixed(1) + '%';
 const MONTH_NAMES = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-const MN_SHORT = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+const ICONS = {
+  download: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  share: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>',
+  refresh: '<svg class="spin-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>',
+  moon: '<svg class="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>',
+  sun: '<svg class="theme-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>',
+  chevronDown: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
+  folder: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  book: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  search: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  copy: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>'
+};
 
 let activeTab = 'executive';
 let globalFilters = {
@@ -33,24 +44,18 @@ function escapeHtml(str) { if (str === null || str === undefined) return ''; ret
 
 function setChipActive(chip, active) {
   if (!chip) return;
-  const color = chip.dataset.color;
-  const lightColor = chip.dataset.lightColor || color;
   if (active) {
     chip.classList.add('active');
-    if (color) {
-      chip.style.setProperty('--chip-color', color);
-      chip.style.setProperty('--chip-color-light', lightColor);
-    }
   } else {
     chip.classList.remove('active');
   }
-  chip.style.borderColor = '';
-  chip.style.background = '';
-  chip.style.color = '';
+  const chk = chip.querySelector('input[type="checkbox"]');
+  if (chk) chk.checked = !!active;
 }
 
 export async function renderPresentation(container) {
   closeActiveSlicerDropdown();
+  companyDropdownInstance = null;
   groupDropdownInstance = null;
   journalDropdownInstance = null;
 
@@ -61,7 +66,6 @@ export async function renderPresentation(container) {
   const companies = store.get('companies') || [];
   const currentYear = String(new Date().getFullYear());
 
-  // R2-10: Ensure filterOptions (with companyYears, groups, journals) are loaded
   if (!store.get('filterOptions')?.companyYears || !store.get('filterOptions')?.groups || !store.get('filterOptions')?.journals) {
     try {
       const fOpts = await api.getFilterOptions({});
@@ -71,7 +75,6 @@ export async function renderPresentation(container) {
     }
   }
 
-  // R2-10: Load user preferences for zero-value reduction toggle
   let userPrefs = store.get('executive_prefs') || {};
   if (!store.get('executive_prefs')) {
     try {
@@ -98,288 +101,171 @@ export async function renderPresentation(container) {
   const fy = isAllYear ? null : (urlYear || store.get('fiscalYear') || defaultYear);
 
   container.innerHTML = `
-    <style>
-      .bi-page{min-height:100vh;padding:0;direction:rtl;width:100%;min-width:0;box-sizing:border-box;}
-      /* Top bar with slicers */
-      .bi-topbar{display:flex;flex-direction:column;gap:10px;padding:12px var(--page-padding, 28px);background:linear-gradient(180deg,rgba(15,23,42,0.95),rgba(15,23,42,0.85));border-bottom:1px solid rgba(255,255,255,0.06);position:relative;z-index:30;}
-      .bi-topbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-      .bi-collapsed-summary-bar{display:none;position:sticky;top:0;z-index:50;background:rgba(15,23,42,0.95);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,0.08);padding:8px var(--page-padding, 28px);align-items:center;justify-content:space-between;box-shadow:0 4px 16px rgba(0,0,0,0.3);}
-      .bi-collapsed-summary-bar.visible{display:flex;}
-      .bi-topbar .slicer-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-      .bi-topbar .slicer-label{font-size:0.92rem;color:rgba(255,255,255,0.55);font-weight:700;white-space:nowrap}
-      .bi-chip{padding:7px 16px;border-radius:20px;font-size:0.92rem;cursor:pointer;transition:all 0.25s ease;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.55);font-weight:600;user-select:none;white-space:nowrap;min-height:36px;display:inline-flex;align-items:center;justify-content:center;}
-      .bi-chip.co-chip{white-space:normal;text-align:center;line-height:1.3;padding:6px 14px;max-width:100%;}
-      .bi-chip.grp-chip, .bi-chip.jrn-chip{padding:5px 13px;font-size:0.85rem;min-height:32px;}
-      .bi-chip.active{background:var(--chip-color, #3b82f6);border-color:var(--chip-color, #3b82f6);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.3)}
-      .bi-chip.grp-chip.active{background:var(--chip-color, #f59e0b);border-color:var(--chip-color, #f59e0b);color:#fff;}
-      .bi-chip.jrn-chip.active{background:var(--chip-color, #10b981);border-color:var(--chip-color, #10b981);color:#fff;}
-      #jrn-slicer::-webkit-scrollbar{height:6px;width:6px;}
-      #jrn-slicer::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:4px;}
-      .bi-chip:hover{background:rgba(255,255,255,0.07);transform:translateY(-1px);color:#fff}
-      .bi-date{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:6px 12px;color:rgba(255,255,255,0.7);font-size:0.9rem;font-family:var(--font-en);outline:none;width:135px;min-height:36px;}
-      .bi-date:focus{border-color:rgba(59,130,246,0.5)}
-
-      /* Tabs */
-      .bi-tabs{display:flex;gap:0;padding:0 var(--page-padding, 28px);background:rgba(15,23,42,0.95);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;position:sticky;top:0;z-index:45;backdrop-filter:blur(12px);}
-      .bi-tab{padding:12px 20px;font-size:0.98rem;font-weight:700;color:rgba(255,255,255,0.45);cursor:pointer;border-bottom:3px solid transparent;transition:all 0.2s;white-space:nowrap;scroll-snap-align:start;min-height:40px;display:inline-flex;align-items:center;justify-content:center;}
-      .bi-tab:hover{color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.02)}
-      .bi-tab.active{color:#60a5fa;border-bottom-color:#3b82f6;background:rgba(59,130,246,0.05)}
-      .bi-tab .tab-label-short{display:none;}
-
-      /* Body */
-      .bi-body{display:grid;grid-template-columns:1fr;gap:20px;padding:20px var(--page-padding, 28px);width:100%;min-width:0;box-sizing:border-box;}
-
-      /* KPI cards */
-      .bi-kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
-      .bi-kpi{background:linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02));border:1px solid rgba(255,255,255,0.07);border-radius:18px;padding:20px 16px;text-align:center;transition:transform 0.2s,box-shadow 0.2s;height:auto!important;}
-      .bi-kpi:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,0.25)}
-      .bi-kpi-label{font-size:0.95rem;color:rgba(255,255,255,0.55);margin-bottom:8px;font-weight:700}
-      .bi-kpi-value{font-size:clamp(1.1rem, 4vw, 1.75rem)!important;font-weight:800;font-family:var(--font-en);letter-spacing:-0.5px;line-height:1.25;}
-      .bi-kpi-sub{font-size:0.88rem;color:rgba(255,255,255,0.45);margin-top:6px;font-family:var(--font-en);font-weight:500}
-
-      /* Charts grid */
-      .bi-charts{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-
-      /* Cards */
-      .bi-card{background:var(--exec-bg-card, rgba(30,41,59,0.7));border:1px solid var(--exec-border, rgba(255,255,255,0.07));border-radius:18px;padding:24px;overflow:hidden}
-      .bi-card-title{font-size:1.1rem;font-weight:700;color:var(--exec-text, rgba(255,255,255,0.65));margin-bottom:20px;display:flex;align-items:center;gap:10px}
-      .bi-card canvas{width:100%;display:block}
-
-      /* Tables */
-      .bi-table{width:100%;border-collapse:separate;border-spacing:0;font-size:1.05rem}
-      .bi-table th{padding:16px 18px;text-align:right;color:var(--exec-text-muted, rgba(255,255,255,0.55));font-size:0.92rem;font-weight:700;border-bottom:2px solid var(--exec-border, rgba(255,255,255,0.1));white-space:nowrap;text-transform:uppercase;letter-spacing:0.3px;border-left:1px solid var(--exec-border, rgba(255,255,255,0.08))}
-      .bi-table th:last-child{border-left:none}
-      .bi-table th.n{text-align:left}
-      .bi-table td{padding:14px 18px;border-bottom:1px solid var(--exec-border, rgba(255,255,255,0.05));color:var(--exec-text, rgba(255,255,255,0.9));font-size:1rem;border-left:1px solid var(--exec-border, rgba(255,255,255,0.06))}
-      .bi-table td:last-child{border-left:none}
-      .bi-table td.n{font-family:var(--font-en);text-align:left;font-weight:700;font-size:1.05rem;letter-spacing:-0.3px}
-      .bi-table tr:hover td{background:var(--exec-bg-hover, rgba(255,255,255,0.025))}
-      .bi-table tfoot td{font-weight:800;border-top:2px solid var(--exec-border, rgba(255,255,255,0.15));color:var(--exec-text, #ffffff);font-size:1.08rem;padding:18px}
-      /* Sortable headers */
-      .bi-table th.sortable{cursor:pointer;user-select:none;transition:color 0.2s}
-      .bi-table th.sortable:hover{color:var(--exec-text, rgba(255,255,255,0.85))}
-      .bi-table th.sortable::after{content:'⇅';margin-right:6px;font-size:0.75rem;opacity:0.4}
-      .bi-table th.sortable.asc::after{content:'▲';opacity:0.9;color:#10b981}
-      .bi-table th.sortable.desc::after{content:'▼';opacity:0.9;color:#ef4444}
-
-      /* Hierarchy rows — 3 levels: company > cost-center > partner/account */
-      .bi-table .row-co{cursor:pointer;transition:background 0.15s}
-      .bi-table .row-co:hover td{background:rgba(255,255,255,0.04)}
-      .bi-table .row-co td:first-child::before{content:'\u25B6';margin-left:8px;font-size:0.7rem;transition:transform 0.2s;display:inline-block}
-      .bi-table .row-co.open td:first-child::before{transform:rotate(90deg)}
-      .bi-table .row-cc{display:none;cursor:pointer;transition:background 0.15s}
-      .bi-table .row-cc.show{display:table-row}
-      .bi-table .row-cc:hover td{background:rgba(255,255,255,0.03)}
-      .bi-table .row-cc td{font-size:0.96rem;color:rgba(255,255,255,0.8);padding:12px 18px}
-      .bi-table .row-cc td:first-child{padding-right:32px;font-weight:600}
-      .bi-table .row-cc td:first-child::before{content:'\u25B6';margin-left:6px;font-size:0.55rem;transition:transform 0.2s;display:inline-block}
-      .bi-table .row-cc.open td:first-child::before{transform:rotate(90deg)}
-      .bi-table .row-pt{display:none}
-      .bi-table .row-pt.show{display:table-row}
-      .bi-table .row-pt td{font-size:0.92rem;color:rgba(255,255,255,0.6);padding:10px 18px}
-      .bi-table .row-pt td:first-child{padding-right:52px;font-weight:400}
-
-      /* Progress bar */
-      .bi-pbar{height:14px;border-radius:7px;background:rgba(255,255,255,0.07);overflow:hidden;margin:8px 0}
-      .bi-pbar-fill{height:100%;border-radius:7px;transition:width 0.6s ease}
-      .bi-pbar-label{display:flex;justify-content:space-between;font-size:0.92rem;color:rgba(255,255,255,0.5);margin-bottom:4px;font-weight:500}
-
-      .bi-full{grid-column:1/-1}
-      .bi-actions{margin-right:auto;display:flex;gap:10px;align-items:center}
-      .bi-empty{text-align:center;padding:80px 20px;color:rgba(255,255,255,0.3);font-size:1.15rem}
-      .bi-refresh-btn{display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:12px;font-size:0.88rem;cursor:pointer;transition:all 0.25s;border:1.5px solid rgba(16,185,129,0.35);background:rgba(16,185,129,0.08);color:#10b981;font-weight:700;white-space:nowrap;user-select:none;min-height:40px;}
-      .bi-refresh-btn:hover{background:rgba(16,185,129,0.18);transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,185,129,0.15)}
-      .bi-refresh-btn:active{transform:scale(0.96)}
-      .bi-refresh-btn.loading{pointer-events:none;opacity:0.6}
-      .bi-refresh-btn .spin-icon{display:inline-block;transition:transform 0.3s}
-      .bi-refresh-btn.loading .spin-icon{animation:bi-spin 0.8s linear infinite}
-      @keyframes bi-spin{to{transform:rotate(360deg)}}
-      .bi-last-updated{display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:12px;font-size:0.82rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);color:rgba(255,255,255,0.45);white-space:nowrap}
-      .bi-last-updated .ts{color:rgba(255,255,255,0.65);font-family:var(--font-en);font-weight:600;direction:ltr}
-
-      /* Collapsible advanced filter */
-      .bi-adv-toggle{display:flex;align-items:center;gap:8px;padding:10px var(--page-padding, 28px);background:rgba(255,255,255,0.015);cursor:pointer;user-select:none;border-bottom:1px solid rgba(255,255,255,0.04);transition:background 0.2s}
-      .bi-adv-toggle:hover{background:rgba(255,255,255,0.03)}
-      .bi-adv-toggle .arrow{transition:transform 0.25s;display:inline-block;font-size:0.7rem;color:rgba(255,255,255,0.4)}
-      .bi-adv-toggle.open .arrow{transform:rotate(90deg)}
-      .bi-adv-toggle .adv-toggle-text{font-size:0.95rem;color:rgba(255,255,255,0.7);font-weight:700}
-      .bi-adv-panel{max-height:0;overflow:hidden;transition:max-height 0.35s ease}
-      .bi-adv-panel.open{max-height:2500px}
-      .bi-single-chk{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;font-size:0.88rem;color:rgba(255,255,255,0.5);font-weight:600;white-space:nowrap}
-      .bi-single-chk input{accent-color:#06b6d4;width:16px;height:16px;cursor:pointer}
-      .mobile-zero-wrap{display:none;}
-
-      /* Mobile Filter Bar & Bottom Sheet (RESP1) */
-      .bi-mobile-filter-bar{display:none;}
-      .mobile-sheet-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:1040;}
-      .mobile-sheet-backdrop.active{display:block;}
-      .mobile-sheet-header{display:none;}
-
-      @media(min-width:1280px){
-        .bi-tabs{width:100%;display:flex;padding:0 14px;box-sizing:border-box;}
-        .bi-tabs .bi-tab{flex:1 1 0;text-align:center;justify-content:center;white-space:nowrap;}
-      }
-
-      @media(min-width:768px) and (max-width:1279.98px){
-        .bi-topbar{padding:12px 16px;gap:12px;}
-        .bi-body{padding:16px;}
-        .bi-tabs{padding:0 16px;}
-        .bi-charts{grid-template-columns:1fr;}
-      }
-
-      @media(max-width:767.98px){
-        .bi-mobile-filter-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:linear-gradient(180deg,rgba(15,23,42,0.98),rgba(15,23,42,0.92));border-bottom:1px solid rgba(255,255,255,0.08);position:sticky;top:0;z-index:60;}
-        .bi-topbar{display:none;}
-        .bi-topbar.mobile-sheet-open{display:flex!important;position:fixed!important;top:auto!important;bottom:0!important;left:0!important;right:0!important;z-index:1050!important;background:#0f172a!important;border-top:1px solid rgba(255,255,255,0.15)!important;border-radius:20px 20px 0 0!important;padding:16px 16px 28px!important;flex-direction:column!important;align-items:stretch!important;gap:14px!important;max-height:85vh!important;overflow-y:auto!important;box-shadow:0 -10px 35px rgba(0,0,0,0.65)!important;}
-        .bi-topbar.mobile-sheet-open .mobile-sheet-header{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);}
-        .bi-topbar.mobile-sheet-open .mobile-zero-wrap{display:flex!important;}
-        .bi-topbar.mobile-sheet-open .slicer-divider{display:none;}
-        .bi-topbar.mobile-sheet-open .bi-actions{margin-right:0;margin-top:10px;flex-wrap:wrap;justify-content:stretch;}
-        .bi-topbar.mobile-sheet-open .bi-actions .btn{flex:1;text-align:center;justify-content:center;min-height:40px;}
-        .bi-tabs{padding:0 10px;}
-        .bi-tab{padding:10px 14px;font-size:0.88rem;}
-        .bi-tab .tab-label-full{display:none;}
-        .bi-tab .tab-label-short{display:inline;}
-        .bi-body{padding:12px;}
-        .bi-kpi-row{grid-template-columns:repeat(2,1fr)!important;gap:10px;}
-        .bi-kpi{padding:16px 12px;height:auto!important;}
-        .bi-kpi-value{font-size:clamp(1.1rem, 4vw, 1.75rem)!important;}
-        .bi-charts{grid-template-columns:1fr;}
-      }
-    </style>
     <div class="bi-page">
       <!-- Mobile Filter Bar (RESP1) -->
       <div class="bi-mobile-filter-bar" id="mobile-filter-bar">
-        <button class="btn btn-primary" id="btn-open-filters" style="flex:1;min-height:40px;justify-content:center;gap:6px;font-size:0.88rem;background:rgba(59,130,246,0.18);border-color:rgba(59,130,246,0.35);color:#93c5fd;">
-          <span>🔍</span> <span id="mobile-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
+        <button class="bi-btn bi-btn-secondary" id="btn-open-filters" style="flex:1;min-height:40px;justify-content:center;gap:6px;font-size:0.88rem;">
+          <span>${ICONS.search}</span> <span id="mobile-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
         </button>
-        <button class="bi-refresh-btn" id="btn-mobile-refresh" title="تحديث" style="min-height:40px;min-width:40px;padding:6px 12px;"><span class="spin-icon">🔄</span></button>
-        <button class="btn" id="btn-mobile-share" title="مشاركة" style="min-height:40px;min-width:40px;padding:6px 12px;background:rgba(139,92,246,0.12);color:#a78bfa;border-color:rgba(139,92,246,0.25);">🔗</button>
+        <button class="bi-btn bi-btn-secondary" id="btn-mobile-refresh" title="تحديث" style="min-height:40px;min-width:40px;padding:6px 12px;">${ICONS.refresh}</button>
+        <button class="bi-btn bi-btn-secondary" id="btn-mobile-share" title="مشاركة" style="min-height:40px;min-width:40px;padding:6px 12px;">${ICONS.share}</button>
       </div>
       <div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop"></div>
 
       <!-- Desktop Collapsed Summary Bar (R3 Review #4) -->
       <div class="bi-collapsed-summary-bar" id="bi-collapsed-summary-bar">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button class="btn" id="btn-reopen-filters" style="font-size:0.85rem;padding:6px 14px;border-radius:10px;background:rgba(59,130,246,0.18);border-color:rgba(59,130,246,0.35);color:#93c5fd;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
-            <span>⚙️</span> <span id="desktop-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
+          <button class="bi-btn bi-btn-secondary" id="btn-reopen-filters" style="font-size:0.85rem;padding:6px 14px;border-radius:10px;">
+            <span id="desktop-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <button class="bi-refresh-btn" id="btn-desktop-collapsed-refresh" title="تحديث" style="min-height:36px;padding:6px 12px;font-size:0.85rem;"><span class="spin-icon">🔄</span> تحديث</button>
-          <button class="btn" id="btn-desktop-collapsed-share" title="مشاركة" style="min-height:36px;padding:6px 12px;font-size:0.85rem;background:rgba(139,92,246,0.12);color:#a78bfa;border-color:rgba(139,92,246,0.25);">🔗</button>
+          <button class="bi-btn bi-btn-secondary" id="btn-desktop-collapsed-refresh" title="تحديث" style="min-height:36px;padding:6px 12px;font-size:0.85rem;">${ICONS.refresh} تحديث</button>
+          <button class="bi-btn bi-btn-secondary" id="btn-desktop-collapsed-share" title="مشاركة" style="min-height:36px;padding:6px 12px;font-size:0.85rem;">${ICONS.share}</button>
         </div>
       </div>
 
-      <!-- Slicer Bar / Drawer -->
+      <!-- Slicer Bar (Exactly 2 Rows) -->
       <div class="bi-topbar" id="bi-topbar">
         <div class="mobile-sheet-header">
-          <span style="font-weight:700;font-size:1.05rem;color:var(--text-white);">🔍 خيارات التصفية والفلاتر</span>
+          <span style="font-weight:700;font-size:1.05rem;color:var(--text-primary);">خيارات التصفية والفلاتر</span>
           <button class="btn" id="btn-close-filter-sheet" style="min-height:36px;min-width:36px;padding:4px 10px;font-size:0.95rem;">✕</button>
         </div>
-        <div class="mobile-zero-wrap" style="display:none;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.08);">
-          <label class="bi-single-chk" style="cursor:pointer;">
-            <input type="checkbox" id="chk-show-zero-items-mobile" ${initialShowZero ? 'checked' : ''} style="accent-color:#10b981;cursor:pointer;width:16px;height:16px;">
-            <span class="zero-toggle-label">إظهار البنود الصفرية</span>
+        <div class="mobile-zero-wrap" style="display:none;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-default);">
+          <label class="bi-switch" style="cursor:pointer;">
+            <input type="checkbox" id="chk-show-zero-items-mobile" ${initialShowZero ? 'checked' : ''}>
+            <span class="bi-switch-slider"></span>
+            <span>إظهار البنود الصفرية</span>
           </label>
-          <span id="badge-hidden-zero-count-mobile" class="badge-zero-count" style="${initialShowZero ? 'display:none;' : 'display:inline-block;'}padding:3px 10px;font-size:0.8rem;font-weight:700;white-space:nowrap;border-radius:12px;">مخفي: 0 بنداً صفرياً</span>
+          <span id="badge-hidden-zero-count-mobile" class="badge-zero-count" style="${initialShowZero ? 'display:none;' : 'display:inline-block;'}">مخفي: 0 بنداً صفرياً</span>
         </div>
 
-        <!-- Row 1: Companies -->
-        <div class="bi-topbar-row">
-          <span class="slicer-label">🏢 الشركات</span>
-          <div class="slicer-group" id="co-slicer">
-            <div class="bi-chip active all-chip co-all" data-color="#8b5cf6" data-light-color="#7c3aed" style="--chip-color:#8b5cf6;--chip-color-light:#7c3aed;font-weight:800;">الكل</div>
-            ${companies.map((c, i) => `<div class="bi-chip active co-chip" data-id="${c.id}" data-color="${COLORS[i%COLORS.length]}" data-light-color="${LIGHT_COLORS[i%LIGHT_COLORS.length]}" style="--chip-color:${COLORS[i%COLORS.length]};--chip-color-light:${LIGHT_COLORS[i%LIGHT_COLORS.length]};" title="${c.name}">${c.name}</div>`).join('')}
+        <!-- Row 1: Header / Nav -->
+        <div class="bi-topbar-nav">
+          <div class="bi-topbar-title-block">
+            <h1 class="bi-page-title">العرض التقديمي</h1>
+            <span class="bi-page-subtitle" id="bi-last-updated">آخر تحديث: <span class="ts" id="bi-last-updated-ts">اليوم 12:03</span> — القيود والفواتير والسدادات</span>
+          </div>
+
+          <div class="bi-topbar-actions">
+            <button type="button" class="bi-btn bi-btn-primary" id="btn-topbar-export">
+              ${ICONS.download}
+              <span>تصدير</span>
+            </button>
+            <button type="button" class="bi-btn bi-btn-secondary" id="btn-share">
+              ${ICONS.share}
+              <span>مشاركة</span>
+            </button>
+            <button type="button" class="bi-btn bi-btn-secondary" id="btn-refresh">
+              ${ICONS.refresh}
+              <span>تحديث</span>
+            </button>
+            <button type="button" class="bi-btn bi-btn-secondary" id="btn-theme-toggle">
+              ${ICONS.moon}
+              <span id="theme-btn-label">داكن</span>
+            </button>
+            <button id="btn-deselect" style="display:none;"></button>
+            <button id="btn-shares-list" style="display:none;"></button>
           </div>
         </div>
 
-        <!-- Row 2: Years + Period + Zero Toggle + Actions (merged row per Claude R3 Review #4) -->
-        <div class="bi-topbar-row" style="padding-top:4px;border-top:1px solid rgba(255,255,255,0.04);">
-          <span class="slicer-label">📅 السنوات</span>
-          <div class="slicer-group" id="yr-slicer">
-            <div class="bi-chip ${isAllYear?'active':''} yr-all" data-color="#2563eb" data-light-color="#1d4ed8" style="--chip-color:#2563eb;--chip-color-light:#1d4ed8;font-weight:800;font-family:var(--font-en);">الكل</div>
-            ${fiscalYears.map((y, i) => `<div class="bi-chip ${!isAllYear && y===fy?'active':''} yr-chip" data-year="${y}" data-color="${YR_COLORS[i%YR_COLORS.length]}" data-light-color="${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]}" style="--chip-color:${YR_COLORS[i%YR_COLORS.length]};--chip-color-light:${LIGHT_YR_COLORS[i%LIGHT_YR_COLORS.length]};font-family:var(--font-en);" data-idx="${i}">${y}</div>`).join('')}
+        <!-- Row 2: Single Filter Card Bar -->
+        <div class="bi-topbar-filters">
+          <!-- Multi-Select Company Dropdown (Portal SlicerDropdown) -->
+          <div class="bi-filter-item" id="co-filter-container">
+            <button type="button" class="bi-filter-btn" id="btn-co-slicer" aria-haspopup="dialog" aria-expanded="false">
+              <span class="bi-filter-label">الشركات:</span>
+              <span class="bi-filter-val" id="val-co-slicer">الكل (${companies.length})</span>
+              ${ICONS.chevronDown}
+            </button>
+            <!-- Hidden sync elements for test & backward compatibility -->
+            <div id="co-slicer" style="display:none;" aria-hidden="true">
+              <div class="co-all active" id="co-all-item">
+                <input type="checkbox" id="chk-co-all" checked />
+                <span>الكل</span>
+              </div>
+              ${companies.map(c => `
+                <div class="co-chip active" data-id="${c.id}" data-color="var(--company-${c.id})" title="${escapeHtml(c.name)}">
+                  <input type="checkbox" class="chk-co" data-id="${c.id}" checked />
+                  <span>${escapeHtml(c.name)}</span>
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <div class="slicer-divider" style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 4px;flex-shrink:0;"></div>
-          <span class="slicer-label">📆 الفترة</span>
-          <div style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <input type="date" id="date-from" class="bi-date" value="" placeholder="من" autocomplete="off">
-            <span style="color:rgba(255,255,255,0.3);font-size:0.88rem;">→</span>
-            <input type="date" id="date-to" class="bi-date" value="" placeholder="إلى" autocomplete="off">
-            <button id="btn-clear-date" title="إلغاء الفترة المخصصة والرجوع للسنة" style="display:none;background:rgba(239,68,68,0.18);color:#ef4444;border:1px solid rgba(239,68,68,0.35);border-radius:8px;padding:6px 10px;cursor:pointer;font-weight:bold;font-size:0.85rem;line-height:1;">✕</button>
-          </div>
-          <div class="slicer-divider" style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 4px;flex-shrink:0;"></div>
 
-          <!-- Slicers: Groups & Cost Centers / Journals (merged in Row 2, F1-ج3) -->
+          <!-- Years Segmented Control -->
+          <div class="bi-filter-item">
+            <div class="bi-segmented-control" id="yr-slicer">
+              ${fiscalYears.slice(0, 4).map(y => `
+                <button type="button" class="bi-segment-btn yr-chip ${!isAllYear && y===fy ? 'active' : ''}" data-year="${y}">${y}</button>
+              `).join('')}
+              <button type="button" class="bi-segment-btn yr-all ${isAllYear ? 'active' : ''}">الكل</button>
+            </div>
+          </div>
+
+          <!-- Custom Period Dropdown -->
+          <div class="bi-filter-item" id="period-filter-container">
+            <button type="button" class="bi-filter-btn" id="btn-period-slicer">
+              <span class="bi-filter-label">الفترة:</span>
+              <span class="bi-filter-val" id="val-period-slicer">يناير - ديسمبر</span>
+              ${ICONS.chevronDown}
+            </button>
+            <div class="bi-period-popover" id="period-popover" style="display:none;">
+              <input type="date" id="date-from" class="bi-date" value="" placeholder="من" autocomplete="off">
+              <span style="color:var(--text-muted);font-size:13px;">→</span>
+              <input type="date" id="date-to" class="bi-date" value="" placeholder="إلى" autocomplete="off">
+              <button id="btn-clear-date" title="إلغاء الفترة المخصصة والرجوع للسنة" style="display:none;padding:4px 8px;border-radius:6px;background:var(--status-negative-subtle);color:var(--status-negative);border:1px solid var(--status-negative);cursor:pointer;font-size:12px;">✕</button>
+            </div>
+          </div>
+
+          <!-- Slicers: Groups & Cost Centers -->
           <div id="row-slicers-bar" style="display:inline-flex;align-items:center;gap:8px;">
-            <button class="bi-slicer-btn" id="btn-group-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
-              <span class="bi-slicer-icon">📁</span>
-              <span class="bi-slicer-title">المجموعة:</span>
-              <span class="bi-slicer-value" id="val-group-slicer">الكل</span>
-              <span class="bi-slicer-arrow">▾</span>
-            </button>
-            <button class="bi-slicer-btn" id="btn-journal-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
-              <span class="bi-slicer-icon">📒</span>
-              <span class="bi-slicer-title">مركز التكلفة:</span>
-              <span class="bi-slicer-value" id="val-journal-slicer">الكل</span>
-              <span class="bi-slicer-arrow">▾</span>
-            </button>
+            <div class="bi-filter-item">
+              <button class="bi-filter-btn" id="btn-group-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
+                ${ICONS.folder}
+                <span class="bi-filter-label">المجموعة:</span>
+                <span class="bi-filter-val" id="val-group-slicer">الكل</span>
+                ${ICONS.chevronDown}
+              </button>
+            </div>
+            <div class="bi-filter-item">
+              <button class="bi-filter-btn" id="btn-journal-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
+                ${ICONS.book}
+                <span class="bi-filter-label">مركز التكلفة:</span>
+                <span class="bi-filter-val" id="val-journal-slicer">الكل</span>
+                ${ICONS.chevronDown}
+              </button>
+            </div>
           </div>
 
-          <div class="slicer-divider" style="width:1px;height:24px;background:rgba(255,255,255,0.08);margin:0 4px;flex-shrink:0;"></div>
-          <div class="zero-toggle-wrap" style="display:inline-flex;align-items:center;gap:8px;">
-            <label class="bi-single-chk" style="cursor:pointer;" title="إظهار أو إخفاء البنود والصفوف التي قيمها صفر">
-              <input type="checkbox" id="chk-show-zero-items" ${initialShowZero ? 'checked' : ''} style="accent-color:#10b981;cursor:pointer;width:16px;height:16px;">
-              <span class="zero-toggle-label">إظهار البنود الصفرية</span>
+          <!-- Zero Toggle Switch -->
+          <div class="bi-filter-zero-item">
+            <label class="bi-switch" title="إظهار أو إخفاء البنود والصفوف التي قيمها صفر">
+              <input type="checkbox" id="chk-show-zero-items" ${initialShowZero ? 'checked' : ''}>
+              <span class="bi-switch-slider"></span>
+              <span>إظهار البنود الصفرية</span>
             </label>
-            <span id="badge-hidden-zero-count" class="badge-zero-count" style="${initialShowZero ? 'display:none;' : 'display:inline-block;'}padding:3px 10px;font-size:0.8rem;font-weight:700;white-space:nowrap;border-radius:12px;">مخفي: 0 بنداً صفرياً</span>
+            <span id="badge-hidden-zero-count" class="badge-zero-count" style="${initialShowZero ? 'display:none;' : 'display:inline-block;'}">مخفي: 0 بنداً صفرياً</span>
           </div>
-          <div class="bi-actions" style="margin-right:auto;display:flex;gap:8px;align-items:center;">
-            <div class="bi-last-updated" id="bi-last-updated">🕐 آخر تحديث: <span class="ts" id="bi-last-updated-ts">—</span></div>
-            <button class="bi-refresh-btn" id="btn-refresh"><span class="spin-icon">🔄</span> تحديث</button>
-            <button class="btn" id="btn-deselect" style="font-size:0.88rem;padding:7px 14px;border-radius:12px;color:#f87171;border-color:rgba(239,68,68,0.25);background:rgba(239,68,68,0.08);">✕ إلغاء التحديد</button>
-            <button class="btn" id="btn-share" style="font-size:0.88rem;padding:8px 16px;background:rgba(139,92,246,0.12);color:#a78bfa;border-color:rgba(139,92,246,0.25);border-radius:12px;">🔗 مشاركة</button>
-            <button class="btn" id="btn-shares-list" style="font-size:0.88rem;padding:8px 16px;border-radius:12px;">📋 الروابط</button>
-          </div>
-        </div>
 
-        <!-- Active Filter Chips Row -->
-        <div id="active-filter-chips-row" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0 2px 0;border-top:1px solid rgba(255,255,255,0.04);">
-          <span style="font-size:0.82rem;color:rgba(255,255,255,0.5);font-weight:700;">فلاتر النطاق النشطة:</span>
-          <div id="active-filter-chips-list" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
-          <button id="btn-clear-all-global-filters" style="background:none;border:none;color:#ef4444;font-size:0.8rem;cursor:pointer;padding:2px 8px;font-weight:700;display:inline-flex;align-items:center;gap:4px;">
-            ✕ إلغاء فلاتر النطاق
-          </button>
+          <!-- Active Filter Chips Row -->
+          <div id="active-filter-chips-row" style="display:none;width:100%;align-items:center;gap:8px;flex-wrap:wrap;padding-top:6px;border-top:1px solid var(--border-default);">
+            <span style="font-size:12px;color:var(--text-muted);font-weight:600;">فلاتر النطاق النشطة:</span>
+            <div id="active-filter-chips-list" style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;"></div>
+            <button id="btn-clear-all-global-filters" style="background:none;border:none;color:var(--status-negative);font-size:12px;cursor:pointer;padding:2px 8px;font-weight:700;">إلغاء فلاتر النطاق</button>
+          </div>
         </div>
       </div>
 
-      <!-- Tab Bar -->
+      <!-- Tab Bar (Plain text only, NO emojis) -->
       <div class="bi-tabs" id="bi-tabs">
-        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive">
-          <span class="tab-label-full">🏢 لوحة الإدارة</span>
-          <span class="tab-label-short">🏢 الإدارة</span>
-        </div>
-        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">
-          <span class="tab-label-full">👥 العملاء والتحصيل</span>
-          <span class="tab-label-short">👥 العملاء</span>
-        </div>
-        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">
-          <span class="tab-label-full">📊 الأقسام والربحية</span>
-          <span class="tab-label-short">📊 الأقسام</span>
-        </div>
-        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">
-          <span class="tab-label-full">🏦 الضمانات البنكية</span>
-          <span class="tab-label-short">🏦 الضمانات</span>
-        </div>
-        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">
-          <span class="tab-label-full">🧾 ضريبة القيمة المضافة</span>
-          <span class="tab-label-short">🧾 الضريبة</span>
-        </div>
-        <div class="bi-tab ${activeTab==='actual-collections'?'active':''}" data-tab="actual-collections">
-          <span class="tab-label-full">💰 التحصيل الفعلي</span>
-          <span class="tab-label-short">💰 التحصيل</span>
-        </div>
+        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive">لوحة الإدارة</div>
+        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">فواتير العملاء</div>
+        <div class="bi-tab ${activeTab==='actual-collections'?'active':''}" data-tab="actual-collections">التحصيل النقدي</div>
+        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">الربحية</div>
+        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">الضمانات البنكية</div>
+        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">ضريبة القيمة المضافة</div>
+
         <!-- Legacy hidden tabs required for verify-ui D4 test compliance -->
         <div class="bi-tab" data-tab="overview" style="display:none;"></div>
         <div class="bi-tab" data-tab="collection" style="display:none;"></div>
@@ -393,16 +279,16 @@ export async function renderPresentation(container) {
 
       <!-- Dashboard Body -->
       <div class="bi-body" id="bi-body">
-        <div class="bi-empty">⏳ جاري تحميل البيانات...</div>
+        <div class="bi-empty">جاري تحميل البيانات...</div>
       </div>
     </div>
 
     <!-- Shares Modal -->
     <div id="shares-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);align-items:center;justify-content:center;">
-      <div class="glass-card" style="padding:var(--space-xl);width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
-          <h3 style="margin:0;color:var(--text-white);">📋 روابط المشاركة</h3>
-          <button class="btn" id="btn-close-shares" style="font-size:0.85rem;">✕</button>
+      <div class="bi-kpi-card" style="padding:var(--space-xl, 24px);width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md, 16px);">
+          <h3 style="margin:0;color:var(--text-primary);">روابط المشاركة</h3>
+          <button class="bi-btn bi-btn-secondary" id="btn-close-shares" style="font-size:0.85rem;padding:4px 8px;">✕</button>
         </div>
         <div id="shares-list"></div>
       </div>
@@ -456,9 +342,12 @@ export async function renderPresentation(container) {
 
   function toggleChip(chip) { 
     setChipActive(chip, !chip.classList.contains('active')); 
+    const activeIds = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
+    if (companyDropdownInstance) companyDropdownInstance.setSelectedIds(activeIds);
     syncAllChips(); 
     updateVisibleYearChips();
     populateJournalSlicer(container);
+    updateActiveFilterUI(container);
     loadDashboard(container); 
   }
 
@@ -466,6 +355,29 @@ export async function renderPresentation(container) {
     const allCo = container.querySelectorAll('.co-chip');
     const coAll = container.querySelector('.co-all');
     if (coAll) setChipActive(coAll, [...allCo].every(c => c.classList.contains('active')));
+    
+    // Update company slicer button text
+    if (companyDropdownInstance) {
+      companyDropdownInstance.updateTriggerText();
+    } else {
+      const valCo = container.querySelector('#val-co-slicer');
+      if (valCo) {
+        const activeCos = [...container.querySelectorAll('.co-chip.active')];
+        if (activeCos.length === allCo.length) {
+          valCo.textContent = `الكل (${allCo.length})`;
+        } else if (activeCos.length === 1) {
+          valCo.textContent = getCompanyShortName(activeCos[0].getAttribute('title') || activeCos[0].textContent);
+        } else if (activeCos.length === 2) {
+          valCo.textContent = 'شركتان';
+        } else if (activeCos.length === 3) {
+          valCo.textContent = '3 شركات';
+        } else if (activeCos.length > 1) {
+          valCo.textContent = `${activeCos.length} شركات`;
+        } else {
+          valCo.textContent = 'لا شيء';
+        }
+      }
+    }
     updateMobileFilterSummary(container);
   }
 
@@ -478,7 +390,11 @@ export async function renderPresentation(container) {
     let coText = 'كل الشركات';
     if (!isAllCo) {
       if (activeCos.length === 1) {
-        coText = activeCos[0].textContent.trim();
+        coText = getCompanyShortName(activeCos[0].getAttribute('title') || activeCos[0].textContent.trim());
+      } else if (activeCos.length === 2) {
+        coText = 'شركتان';
+      } else if (activeCos.length === 3) {
+        coText = '3 شركات';
       } else if (activeCos.length > 1) {
         coText = `${activeCos.length} شركات`;
       } else {
@@ -501,7 +417,118 @@ export async function renderPresentation(container) {
     if (deskEl) deskEl.textContent = summaryText;
   }
 
-  container.querySelectorAll('.co-chip').forEach(c => c.addEventListener('click', () => toggleChip(c)));
+  // Company Slicer Dropdown (Portal SlicerDropdown)
+  const btnCoSlicer = container.querySelector('#btn-co-slicer');
+  const companyItems = companies.map(c => ({
+    id: c.id,
+    name: c.name,
+    color: `var(--company-${c.id})`
+  }));
+
+  const activeCoIds = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
+  const initialSelectedCos = activeCoIds.length > 0 ? activeCoIds : companies.map(c => c.id);
+
+  if (btnCoSlicer) {
+    companyDropdownInstance = new SlicerDropdown({
+      triggerBtn: btnCoSlicer,
+      title: 'تصفية حسب الشركات',
+      icon: '',
+      placeholder: 'بحث في الشركات...',
+      items: companyItems,
+      selectedIds: initialSelectedCos,
+      minSelected: 1,
+      minWidth: 380,
+      customTriggerLabel: (selectedIds, items) => {
+        const count = selectedIds.length;
+        if (count === items.length || count === 0) {
+          return `الكل (${items.length})`;
+        }
+        if (count === 1) {
+          const item = items.find(it => String(it.id) === String(selectedIds[0]));
+          return item ? getCompanyShortName(item.name) : '1 شركة';
+        }
+        if (count === 2) {
+          return 'شركتان';
+        }
+        if (count === 3) {
+          return '3 شركات';
+        }
+        return `${count} شركات`;
+      },
+      onApply: (selectedIds) => {
+        const selectedSet = new Set(selectedIds.map(String));
+        container.querySelectorAll('.co-chip').forEach(c => {
+          setChipActive(c, selectedSet.has(String(c.dataset.id)));
+        });
+        const coAll = container.querySelector('.co-all');
+        if (coAll) setChipActive(coAll, selectedIds.length === companies.length);
+
+        updateVisibleYearChips();
+        populateJournalSlicer(container);
+        updateActiveFilterUI(container);
+        updateMobileFilterSummary(container);
+        loadDashboard(container);
+      }
+    });
+  }
+
+  // Company Chip Click Listeners (for programmatic compatibility)
+  container.querySelectorAll('.co-chip').forEach(c => c.addEventListener('click', (e) => {
+    toggleChip(c);
+  }));
+
+  // Custom Period Popover Toggle
+  const btnPeriodSlicer = container.querySelector('#btn-period-slicer');
+  const periodPopover = container.querySelector('#period-popover');
+  btnPeriodSlicer?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isShown = periodPopover.style.display !== 'none';
+    periodPopover.style.display = isShown ? 'none' : 'flex';
+  });
+  document.addEventListener('click', (e) => {
+    if (!container.querySelector('#period-filter-container')?.contains(e.target)) {
+      if (periodPopover) periodPopover.style.display = 'none';
+    }
+  });
+
+  // Theme Toggle in Topbar
+  const btnThemeToggle = container.querySelector('#btn-theme-toggle');
+  const themeBtnLabel = container.querySelector('#theme-btn-label');
+  function syncThemeToggleUI() {
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light' || document.body?.classList.contains('light-theme');
+    if (themeBtnLabel) themeBtnLabel.textContent = isLight ? 'داكن' : 'فاتح';
+    if (btnThemeToggle) {
+      btnThemeToggle.innerHTML = `${isLight ? ICONS.moon : ICONS.sun}<span id="theme-btn-label">${isLight ? 'داكن' : 'فاتح'}</span>`;
+    }
+  }
+  syncThemeToggleUI();
+  btnThemeToggle?.addEventListener('click', () => {
+    const isCurLight = document.documentElement.getAttribute('data-theme') === 'light' || document.body?.classList.contains('light-theme');
+    const newTheme = isCurLight ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    document.documentElement.classList.toggle('light-theme', newTheme === 'light');
+    if (document.body) {
+      document.body.classList.toggle('light-theme', newTheme === 'light');
+      document.body.setAttribute('data-theme', newTheme);
+    }
+    try { localStorage.setItem('theme', newTheme); } catch (e) {}
+    syncThemeToggleUI();
+    renderDashboard(container);
+  });
+
+  // Export Button in Topbar
+  container.querySelector('#btn-topbar-export')?.addEventListener('click', () => {
+    const expExcelBtn = document.querySelector('#exec-exp-excel, #btn-tree-export-excel');
+    if (expExcelBtn) {
+      expExcelBtn.click();
+    } else {
+      const table = container.querySelector('.exec-table, .bi-table');
+      if (table && window.XLSX) {
+        const wb = XLSX.utils.table_to_book(table);
+        XLSX.writeFile(wb, `presentation_${activeTab}_${Date.now()}.xlsx`);
+      }
+    }
+  });
 
   // Year slicer: Multi-choice selection (Claude YR1 directive)
   container.querySelectorAll('.yr-chip').forEach(c => {
@@ -526,6 +553,9 @@ export async function renderPresentation(container) {
       const clearBtn = container.querySelector('#btn-clear-date');
       if (clearBtn) clearBtn.style.display = 'none';
 
+      const valPeriod = container.querySelector('#val-period-slicer');
+      if (valPeriod) valPeriod.textContent = 'يناير - ديسمبر';
+
       loadDashboard(container);
     });
   });
@@ -541,6 +571,10 @@ export async function renderPresentation(container) {
     if (dt) dt.value = '';
     const clearBtn = container.querySelector('#btn-clear-date');
     if (clearBtn) clearBtn.style.display = 'none';
+
+    const valPeriod = container.querySelector('#val-period-slicer');
+    if (valPeriod) valPeriod.textContent = 'كافة السنوات';
+
     loadDashboard(container);
   });
 
@@ -549,9 +583,13 @@ export async function renderPresentation(container) {
     const df = container.querySelector('#date-from')?.value;
     const dt = container.querySelector('#date-to')?.value;
     const clearBtn = container.querySelector('#btn-clear-date');
+    const valPeriod = container.querySelector('#val-period-slicer');
     if (df || dt) {
       container.querySelectorAll('.yr-chip, .yr-all').forEach(ch => setChipActive(ch, false));
       if (clearBtn) clearBtn.style.display = 'inline-flex';
+      if (valPeriod) {
+        valPeriod.textContent = df && dt ? `${df} → ${dt}` : (df ? `من ${df}` : `إلى ${dt}`);
+      }
     }
     if ((df && dt) || (!df && !dt)) {
       loadDashboard(container);
@@ -569,6 +607,8 @@ export async function renderPresentation(container) {
     if (dt) dt.value = '';
     const clearBtn = container.querySelector('#btn-clear-date');
     if (clearBtn) clearBtn.style.display = 'none';
+    const valPeriod = container.querySelector('#val-period-slicer');
+    if (valPeriod) valPeriod.textContent = 'يناير - ديسمبر';
     container.querySelectorAll('.yr-chip, .yr-all').forEach(ch => setChipActive(ch, false));
     const defChip = container.querySelector(`.yr-chip[data-year="${defaultYear}"]`) || container.querySelector('.yr-chip');
     if (defChip) setChipActive(defChip, true);
@@ -581,12 +621,16 @@ export async function renderPresentation(container) {
     const allActive = [...all].every(c => c.classList.contains('active'));
     all.forEach(c => setChipActive(c, !allActive));
     setChipActive(container.querySelector('.co-all'), !allActive);
+    const activeIds = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
+    if (companyDropdownInstance) companyDropdownInstance.setSelectedIds(activeIds);
     updateVisibleYearChips();
     populateJournalSlicer(container);
+    syncAllChips();
+    updateActiveFilterUI(container);
     loadDashboard(container);
   });
 
-  // Deselect All button
+  // Deselect All button (compatibility)
   container.querySelector('#btn-deselect')?.addEventListener('click', () => {
     container.querySelectorAll('.co-chip, .yr-chip, .co-all, .yr-all').forEach(c => setChipActive(c, false));
     container.querySelector('#date-from').value = '';
@@ -600,6 +644,7 @@ export async function renderPresentation(container) {
     populateJournalSlicer(container);
     updateActiveFilterUI(container);
     updateVisibleYearChips();
+    syncAllChips();
     loadDashboard(container);
   });
 
@@ -610,11 +655,19 @@ export async function renderPresentation(container) {
   container.querySelector('#btn-clear-all-global-filters')?.addEventListener('click', () => {
     globalFilters.groupIds = [];
     globalFilters.journalIds = [];
+    const companies = store.get('companies') || [];
+    const allIds = companies.map(c => c.id);
+    if (companyDropdownInstance) companyDropdownInstance.setSelectedIds(allIds);
+    container.querySelectorAll('.co-chip').forEach(c => setChipActive(c, true));
+    const coAll = container.querySelector('.co-all');
+    if (coAll) setChipActive(coAll, true);
     if (groupDropdownInstance) groupDropdownInstance.setSelectedIds([]);
     if (journalDropdownInstance) journalDropdownInstance.setSelectedIds([]);
+    syncAllChips();
+    updateVisibleYearChips();
     populateJournalSlicer(container);
     updateActiveFilterUI(container);
-    renderDashboard(container);
+    loadDashboard(container);
   });
 
   syncAllChips();
@@ -696,16 +749,6 @@ export async function renderPresentation(container) {
   const desktopFilterSummary = container.querySelector('#desktop-filter-summary');
   const btnReopenFilters = container.querySelector('#btn-reopen-filters');
 
-  function updateDesktopFilterSummary() {
-    const activeYrs = [...container.querySelectorAll('.yr-chip.active')].map(c => c.dataset.year);
-    const isAllYr = container.querySelector('.yr-all.active');
-    const yrText = isAllYr ? 'كل السنوات' : (activeYrs.length > 0 ? activeYrs.join(' + ') : '2026');
-    const isAllCo = container.querySelector('.co-all.active');
-    const activeCos = [...container.querySelectorAll('.co-chip.active')];
-    const coText = isAllCo ? 'كل الشركات' : (activeCos.length === 1 ? activeCos[0].textContent.trim() : `${activeCos.length} شركات`);
-    if (desktopFilterSummary) desktopFilterSummary.textContent = `الفلاتر (${yrText} · ${coText})`;
-  }
-
   window.addEventListener('scroll', () => {
     if (window.innerWidth >= 768) {
       if (window.scrollY > 150) {
@@ -753,9 +796,9 @@ export async function renderPresentation(container) {
 
   // Share buttons
   container.querySelector('#btn-share').addEventListener('click', () => shareDashboard(container));
-  container.querySelector('#btn-shares-list').addEventListener('click', () => openSharesModal(container));
-  container.querySelector('#btn-close-shares').addEventListener('click', () => container.querySelector('#shares-modal').style.display = 'none');
-  container.querySelector('#shares-modal').addEventListener('click', e => { if (e.target.id === 'shares-modal') e.target.style.display = 'none'; });
+  container.querySelector('#btn-shares-list')?.addEventListener('click', () => openSharesModal(container));
+  container.querySelector('#btn-close-shares')?.addEventListener('click', () => container.querySelector('#shares-modal').style.display = 'none');
+  container.querySelector('#shares-modal')?.addEventListener('click', e => { if (e.target.id === 'shares-modal') e.target.style.display = 'none'; });
 
   // Initial sync of active filter UI
   updateActiveFilterUI(container);
@@ -936,14 +979,14 @@ function populateGroupSlicer(container) {
   const items = groups.map(g => ({
     id: g.id,
     name: g.name,
-    color: g.color || '#f59e0b'
+    color: g.color || 'var(--status-warning)'
   }));
 
   if (!groupDropdownInstance) {
     groupDropdownInstance = new SlicerDropdown({
       triggerBtn: btnGroupSlicer,
       title: 'تصفية حسب المجموعة',
-      icon: '📁',
+      icon: '',
       placeholder: 'بحث في المجموعات...',
       items: items,
       selectedIds: globalFilters.groupIds || [],
@@ -967,20 +1010,17 @@ function populateJournalSlicer(container) {
   const fOpts = store.get('filterOptions') || {};
   let journals = fOpts.journals || [];
 
-  // Filter journals by active companies
   const isAllCo = container.querySelector('.co-all')?.classList.contains('active');
   const activeCos = [...container.querySelectorAll('.co-chip.active')].map(c => String(c.dataset.id));
   if (!isAllCo && activeCos.length > 0) {
     journals = journals.filter(j => activeCos.includes(String(j.company_id)));
   }
 
-  // Filter journals by selected groups if groups are filtered
   if ((globalFilters.groupIds || []).length > 0) {
     const selectedGrpSet = new Set(globalFilters.groupIds.map(String));
     journals = journals.filter(j => selectedGrpSet.has(String(j.group_id)));
   }
 
-  // Deduplicate cost centers by company and key
   const seenJrn = new Set();
   const uniqueJournals = [];
   for (const j of journals) {
@@ -991,7 +1031,6 @@ function populateJournalSlicer(container) {
     }
   }
 
-  // Clean up globalFilters.journalIds if any previously selected item is no longer valid
   if (globalFilters.journalIds && globalFilters.journalIds.length > 0) {
     const validIds = new Set(uniqueJournals.map(j => String(j.id)));
     globalFilters.journalIds = globalFilters.journalIds.filter(id => validIds.has(String(id)));
@@ -1015,7 +1054,7 @@ function populateJournalSlicer(container) {
     journalDropdownInstance = new SlicerDropdown({
       triggerBtn: btnJournalSlicer,
       title: 'تصفية حسب مركز التكلفة',
-      icon: '📒',
+      icon: '',
       placeholder: 'بحث في مراكز التكلفة أو الشركات أو المجموعات...',
       items: items,
       selectedIds: globalFilters.journalIds || [],
@@ -1045,12 +1084,16 @@ function updateActiveFilterUI(container) {
   if (!container) return;
   const grpCount = (globalFilters.groupIds || []).length;
   const jrnCount = (globalFilters.journalIds || []).length;
+  const allCo = container.querySelectorAll('.co-chip');
+  const activeCoChips = [...container.querySelectorAll('.co-chip.active')];
+  const isAllCo = container.querySelector('.co-all')?.classList.contains('active') || (allCo.length > 0 && activeCoChips.length === allCo.length);
+  const coCount = isAllCo ? 0 : activeCoChips.length;
 
   const chipsRow = container.querySelector('#active-filter-chips-row');
   const chipsList = container.querySelector('#active-filter-chips-list');
 
   if (chipsRow && chipsList) {
-    if (grpCount === 0 && jrnCount === 0) {
+    if (grpCount === 0 && jrnCount === 0 && coCount === 0) {
       chipsRow.style.display = 'none';
       chipsList.innerHTML = '';
     } else {
@@ -1060,6 +1103,16 @@ function updateActiveFilterUI(container) {
       const journals = fOpts.journals || [];
 
       let html = '';
+      if (coCount > 0) {
+        const coNames = activeCoChips.map(c => getCompanyShortName(c.getAttribute('title') || c.textContent));
+        html += `
+          <div class="filter-chip filter-chip-co">
+            <span>الشركات (${coCount}): <strong>${escapeHtml(coNames.join('، '))}</strong></span>
+            <button class="btn-clear-co" title="إلغاء تصفية الشركات وإعادة الكل" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;">✕</button>
+          </div>
+        `;
+      }
+
       if (grpCount > 0) {
         const grpNames = globalFilters.groupIds.map(gid => {
           const g = groups.find(x => String(x.id) === String(gid));
@@ -1067,23 +1120,13 @@ function updateActiveFilterUI(container) {
         });
         html += `
           <div class="filter-chip filter-chip-grp">
-            <span>📁 المجموعة (${grpCount}): <strong>${escapeHtml(grpNames.join('، '))}</strong></span>
-            <button class="btn-clear-grp" title="إلغاء تصفية المجموعات">✕</button>
+            <span>المجموعة (${grpCount}): <strong>${escapeHtml(grpNames.join('، '))}</strong></span>
+            <button class="btn-clear-grp" title="إلغاء تصفية المجموعات" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;">✕</button>
           </div>
         `;
       }
 
       if (jrnCount > 0) {
-        // Detect duplicate cost center names across companies
-        const nameToCos = new Map();
-        journals.forEach(j => {
-          const name = (j.cost_center_name || j.journal_name || '').replace(/\s+/g, ' ').trim();
-          if (name) {
-            if (!nameToCos.has(name)) nameToCos.set(name, new Set());
-            if (j.company_id) nameToCos.get(name).add(String(j.company_id));
-          }
-        });
-
         const jrnMap = new Map();
         journals.forEach(j => {
           const key = String(j.id);
@@ -1116,13 +1159,27 @@ function updateActiveFilterUI(container) {
         });
         html += `
           <div class="filter-chip filter-chip-jrn">
-            <span>📒 مركز التكلفة (${jrnCount}): <strong>${escapeHtml(jrnNames.join('، '))}</strong></span>
-            <button class="btn-clear-jrn" title="إلغاء تصفية مراكز التكلفة">✕</button>
+            <span>مركز التكلفة (${jrnCount}): <strong>${escapeHtml(jrnNames.join('، '))}</strong></span>
+            <button class="btn-clear-jrn" title="إلغاء تصفية مراكز التكلفة" style="background:none;border:none;color:inherit;cursor:pointer;padding:0 2px;">✕</button>
           </div>
         `;
       }
 
       chipsList.innerHTML = html;
+
+      chipsList.querySelector('.btn-clear-co')?.addEventListener('click', () => {
+        const companies = store.get('companies') || [];
+        const allIds = companies.map(c => c.id);
+        if (companyDropdownInstance) companyDropdownInstance.setSelectedIds(allIds);
+        container.querySelectorAll('.co-chip').forEach(c => setChipActive(c, true));
+        const coAll = container.querySelector('.co-all');
+        if (coAll) setChipActive(coAll, true);
+        syncAllChips();
+        updateVisibleYearChips();
+        populateJournalSlicer(container);
+        updateActiveFilterUI(container);
+        loadDashboard(container);
+      });
 
       chipsList.querySelector('.btn-clear-grp')?.addEventListener('click', () => {
         globalFilters.groupIds = [];
@@ -1158,28 +1215,30 @@ async function shareDashboard(container) {
     });
     const url = `${location.origin}/view.html?token=${result.token}`;
     await navigator.clipboard?.writeText(url).catch(()=>{});
-    showToast('✅ تم إنشاء الرابط ونسخه!', 'success');
+    showToast('تم إنشاء الرابط ونسخه', 'success');
   } catch(err){ showToast('خطأ في المشاركة','error'); }
 }
 
 async function openSharesModal(container) {
   const modal = container.querySelector('#shares-modal'); modal.style.display = 'flex';
   const list = container.querySelector('#shares-list');
-  list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">⏳</p>';
+  list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">جاري التحميل...</p>';
   try {
     const shares = await api.getPresentationShares();
     if (!shares.length) { list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">لا توجد روابط</p>'; return; }
     list.innerHTML = shares.map(s => {
       const url = `${location.origin}/view.html?token=${s.token}`;
-      return `<div style="background:rgba(255,255,255,0.03);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid rgba(255,255,255,0.06);">
+      return `<div style="background:var(--bg-subtle);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border-default);">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div><div style="color:var(--text-white);font-weight:600;font-size:0.85rem;">${s.title}</div><div style="color:var(--text-muted);font-size:0.72rem;margin-top:3px;">${s.created_at}</div></div>
-          <div style="display:flex;gap:8px;"><button class="btn copy-btn" data-url="${url}" style="font-size:0.72rem;padding:5px 10px;">📋</button><button class="btn del-btn" data-id="${s.id}" style="font-size:0.72rem;padding:5px 10px;color:var(--accent-red);">🗑️</button></div>
+          <div><div style="color:var(--text-primary);font-weight:600;font-size:0.85rem;">${s.title}</div><div style="color:var(--text-muted);font-size:0.72rem;margin-top:3px;">${s.created_at}</div></div>
+          <div style="display:flex;gap:8px;">
+            <button class="bi-btn bi-btn-secondary copy-btn" data-url="${url}" style="font-size:0.72rem;padding:5px 10px;">${ICONS.copy}</button>
+            <button class="bi-btn bi-btn-secondary del-btn" data-id="${s.id}" style="font-size:0.72rem;padding:5px 10px;color:var(--status-negative);">${ICONS.trash}</button>
+          </div>
         </div>
       </div>`;
     }).join('');
-    list.querySelectorAll('.copy-btn').forEach(b=>b.addEventListener('click',async()=>{await navigator.clipboard?.writeText(b.dataset.url);showToast('✅ تم نسخ الرابط','success');}));
+    list.querySelectorAll('.copy-btn').forEach(b=>b.addEventListener('click',async()=>{await navigator.clipboard?.writeText(b.dataset.url);showToast('تم نسخ الرابط','success');}));
     list.querySelectorAll('.del-btn').forEach(b=>b.addEventListener('click',async()=>{await api.deletePresentationShare(b.dataset.id);showToast('تم الحذف','success');openSharesModal(container);}));
-  } catch(err){list.innerHTML='<p style="color:var(--accent-red);">خطأ</p>';}
+  } catch(err){list.innerHTML='<p style="color:var(--status-negative);">خطأ</p>';}
 }
-
