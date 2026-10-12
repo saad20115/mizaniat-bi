@@ -1810,6 +1810,35 @@ router.get('/departments-profitability', async (req, res) => {
   }
 });
 
+// DC1: Departments comparison (revenue / expenses / collection on one tax-exclusive basis)
+router.get('/departments-comparison', async (req, res) => {
+  try {
+    const { companyIds, dateFrom, dateTo, asOfDate, groupIds, departmentIds, journalIds, costCenters } = req.query;
+    const years = parseYearsParam(req);
+    const dIds = departmentIds || groupIds;
+    const targetJournals = costCenters || journalIds;
+    const jIds = targetJournals ? (Array.isArray(targetJournals) ? targetJournals : String(targetJournals).split(',')).map(s => (typeof s === 'string' ? s.trim() : s)).filter(Boolean) : undefined;
+    const cacheKey = CacheService.makeKey('departments-comparison', { companyIds, years, dateFrom, dateTo, asOfDate, departmentIds: dIds, costCenters: jIds });
+    const result = await CacheService.getOrSet(cacheKey, () => {
+      const engine = new ConsolidationEngine();
+      return engine.getDepartmentsComparison({
+        companyIds: companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')) : undefined,
+        years,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        asOfDate: asOfDate || undefined,
+        departmentIds: dIds ? (Array.isArray(dIds) ? dIds : String(dIds).split(',')).map(Number) : undefined,
+        costCenters: jIds
+      });
+    });
+    res.json(result);
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    console.error('[API /departments-comparison] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ==============================================
 // ===== USER UI PREFERENCES (P4) =====
 // ==============================================

@@ -1,0 +1,541 @@
+/* DC1: «مقارنة الأقسام» tab. Uses UI1 tokens only (client/css/ui1.css). */
+
+/* Row 1: six totals cards (one hero) */
+.dc-kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.dc-kpi-grid .bi-kpi-card {
+  min-height: 104px;
+  padding: 14px 12px;
+  gap: 6px;
+}
+
+/* Six cards per row: sized so an 11-digit figure stays on one line down to 1280 */
+.dc-kpi-grid .bi-kpi-card .bi-kpi-value,
+.dc-kpi-grid .bi-kpi-card.hero .bi-kpi-value {
+  font-size: clamp(17px, 1.42vw, 24px) !important;
+  line-height: 32px !important;
+}
+
+.dc-kpi-grid .bi-kpi-label,
+.dc-kpi-grid .bi-kpi-sub {
+  white-space: nowrap;
+}
+
+.dc-kpi-grid .bi-kpi-card.hero .dc-kpi-sub-num {
+  color: var(--text-on-brand) !important;
+}
+
+/* Secondary labels: full wording on wide screens, short wording where columns are narrow */
+.dc-lbl-short { display: none; }
+@media (max-width: 1439.98px) {
+  .dc-lbl-long { display: none; }
+  .dc-lbl-short { display: inline; }
+}
+
+.dc-kpi-sub-num {
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Row 2: four highlight cards */
+.dc-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.dc-highlight-grid[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dc-highlight-grid[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dc-highlight-grid[data-count="1"] { grid-template-columns: minmax(0, 1fr); }
+
+.dc-highlight {
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-sizing: border-box;
+}
+
+.dc-highlight-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.dc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.dc-dot-positive { background: var(--status-positive); }
+.dc-dot-warning { background: var(--status-warning); }
+.dc-dot-negative { background: var(--status-negative); }
+
+.dc-highlight-name {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dc-highlight-value {
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(17px, 1.5vw, 22px);
+  line-height: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.dc-highlight-value.dc-value-negative {
+  color: var(--status-negative);
+}
+
+.dc-highlight-sub {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.dc-highlight-sub .dc-kpi-sub-num {
+  font-weight: 500;
+}
+
+@media (max-width: 1200px) {
+  .dc-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .dc-highlight-grid,
+  .dc-highlight-grid[data-count="3"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .dc-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .dc-kpi-grid .bi-kpi-card {
+    min-height: 0;
+    padding: 10px;
+  }
+  .dc-kpi-grid .bi-kpi-label,
+  .dc-kpi-grid .bi-kpi-sub {
+    white-space: normal;
+  }
+  .dc-highlight-grid,
+  .dc-highlight-grid[data-count="3"],
+  .dc-highlight-grid[data-count="2"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dc-highlight {
+    padding: 10px;
+  }
+}
+
+/* Explainer + lists */
+.dc-note {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--text-secondary);
+  box-sizing: border-box;
+}
+
+.dc-link-btn {
+  letter-spacing: 0;
+  background: none;
+  border: none;
+  color: var(--brand-accent);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-ar);
+  white-space: nowrap;
+}
+
+.dc-warning-card {
+  background: var(--status-warning-subtle);
+  border: 1px solid var(--status-warning);
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.dc-list-wrap {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+.dc-list-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.dc-list-wrap td.dc-list-num {
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Tree table: fixed layout, the seven numeric columns share the width evenly, header aligned with its values */
+#dc-tree-container {
+  overflow-x: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+#dc-tree-container table {
+  min-width: 950px !important;
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+#dc-tree-container th.tree-col-num,
+#dc-tree-container td.tree-col-num {
+  text-align: right !important;
+  padding: 10px 6px !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  box-sizing: border-box !important;
+}
+
+#dc-tree-container th.tree-col-num {
+  vertical-align: bottom !important;
+}
+
+#dc-tree-container th.tree-col-num {
+  white-space: normal !important;
+}
+
+#dc-tree-container th .dc-th-label {
+  display: block;
+  white-space: normal;
+}
+
+#dc-tree-container th .dc-th-basis {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+#dc-tree-container th.tree-col-name,
+#dc-tree-container td.tree-col-name {
+  text-align: right !important;
+}
+
+#dc-tree-container .dc-cell-main {
+  display: block;
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+#dc-tree-container .dc-cell-sub {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+#dc-tree-container .dc-cell-sub .dc-sub-num {
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+}
+
+#dc-tree-container tr.dc-row-dept td {
+  font-weight: 600 !important;
+}
+
+#dc-tree-container tr.dc-row-cc td {
+  background: var(--bg-subtle) !important;
+}
+
+#dc-tree-container tr.dc-row-company td {
+  background: var(--bg-subtle) !important;
+  color: var(--text-secondary) !important;
+}
+
+#dc-tree-container tr[data-tree-row="true"]:hover td {
+  background: var(--bg-hover) !important;
+}
+
+#dc-tree-container .dc-tag {
+  font-size: 11px;
+  line-height: 16px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--brand-accent-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+#dc-tree-container .dc-neg {
+  color: var(--status-negative) !important;
+  direction: ltr;
+  display: inline-block;
+}
+
+#dc-tree-container .dc-muted {
+  color: var(--text-muted) !important;
+}
+
+/* All seven figures stay available on phones: the table scrolls horizontally instead of dropping columns */
+@media (max-width: 767.98px) {
+  #dc-tree-container [data-priority="2"] {
+    display: table-cell !important;
+  }
+}
+
+/* Sortable headers */
+#dc-tree-container th.dc-th-sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+#dc-tree-container th.dc-th-sortable:hover .dc-th-label {
+  color: var(--text-primary);
+}
+
+#dc-tree-container .dc-th-sort {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 4px;
+  color: var(--text-muted);
+}
+
+#dc-tree-container .dc-th-sort.dc-th-sort-active {
+  color: var(--brand-accent);
+}
+
+/* Grouped bar chart: fixed height, so it never pushes the table further down as departments are added */
+.dc-chart-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.dc-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dc-chart-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dc-chart-subtitle {
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.dc-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+
+.dc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.dc-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.dc-chart-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dc-chart {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  column-gap: 8px;
+  direction: rtl;
+  padding-top: 8px;
+}
+
+.dc-chart-axis {
+  position: relative;
+  height: 160px;
+}
+
+.dc-chart-axis span {
+  position: absolute;
+  inset-inline-start: 0;
+  transform: translateY(50%);
+  font-family: var(--font-en);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.dc-chart-plot {
+  position: relative;
+  height: 160px;
+  display: flex;
+  align-items: stretch;
+}
+
+.dc-chart-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed var(--border-default);
+  pointer-events: none;
+}
+
+.dc-chart-gridline.dc-base {
+  border-top: 1px solid var(--border-strong);
+}
+
+.dc-chart-group {
+  flex: 1 1 0;
+  min-width: 58px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+
+.dc-chart-bar {
+  flex: 0 1 14px;
+  min-width: 6px;
+  border-radius: 2px 2px 0 0;
+}
+
+.dc-chart-bar.dc-bar-revenue { background: var(--chart-revenue); }
+.dc-chart-bar.dc-bar-expense { background: var(--chart-expense); }
+.dc-chart-bar.dc-bar-cash { background: var(--chart-collection); }
+
+.dc-chart-labels {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 6px;
+  height: 52px;
+  overflow: hidden;
+}
+
+/* Three lines at most; the full name is in the tooltip and in the table */
+.dc-chart-label {
+  flex: 1 1 0;
+  min-width: 58px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  text-align: center;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+@media (max-width: 767.98px) {
+  .dc-chart-axis,
+  .dc-chart-plot {
+    height: 130px;
+  }
+  .dc-chart {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+}

@@ -87,7 +87,7 @@ app.use('/api', (req, res, next) => {
     '/analytic-groups', '/analytic-group-mappings',
     '/guarantee-details', '/guarantee-pending-list', '/guarantees',
     '/matrix', '/receivables', '/data-quality', '/performance-summary',
-    '/executive', '/customers-collection', '/departments-profitability', '/preferences',
+    '/executive', '/customers-collection', '/departments-profitability', '/departments-comparison', '/preferences',
     '/customer-statement', '/executive-client-invoices',
     '/vat', '/actual-collections',
     '/sales/invoices', '/sales/customer-hierarchy', '/sales/companies',

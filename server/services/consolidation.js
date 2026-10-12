@@ -8123,6 +8123,559 @@ class ConsolidationEngine {
 
     return { matches, query: qRaw, total: matches.length };
   }
+
+  /**
+   * DC1: Departments comparison (مقارنة الأقسام) on ONE tax-exclusive basis.
+   * Hierarchy: Department (analytic group, aggregated across companies) -> Cost Center -> Company.
+   *
+   * Columns:
+   *  - revenue / expenses: fact_daily (income / expense accounts only), same scope as the executive tab.
+   *  - cash_collected: payment_allocations by payment date, the same channels as the collections tab's
+   *    total_collected (bank + sister_company + other_adjustment), NET of VAT per allocation:
+   *    amount * (invoice.amount_untaxed / invoice.amount_total).
+   *    Allocations whose invoice is missing, ambiguous or has amount_total = 0 are never assumed:
+   *    they are excluded from the net figure and returned in `exceptions`.
+   *  - collected_invoices / residual_gross: invoices dated in the period, pinned to the executive tab's figures.
+   *  - remaining: the tax-exclusive part of what is still unpaid on period invoices (untaxed * residual / total);
+   *    billed = collected_invoices + remaining on every row.
+   *  - open_total: what is still unpaid today on ALL invoices dated up to the end of the selected period
+   *    (= remaining of period invoices + open invoices dated outside the period, up to the cut-off).
+   *
+   * Rounding: every (company, department) cell is pinned to the integer the executive tab displays,
+   * then split over cost centers by largest remainder, so parent == sum of displayed children at every level.
+   */
+  getDepartmentsComparison({ companyIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters } = {}) {
+    const round1 = (n) => Math.round(n * 10) / 10;
+    const round2 = (n) => Math.round((n || 0) * 100) / 100;
+    const cashChannelsSql = `pa.channel IN ('bank', 'sister_company', 'other_adjustment')`;
+
+    // 1. Executive tab output for the same filters: the pinned targets per (company, department)
+    const exec = this.getExecutiveSummary({
+      companyIds, years, year, dateFrom, dateTo, asOfDate,
+      fullTree: false, includeAging: false,
+      departmentIds, journalIds, costCenters
+    });
+    const execCompanies = exec.tree.rows;
+    const targetLedgerIds = execCompanies.map(c => c.company_id);
+    const companyNames = new Map(execCompanies.map(c => [c.company_id, c.name]));
+    const execCells = new Map();
+    const execDeptCount = new Map();
+    for (const co of execCompanies) {
+      execDeptCount.set(co.company_id, (co.children || []).length);
+      for (const d of (co.children || [])) {
+        execCells.set(`${co.company_id}|${d.department_id}`, d);
+      }
+    }
+
+    // 2. Scope conditions (same builders as the executive and collections tabs)
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'dc_');
+    const hasDept = departmentIds && departmentIds.length > 0;
+    const hasCc = (journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0);
+
+    const fdParams = {};
+    const lPh = targetLedgerIds.map((_, i) => `@dc_lc_${i}`).join(',');
+    targetLedgerIds.forEach((id, i) => { fdParams[`dc_lc_${i}`] = id; });
+    let fdWhere = `WHERE fd.company_id IN (${lPh})`;
+    if (period.sql !== '1=1') {
+      const fdPeriod = this._periodFilter({ years: period.yearsList, dateFrom: period.dateFrom, dateTo: period.dateTo }, 'fd.date', 'dcfd_');
+      if (fdPeriod.sql !== '1=1') {
+        fdWhere += ` AND ${fdPeriod.sql}`;
+        Object.assign(fdParams, fdPeriod.params);
+      }
+    }
+    if (hasDept) {
+      const g = this._buildGroupCondition({ departmentIds, tableAlias: 'fd', prefix: 'dc_d_' });
+      fdWhere += g.sql;
+      Object.assign(fdParams, g.params);
+    }
+    if (hasCc) {
+      const cc = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'fd', prefix: 'dcFdCC_' });
+      fdWhere += cc.sql;
+      Object.assign(fdParams, cc.params);
+    }
+
+    const invParams = {};
+    const salesIds = targetLedgerIds.map(id => this._getSalesCid(id));
+    const sPh = salesIds.map((_, i) => `@dc_sc_${i}`).join(',');
+    salesIds.forEach((id, i) => { invParams[`dc_sc_${i}`] = id; });
+    let invWhere = `WHERE si.company_id IN (${sPh})`;
+    if (period.sql !== '1=1') {
+      invWhere += ` AND ${period.sql}`;
+      Object.assign(invParams, period.params);
+    }
+    if (hasDept) {
+      const g = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'dc_d_inv_' });
+      invWhere += g.sql;
+      Object.assign(invParams, g.params);
+    }
+    if (hasCc) {
+      const cc = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'si', prefix: 'dcInvCC_' });
+      invWhere += cc.sql;
+      Object.assign(invParams, cc.params);
+    }
+
+    const paParams = {};
+    const pPh = targetLedgerIds.map((_, i) => `@dc_pc_${i}`).join(',');
+    targetLedgerIds.forEach((id, i) => { paParams[`dc_pc_${i}`] = id; });
+    let paWhere = `WHERE pa.company_id IN (${pPh})`;
+    const paPeriod = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'pa.payment_date', 'dcpa_');
+    if (paPeriod.sql !== '1=1') {
+      paWhere += ` AND ${paPeriod.sql}`;
+      Object.assign(paParams, paPeriod.params);
+    }
+    if (hasDept) {
+      const g = this._buildGroupCondition({ departmentIds, tableAlias: 'pa', prefix: 'dc_d_pa_' });
+      paWhere += g.sql;
+      Object.assign(paParams, g.params);
+    }
+    if (hasCc) {
+      const cc = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'dcPaCC_' });
+      paWhere += cc.sql;
+      Object.assign(paParams, cc.params);
+    }
+
+    // 3. Leaf rows per (company, department, cost center)
+    const fdRows = this.db.prepare(`
+      SELECT
+        fd.company_id as cid,
+        fd.department_id,
+        fd.cost_center_key,
+        fd.cost_center_name,
+        ${this._groupNameSql('ag', 'fd.cost_center_name')} as department_name,
+        SUM(fd.revenue) as revenue,
+        SUM(fd.expense) as expense
+      FROM fact_daily fd
+      LEFT JOIN analytic_groups ag ON ag.id = fd.department_id
+      ${fdWhere}
+      GROUP BY fd.company_id, fd.department_id, fd.cost_center_key
+      HAVING (SUM(fd.revenue) != 0 OR SUM(fd.expense) != 0)
+    `).all(fdParams);
+
+    const invRows = this.db.prepare(`
+      SELECT
+        c.id as cid,
+        id.department_id,
+        id.cost_center_key,
+        id.cost_center_name,
+        ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
+        SUM(si.amount_untaxed * id.share) as billed,
+        SUM(CASE WHEN si.amount_total != 0 THEN (si.amount_untaxed * (si.amount_total - si.amount_residual_signed) / si.amount_total) * id.share ELSE 0 END) as collected,
+        SUM(si.amount_residual_signed * id.share) as residual
+      FROM sales_invoices si
+      JOIN sales_companies sc ON sc.id = si.company_id
+      JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+      JOIN invoice_departments id ON id.sales_invoice_id = si.id
+      LEFT JOIN analytic_groups ag ON ag.id = id.department_id
+      ${invWhere}
+      GROUP BY c.id, id.department_id, id.cost_center_key
+    `).all(invParams);
+
+    // Open invoices dated up to the cut-off but outside the period (the period's own remainder comes from invRows)
+    let cutoffDate = null;
+    if (!period.isAll) {
+      cutoffDate = period.dateTo || `${period.yearsList[period.yearsList.length - 1]}-12-31`;
+    }
+    let otherOpenRows = [];
+    if (cutoffDate) {
+      const ooParams = { dc_cutoff: cutoffDate, ...period.params };
+      salesIds.forEach((id, i) => { ooParams[`dc_sc_${i}`] = id; });
+      let ooWhere = `WHERE si.company_id IN (${sPh}) AND si.date <= @dc_cutoff AND NOT (${period.sql})`;
+      if (hasDept) {
+        const g = this._buildGroupCondition({ departmentIds, tableAlias: 'id', prefix: 'dc_d_oo_' });
+        ooWhere += g.sql;
+        Object.assign(ooParams, g.params);
+      }
+      if (hasCc) {
+        const cc = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'si', prefix: 'dcOoCC_' });
+        ooWhere += cc.sql;
+        Object.assign(ooParams, cc.params);
+      }
+      otherOpenRows = this.db.prepare(`
+        SELECT
+          c.id as cid,
+          id.department_id,
+          id.cost_center_key,
+          id.cost_center_name,
+          ${this._groupNameSql('ag', 'id.cost_center_name')} as department_name,
+          SUM(si.amount_residual_signed * id.share) as open_gross,
+          SUM(CASE WHEN si.amount_total != 0 THEN (si.amount_untaxed * si.amount_residual_signed / si.amount_total) * id.share ELSE 0 END) as open_untaxed
+        FROM sales_invoices si
+        JOIN sales_companies sc ON sc.id = si.company_id
+        JOIN companies c ON c.odoo_company_id = sc.sales_company_id
+        JOIN invoice_departments id ON id.sales_invoice_id = si.id
+        LEFT JOIN analytic_groups ag ON ag.id = id.department_id
+        ${ooWhere}
+          AND si.amount_residual_signed != 0
+        GROUP BY c.id, id.department_id, id.cost_center_key
+      `).all(ooParams);
+    }
+
+    // One row per (sales company, Odoo invoice id); n != 1 marks an ambiguous link
+    const invLinkSql = `
+      LEFT JOIN (
+        SELECT company_id, invoice_id, COUNT(*) as n, MAX(amount_total) as amount_total, MAX(amount_untaxed) as amount_untaxed
+        FROM sales_invoices
+        GROUP BY company_id, invoice_id
+      ) inv ON inv.company_id = pa.sales_company_id AND inv.invoice_id = pa.invoice_id
+    `;
+    const invUsableSql = `(inv.n = 1 AND inv.amount_total IS NOT NULL AND inv.amount_total != 0)`;
+
+    const paRows = this.db.prepare(`
+      SELECT
+        pa.company_id as cid,
+        pa.department_id,
+        pa.cost_center_key,
+        pa.cost_center_name,
+        ${this._groupNameSql('ag', 'pa.cost_center_name')} as department_name,
+        SUM(CASE WHEN ${cashChannelsSql} THEN pa.amount ELSE 0 END) as gross,
+        SUM(CASE WHEN ${cashChannelsSql} AND ${invUsableSql} THEN pa.amount * inv.amount_untaxed / inv.amount_total ELSE 0 END) as net,
+        SUM(CASE WHEN ${cashChannelsSql} AND NOT COALESCE(${invUsableSql}, 0) THEN pa.amount ELSE 0 END) as exception_gross
+      FROM payment_allocations pa
+      LEFT JOIN analytic_groups ag ON ag.id = pa.department_id
+      ${invLinkSql}
+      ${paWhere}
+      GROUP BY pa.company_id, pa.department_id, pa.cost_center_key
+    `).all(paParams);
+
+    const exceptionItems = this.db.prepare(`
+      SELECT
+        pa.company_id,
+        pa.invoice_id,
+        pa.invoice_name,
+        pa.partner_name,
+        pa.payment_move_name,
+        pa.payment_date,
+        pa.amount,
+        CASE
+          WHEN pa.invoice_id IS NULL THEN 'no_invoice'
+          WHEN inv.n IS NULL THEN 'invoice_not_found'
+          WHEN inv.n != 1 THEN 'invoice_ambiguous'
+          ELSE 'invoice_total_zero'
+        END as reason
+      FROM payment_allocations pa
+      ${invLinkSql}
+      ${paWhere}
+        AND ${cashChannelsSql}
+        AND NOT COALESCE(${invUsableSql}, 0)
+      ORDER BY pa.amount DESC
+    `).all(paParams);
+
+    // 4. Merge into leaves
+    const MEASURES = ['revenue', 'expenses', 'collected_invoices', 'remaining', 'residual_gross', 'cash_collected', 'cash_collected_gross', 'other_open', 'other_open_gross'];
+    const leaves = new Map();
+    const deptNames = new Map();
+    const getLeaf = (r) => {
+      const did = this._resolveGroupId(r.department_id, r.cost_center_key);
+      const ccKey = (r.cost_center_key || '').trim();
+      const key = `${did}|${ccKey}|${r.cid}`;
+      if (!leaves.has(key)) {
+        const raw = {};
+        for (const m of MEASURES) raw[m] = 0;
+        leaves.set(key, { did, ccKey, ccName: '', cid: r.cid, raw, val: {} });
+      }
+      const leaf = leaves.get(key);
+      if (!leaf.ccName) leaf.ccName = (r.cost_center_name || '').replace(/\s+/g, ' ').trim();
+      if (!deptNames.has(did) && r.department_name) deptNames.set(did, r.department_name);
+      return leaf;
+    };
+    for (const r of fdRows) {
+      const leaf = getLeaf(r);
+      leaf.raw.revenue += r.revenue || 0;
+      leaf.raw.expenses += r.expense || 0;
+    }
+    for (const r of invRows) {
+      const leaf = getLeaf(r);
+      leaf.raw.collected_invoices += r.collected || 0;
+      leaf.raw.remaining += (r.billed || 0) - (r.collected || 0);
+      leaf.raw.residual_gross += r.residual || 0;
+    }
+    let rawOtherOpen = 0, rawOtherOpenGross = 0;
+    for (const r of otherOpenRows) {
+      const leaf = getLeaf(r);
+      leaf.raw.other_open += r.open_untaxed || 0;
+      leaf.raw.other_open_gross += r.open_gross || 0;
+      rawOtherOpen += r.open_untaxed || 0;
+      rawOtherOpenGross += r.open_gross || 0;
+    }
+    let rawCashGross = 0, rawCashNet = 0, rawExceptionGross = 0;
+    for (const r of paRows) {
+      rawCashGross += r.gross || 0;
+      rawCashNet += r.net || 0;
+      rawExceptionGross += r.exception_gross || 0;
+      if (!r.gross && !r.net) continue;
+      const leaf = getLeaf(r);
+      leaf.raw.cash_collected += r.net || 0;
+      // The VAT-inclusive secondary figure covers the same allocations as the net one
+      leaf.raw.cash_collected_gross += (r.gross || 0) - (r.exception_gross || 0);
+    }
+
+    // Largest-remainder split of an integer target over raw values
+    const apportion = (items, measure, target, tolerance, label) => {
+      const rawSum = items.reduce((s, it) => s + it.raw[measure], 0);
+      if (Math.abs(target - rawSum) > tolerance) {
+        throw new Error(`[DepartmentsComparison] ${label}: ${measure} target=${target} does not match its rows sum=${rawSum.toFixed(2)} (tolerance ${tolerance}).`);
+      }
+      for (const it of items) it.val[measure] = Math.round(it.raw[measure]);
+      let diff = target - items.reduce((s, it) => s + it.val[measure], 0);
+      const pool = items.filter(it => it.raw[measure] !== 0);
+      const candidates = pool.length > 0 ? pool : items;
+      while (diff !== 0) {
+        const step = diff > 0 ? 1 : -1;
+        let best = candidates[0];
+        let bestRem = (best.raw[measure] - best.val[measure]) * step;
+        for (const it of candidates) {
+          const rem = (it.raw[measure] - it.val[measure]) * step;
+          if (rem > bestRem) { best = it; bestRem = rem; }
+        }
+        best.val[measure] += step;
+        diff -= step;
+      }
+    };
+
+    // VAT-inclusive companion of an already-apportioned net measure: gross = net + rounded VAT share,
+    // so a tax-free row shows the same figure on both lines and gross never drops below net by rounding.
+    const apportionGross = (items, netMeasure, grossMeasure, target, label, pinned = false) => {
+      const vatRaw = (it) => it.raw[grossMeasure] - it.raw[netMeasure];
+      const vatVal = (it) => it.val[grossMeasure] - it.val[netMeasure];
+      for (const it of items) it.val[grossMeasure] = it.val[netMeasure] + Math.round(vatRaw(it));
+      let diff = target - items.reduce((s, it) => s + it.val[grossMeasure], 0);
+      const pool = items.filter(it => Math.abs(vatRaw(it)) >= 0.005);
+      if (diff !== 0 && (pool.length === 0 || Math.abs(diff) > pool.length + 1)) {
+        if (!pinned) {
+          throw new Error(`[DepartmentsComparison] ${label}: ${grossMeasure} target=${target} cannot be reached from its rows (diff ${diff}).`);
+        }
+        // The target is another tab's displayed integer: it wins over the net + VAT composition
+        return false;
+      }
+      while (diff !== 0) {
+        const step = diff > 0 ? 1 : -1;
+        let best = pool[0];
+        let bestRem = (vatRaw(best) - vatVal(best)) * step;
+        for (const it of pool) {
+          const rem = (vatRaw(it) - vatVal(it)) * step;
+          if (rem > bestRem) { best = it; bestRem = rem; }
+        }
+        best.val[grossMeasure] += step;
+        diff -= step;
+      }
+      return true;
+    };
+
+    // 5. Pin every (company, department) cell to the executive tab's displayed integers
+    const cellLeaves = new Map();
+    for (const leaf of leaves.values()) {
+      const k = `${leaf.cid}|${leaf.did}`;
+      if (!cellLeaves.has(k)) cellLeaves.set(k, []);
+      cellLeaves.get(k).push(leaf);
+    }
+    const EXEC_FIELDS = { revenue: 'revenue', expenses: 'expenses', collected_invoices: 'collected', residual_gross: 'residual' };
+    for (const k of new Set([...cellLeaves.keys(), ...execCells.keys()])) {
+      const items = cellLeaves.get(k) || [];
+      const cell = execCells.get(k);
+      const cid = Number(k.split('|')[0]);
+      // The executive tab pushes its own rounding remainders into one department per company
+      const tolerance = 0.5 + Math.max(1, Math.ceil((execDeptCount.get(cid) || 0) * 0.5)) + 2;
+      for (const [measure, execField] of Object.entries(EXEC_FIELDS)) {
+        const target = cell ? (cell[execField] || 0) : 0;
+        if (items.length === 0) {
+          if (target !== 0) throw new Error(`[DepartmentsComparison] cell ${k}: executive ${execField}=${target} has no cost-center rows.`);
+          continue;
+        }
+        apportion(items, measure, target, tolerance, `cell ${k}`);
+      }
+    }
+    const allLeaves = Array.from(leaves.values());
+    if (allLeaves.length > 0) {
+      // Tax-exclusive remainder of period invoices: a row with nothing unpaid shows exactly zero
+      apportion(allLeaves, 'remaining', Math.round(allLeaves.reduce((s, l) => s + l.raw.remaining, 0)), 0.5, 'remaining');
+      // Its tax-inclusive companion stays pinned to the executive cell, composed as remaining + VAT where possible
+      for (const [k, items] of cellLeaves.entries()) {
+        const target = items.reduce((s, it) => s + it.val.residual_gross, 0);
+        const pinnedVals = items.map(it => it.val.residual_gross);
+        if (!apportionGross(items, 'remaining', 'residual_gross', target, `cell ${k}`, true)) {
+          items.forEach((it, i) => { it.val.residual_gross = pinnedVals[i]; });
+        }
+      }
+      apportion(allLeaves, 'cash_collected', Math.round(rawCashNet), 0.5, 'cash net');
+      apportionGross(allLeaves, 'cash_collected', 'cash_collected_gross', Math.round(rawCashGross - rawExceptionGross), 'cash gross');
+      apportion(allLeaves, 'other_open', Math.round(rawOtherOpen), 0.5, 'other open');
+      apportionGross(allLeaves, 'other_open', 'other_open_gross', Math.round(rawOtherOpenGross), 'other open gross');
+    }
+
+    // 6. Build Department -> Cost Center -> Company tree (parents are sums of displayed children)
+    const derive = (n) => {
+      n.net_profit = n.revenue - n.expenses;
+      n.margin = n.revenue > 0 ? round1((n.net_profit / n.revenue) * 100) : null;
+      n.cash_vat = n.cash_collected_gross - n.cash_collected;
+      n.billed = n.collected_invoices + n.remaining;
+      n.collection_rate = n.billed > 0 ? round1((n.collected_invoices / n.billed) * 100) : null;
+      n.open_total = n.remaining + n.other_open;
+      n.open_total_gross = n.residual_gross + n.other_open_gross;
+      return n;
+    };
+    const blank = () => Object.fromEntries(MEASURES.map(m => [m, 0]));
+    const addInto = (target, src) => { for (const m of MEASURES) target[m] += src[m]; };
+
+    const byRevenue = (a, b) => (b.revenue - a.revenue) || (b.expenses - a.expenses) || (b.cash_collected - a.cash_collected) || (b.open_total - a.open_total) || String(a.id).localeCompare(String(b.id));
+
+    const deptMap = new Map();
+    for (const leaf of allLeaves) {
+      if (!deptMap.has(leaf.did)) {
+        const isSynthetic = !(Number.isInteger(leaf.did) && leaf.did > 0 && leaf.did < 100000);
+        deptMap.set(leaf.did, {
+          id: `dept_${leaf.did}`,
+          type: 'dept',
+          department_id: leaf.did,
+          name: deptNames.get(leaf.did) || (leaf.did === 0 ? 'غير مصنّف' : `قسم ${leaf.did}`),
+          is_unmapped_cost_center: isSynthetic && leaf.did !== 0,
+          ...blank(),
+          ccMap: new Map()
+        });
+      }
+      const dept = deptMap.get(leaf.did);
+      if (!dept.ccMap.has(leaf.ccKey)) {
+        dept.ccMap.set(leaf.ccKey, {
+          id: `cc_${leaf.did}_${leaf.ccKey}`,
+          type: 'cc',
+          department_id: leaf.did,
+          cost_center_key: leaf.ccKey,
+          name: leaf.ccName || 'بدون مركز تكلفة',
+          ...blank(),
+          children: []
+        });
+      }
+      const cc = dept.ccMap.get(leaf.ccKey);
+      if (cc.name === 'بدون مركز تكلفة' && leaf.ccName) cc.name = leaf.ccName;
+      const coNode = derive({
+        id: `co_${leaf.did}_${leaf.ccKey}_${leaf.cid}`,
+        type: 'company',
+        department_id: leaf.did,
+        cost_center_key: leaf.ccKey,
+        company_id: leaf.cid,
+        name: companyNames.get(leaf.cid) || `شركة ${leaf.cid}`,
+        ...leaf.val
+      });
+      cc.children.push(coNode);
+      addInto(cc, coNode);
+      addInto(dept, coNode);
+    }
+
+    const totals = blank();
+    const tree = [];
+    for (const dept of deptMap.values()) {
+      dept.children = Array.from(dept.ccMap.values()).map(cc => {
+        cc.children.sort((a, b) => a.company_id - b.company_id);
+        return derive(cc);
+      }).sort(byRevenue);
+      delete dept.ccMap;
+      derive(dept);
+      addInto(totals, dept);
+      tree.push(dept);
+    }
+    tree.sort(byRevenue);
+    derive(totals);
+
+    for (const [measure, cardKey] of [['revenue', 'revenue'], ['expenses', 'expenses'], ['collected_invoices', 'collected_period_untaxed'], ['residual_gross', 'residual_period']]) {
+      if (totals[measure] !== exec.cards[cardKey]) {
+        throw new Error(`[DepartmentsComparison] total ${measure}=${totals[measure]} differs from executive card ${cardKey}=${exec.cards[cardKey]}.`);
+      }
+    }
+
+    // 7. Customer payments not reconciled to invoices: outside both collection columns (as the collections tab reports them)
+    const collections = this.getCollections({ companyIds: targetLedgerIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters });
+    const unlinkedMoves = (collections.accounts_comparison && collections.accounts_comparison.unallocated_moves) || [];
+
+    // 8. Highlights, computed from the same department rows the table shows.
+    // Ties are broken by the smaller department_id so the result is stable.
+    const pick = (candidates, better) => candidates.reduce((best, d) => (best === null || better(d, best) ? d : best), null);
+    const byId = (a, b) => a.department_id < b.department_id;
+    const refOf = (d) => ({ department_id: d.department_id, name: d.name });
+    const highlights = {};
+    const topProfit = pick(tree.filter(d => d.net_profit > 0), (a, b) => a.net_profit > b.net_profit || (a.net_profit === b.net_profit && byId(a, b)));
+    if (topProfit) highlights.top_profit = { ...refOf(topProfit), net_profit: topProfit.net_profit, margin: topProfit.margin };
+    const largestOpen = pick(tree.filter(d => d.open_total > 0), (a, b) => a.open_total > b.open_total || (a.open_total === b.open_total && byId(a, b)));
+    if (largestOpen) {
+      highlights.largest_open = {
+        ...refOf(largestOpen),
+        open_total: largestOpen.open_total,
+        open_total_gross: largestOpen.open_total_gross,
+        share_of_total: totals.open_total > 0 ? round1((largestOpen.open_total / totals.open_total) * 100) : null
+      };
+    }
+    // Lowest collected / billed on period invoices; compared as exact fractions (cross-multiplied), not rounded percents
+    const weakest = pick(tree.filter(d => d.billed > 0 && d.remaining > 0), (a, b) => {
+      const l = a.collected_invoices * b.billed, r = b.collected_invoices * a.billed;
+      return l < r || (l === r && (a.remaining > b.remaining || (a.remaining === b.remaining && byId(a, b))));
+    });
+    if (weakest) highlights.weakest_collection = { ...refOf(weakest), collection_rate: weakest.collection_rate, remaining: weakest.remaining, billed: weakest.billed };
+    const lossDepts = tree.filter(d => d.expenses > d.revenue);
+    if (lossDepts.length > 0) {
+      const largestLoss = pick(lossDepts, (a, b) => a.net_profit < b.net_profit || (a.net_profit === b.net_profit && byId(a, b)));
+      highlights.loss_departments = {
+        count: lossDepts.length,
+        total_departments: tree.length,
+        total_shortfall: lossDepts.reduce((sum, d) => sum + (d.expenses - d.revenue), 0),
+        largest: { ...refOf(largestLoss), shortfall: largestLoss.expenses - largestLoss.revenue }
+      };
+    }
+
+    const exceptionsGross = round2(rawExceptionGross);
+    const cashGrossExact = round2(rawCashGross);
+    const cashNetExact = round2(rawCashNet);
+
+    return {
+      meta: {
+        period_label: period.label,
+        years: period.yearsList,
+        is_multi_year: exec.meta.is_multi_year,
+        basis: 'untaxed',
+        cash_channels: ['bank', 'sister_company', 'other_adjustment'],
+        open_cutoff_date: cutoffDate,
+        department_count: tree.length
+      },
+      cards: {
+        revenue: totals.revenue,
+        expenses: totals.expenses,
+        net_profit: totals.net_profit,
+        profit_margin: totals.margin,
+        cash_collected: totals.cash_collected,
+        cash_collected_gross: totals.cash_collected_gross,
+        cash_vat: totals.cash_vat,
+        collected_invoices: totals.collected_invoices,
+        billed: totals.billed,
+        collection_rate: totals.collection_rate,
+        remaining: totals.remaining,
+        residual_gross: totals.residual_gross,
+        open_total: totals.open_total,
+        open_total_gross: totals.open_total_gross
+      },
+      highlights,
+      // Unrounded-to-halalas figures for reconciliation with the collections tab
+      cash_exact: {
+        gross: cashGrossExact,
+        net: cashNetExact,
+        vat_excluded: round2(cashGrossExact - cashNetExact - exceptionsGross),
+        exceptions_gross: exceptionsGross
+      },
+      // Open receivables to the halala, for reconciliation with the customers tab at the same cut-off
+      open_exact: {
+        gross: round2(allLeaves.reduce((sum, l) => sum + l.raw.residual_gross + l.raw.other_open_gross, 0)),
+        untaxed: round2(allLeaves.reduce((sum, l) => sum + l.raw.remaining + l.raw.other_open, 0))
+      },
+      unlinked_payments: {
+        count: unlinkedMoves.length,
+        amount: round2(unlinkedMoves.reduce((s, m) => s + (m.amount || 0), 0)),
+        moves: unlinkedMoves
+      },
+      exceptions: {
+        count: exceptionItems.length,
+        amount: round2(exceptionItems.reduce((s, e) => s + (e.amount || 0), 0)),
+        items: exceptionItems.slice(0, 200)
+      },
+      tree,
+      totals
+    };
+  }
 }
 
 module.exports = ConsolidationEngine;

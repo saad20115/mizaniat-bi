@@ -3,7 +3,7 @@ import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
-import { createTreeTable, getInvoiceBucket } from '../components/tree-table.js';
+import { createTreeTable, getInvoiceBucket, normalizeArabic, highlightMatch } from '../components/tree-table.js';
 
 // Page-level state
 let currentExecutiveData = null;
@@ -27,6 +27,9 @@ const defaultPreferences = {
 let userPreferences = { ...defaultPreferences };
 let currentSummaryRequestId = 0;
 let currentAgingRequestId = 0;
+// Aging table: header click sorts largest-first / smallest-first; the search box filters loaded rows
+let agingSort = { col: null, dir: 'desc' };
+let agingSearchQuery = '';
 
 function getPeriodParamsFromFilter(timeFilter) {
   const isCustom = timeFilter?.isCustomDate;
@@ -678,6 +681,15 @@ function renderExecutiveContent(container, data) {
           <span style="font-size:13px;color:var(--text-muted);font-weight:600;">
             إجمالي المتبقي: <strong class="exec-num text-negative">${Math.round(aging.totals?.total_residual || cards.residual_period || 0).toLocaleString('en-US')} ريال</strong>
           </span>
+        </div>
+
+        <div id="exec-aging-tools" style="display:${isAgingOpen ? 'flex' : 'none'};align-items:center;gap:8px;flex-wrap:wrap;">
+          <div class="exec-search-wrap">
+            <input type="text" id="exec-aging-search" class="exec-search-input" placeholder="بحث عن شركة أو قسم أو عميل…" value="${escapeHtml(agingSearchQuery)}" style="width:240px;" />
+            <button id="exec-aging-search-clear" type="button" style="display:${agingSearchQuery ? 'inline-flex' : 'none'};position:absolute;left:8px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;padding:0;">✕</button>
+          </div>
+          <span id="exec-aging-search-counter" style="display:none;font-size:12px;font-weight:600;padding:2px 8px;border-radius:6px;"></span>
+          <span style="font-size:12px;color:var(--text-muted);">انقر رأس أي عمود للترتيب من الأكبر للأصغر، وانقر مرة أخرى للعكس</span>
         </div>
 
         <div id="exec-aging-container" data-scroll-x="true" style="display:${isAgingOpen ? 'block' : 'none'};overflow-x:auto;border:1px solid var(--border-default);border-radius:12px;margin-top:6px;min-width:0;max-width:100%;width:100%;box-sizing:border-box;"></div>
@@ -1341,7 +1353,7 @@ function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf
     <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
       <td class="tree-col-name" style="padding:10px 14px;padding-right:${indent + 14}px;">
         <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--text-muted);">${iconSvg}</span>
-        ${escapeHtml(node.name || node.partner_name || node.company_name || '')}
+        <span class="exec-aging-name" data-tree-name="true">${escapeHtml(node.name || node.partner_name || node.company_name || '')}</span>
       </td>
       <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.not_due)}</td>
       <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.b1_30)}</td>
@@ -1387,7 +1399,9 @@ function initAgingTreeTable(agContainer, aging) {
     }
   }
 
-  createTreeTable(agContainer, {
+  applyAgingSort(tree);
+
+  const agingTable = createTreeTable(agContainer, {
     storageKey: 'mizaniat_exec_aging_expanded',
     columns: agingColumns,
     data: tree,
@@ -1460,6 +1474,128 @@ function initAgingTreeTable(agContainer, aging) {
     renderRow: renderAgingTableRow,
     renderTotals: renderAgingTableTotals
   });
+
+  bindAgingSortAndSearch(agContainer, agingTable);
+}
+
+// Sorts every level in place (companies, departments, customers, loaded invoices) so lazily loaded rows stay attached
+function applyAgingSort(nodes) {
+  if (!agingSort.col || !Array.isArray(nodes)) return;
+  const col = agingSort.col;
+  const sign = agingSort.dir === 'asc' ? 1 : -1;
+  const valueOf = (n) => (col === 'total_residual' ? Number(n.total_residual) || 0 : Number(n.buckets?.[col]) || 0);
+  const nameOf = (n) => String(n.name || n.partner_name || n.company_name || '');
+  nodes.sort((a, b) => {
+    const base = col === 'name' ? nameOf(a).localeCompare(nameOf(b), 'ar') : (valueOf(a) - valueOf(b));
+    return (base * sign) || nameOf(a).localeCompare(nameOf(b), 'ar');
+  });
+  for (const n of nodes) applyAgingSort(n.departments || n.partners || n.invoices);
+}
+
+function bindAgingSortAndSearch(agContainer, table) {
+  const decorate = () => {
+    const ths = agContainer.querySelectorAll('thead th[data-col-id]');
+    // The arrow is painted inside the header's existing padding, so column widths stay exactly as they were
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--brand-accent').trim();
+    ths.forEach(th => {
+      if (th.hasAttribute('data-sort-dir')) return;
+      const active = agingSort.col === th.getAttribute('data-col-id');
+      th.style.cursor = 'pointer';
+      th.style.userSelect = 'none';
+      th.setAttribute('data-sort-dir', active ? agingSort.dir : 'none');
+      th.setAttribute('aria-sort', active ? (agingSort.dir === 'desc' ? 'descending' : 'ascending') : 'none');
+      th.setAttribute('title', active
+        ? (agingSort.dir === 'desc' ? 'مرتّب من الأكبر للأصغر — انقر للعكس' : 'مرتّب من الأصغر للأكبر — انقر للعكس')
+        : 'انقر للترتيب من الأكبر للأصغر');
+      if (active) {
+        const points = agingSort.dir === 'desc' ? '6 9 12 15 18 9' : '6 15 12 9 18 15';
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${accent}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="${points}"/></svg>`;
+        th.style.setProperty('background-image', `url("data:image/svg+xml,${encodeURIComponent(svg)}")`, 'important');
+        th.style.setProperty('background-repeat', 'no-repeat', 'important');
+        th.style.setProperty('background-size', '9px 9px', 'important');
+        th.style.setProperty('background-position', 'left 1px center', 'important');
+        th.style.setProperty('color', 'var(--brand-accent)', 'important');
+      }
+    });
+    // A sum over matched rows would count a matched parent and its matched children twice
+    agContainer.querySelector('.tree-search-subtotal-row')?.remove();
+    if (agingSearchQuery) {
+      agContainer.querySelectorAll('.exec-aging-name').forEach(el => { el.innerHTML = highlightMatch(el.textContent, agingSearchQuery); });
+    }
+  };
+
+  if (!table._agingRenderWrapped) {
+    table._agingRenderWrapped = true;
+    const baseRender = table.render.bind(table);
+    table.render = () => { baseRender(); decorate(); };
+  }
+
+  if (!agContainer._agingSortBound) {
+    agContainer._agingSortBound = true;
+    agContainer.addEventListener('click', (e) => {
+      const th = e.target.closest('thead th[data-col-id]');
+      if (!th || !agContainer.contains(th)) return;
+      const colId = th.getAttribute('data-col-id');
+      if (agingSort.col === colId) {
+        agingSort = { col: colId, dir: agingSort.dir === 'desc' ? 'asc' : 'desc' };
+      } else {
+        agingSort = { col: colId, dir: colId === 'name' ? 'asc' : 'desc' };
+      }
+      applyAgingSort(table.data);
+      table.render();
+    });
+  }
+
+  const root = agContainer.parentElement;
+  const input = root?.querySelector('#exec-aging-search');
+  const clearBtn = root?.querySelector('#exec-aging-search-clear');
+  const counter = root?.querySelector('#exec-aging-search-counter');
+  let savedExpanded = null;
+  const applySearch = (raw) => {
+    const q = (raw || '').trim();
+    if (q && !table.searchQuery) savedExpanded = new Set(table.expandedKeys);
+    agingSearchQuery = q;
+    table.searchQuery = q;
+    table.normalizedQuery = q ? normalizeArabic(q) : '';
+    if (!q && savedExpanded) {
+      table.expandedKeys = savedExpanded;
+      savedExpanded = null;
+      table.saveExpandedKeys();
+    }
+    table.render();
+    if (clearBtn) clearBtn.style.display = q ? 'inline-flex' : 'none';
+    if (counter) {
+      if (!q) {
+        counter.style.display = 'none';
+        counter.textContent = '';
+      } else {
+        const found = table.matchedCount > 0;
+        counter.style.display = 'inline-block';
+        counter.textContent = found ? `${table.matchedCount} نتيجة` : 'لا توجد نتائج';
+        counter.style.background = found ? 'var(--status-positive-subtle)' : 'var(--status-negative-subtle)';
+        counter.style.color = found ? 'var(--status-positive)' : 'var(--status-negative)';
+      }
+    }
+  };
+
+  if (input && !input._agingSearchBound) {
+    input._agingSearchBound = true;
+    let timer = null;
+    input.addEventListener('input', (e) => {
+      if (timer) clearTimeout(timer);
+      const value = e.target.value;
+      timer = setTimeout(() => applySearch(value), 200);
+    });
+    clearBtn?.addEventListener('click', () => {
+      if (timer) clearTimeout(timer);
+      input.value = '';
+      applySearch('');
+      input.focus();
+    });
+  }
+
+  if (agingSearchQuery) applySearch(agingSearchQuery);
+  else decorate();
 }
 
 /**
@@ -1515,6 +1651,8 @@ function bindExecutiveTableEvents(container) {
       const agBox = container.querySelector('#exec-aging-container');
       const badge = container.querySelector('#exec-aging-toggle span:nth-child(2)');
       if (agBox) agBox.style.display = isAgingOpen ? 'block' : 'none';
+      const agTools = container.querySelector('#exec-aging-tools');
+      if (agTools) agTools.style.display = isAgingOpen ? 'flex' : 'none';
       if (badge) badge.textContent = isAgingOpen ? 'إخفاء ▲' : 'عرض التفاصيل ▾';
 
       if (isAgingOpen) {

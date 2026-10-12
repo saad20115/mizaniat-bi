@@ -200,6 +200,7 @@ export const api = {
   getCustomerStatement: (params) => request(`/customers-collection/statement?${buildQuery(params)}`),
   getCustomersCollectionInvoices: (params) => request(`/customers-collection/invoices?${buildQuery(params)}`),
   getDepartmentsProfitability: (params) => request(`/departments-profitability?${buildQuery(params)}`),
+  getDepartmentsComparison: (params) => request(`/departments-comparison?${buildQuery(params)}`),
   getVatReport: (params) => request(`/vat?${buildQuery(params)}`),
   getVatDetails: (params) => request(`/vat-details?${buildQuery(params)}`),
   updateCompanyVatPeriod: (id, vat_period) => request(`/companies/${id}/vat-period`, { method: 'PUT', body: { vat_period } }),

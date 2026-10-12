@@ -8,6 +8,7 @@ import { renderDepartmentsProfitabilityTab } from './presentation-profitability.
 import { renderGuaranteesComponent } from './guarantees.js';
 import { renderVatTab } from './presentation-vat.js';
 import { renderActualCollectionsTab } from './presentation-collections.js';
+import { renderDepartmentsComparisonTab } from './presentation-comparison.js';
 import { SlicerDropdown, closeActiveSlicerDropdown } from '../components/slicer-dropdown.js';
 
 const cachedTabDOM = new Map();
@@ -299,6 +300,7 @@ export async function renderPresentation(container) {
         <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability" ${isScopedViewer && !scopedShare.tabs?.includes('profitability') ? 'style="display:none !important;"' : ''}>الربحية</div>
         <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees" ${isScopedViewer && !scopedShare.tabs?.includes('guarantees') ? 'style="display:none !important;"' : ''}>الضمانات البنكية</div>
         <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat" ${isScopedViewer && !scopedShare.tabs?.includes('vat') ? 'style="display:none !important;"' : ''}>ضريبة القيمة المضافة</div>
+        <div class="bi-tab ${activeTab==='comparison'?'active':''}" data-tab="comparison" ${isScopedViewer && !scopedShare.tabs?.includes('comparison') ? 'style="display:none !important;"' : ''}>مقارنة الأقسام</div>
 
         <!-- Legacy hidden tabs required for verify-ui D4 test compliance -->
         <div class="bi-tab" data-tab="overview" style="display:none;"></div>
@@ -1032,6 +1034,11 @@ async function renderDashboard(container) {
   if (activeTab === 'actual-collections') {
     await renderActualCollectionsTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
     cachedTabDOM.set(activeTab, { filterKey, wrapper });
+    return;
+  }
+
+  if (activeTab === 'comparison') {
+    renderDepartmentsComparisonTab(body, container, timeFilter, selectedNumCos, globalFilters);
     return;
   }
 }

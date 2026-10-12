@@ -15,7 +15,8 @@ const jwt = require('jsonwebtoken');
 // Rule 9 (B1): Isolated Test DB & Port — Live database data/mizaniat.db is NEVER touched by UI tests
 const PROD_DB_PATH = path.join(__dirname, '..', '..', 'data', 'mizaniat.db');
 const TEST_DB_PATH = path.join(__dirname, '..', '..', 'data', 'mizaniat_test_ui.db');
-const TEST_PORT = 3195;
+// Ports can be overridden so two checkouts can run this suite at the same time
+const TEST_PORT = Number(process.env.VERIFY_UI_PORT) || 3195;
 
 process.env.DB_PATH = TEST_DB_PATH;
 process.env.PORT = String(TEST_PORT);
@@ -97,7 +98,7 @@ function findChromePath() {
 }
 
 const CHROME_PATH = findChromePath();
-const DEBUG_PORT = 9231;
+const DEBUG_PORT = Number(process.env.VERIFY_UI_DEBUG_PORT) || 9231;
 const APP_PORT = TEST_PORT;
 
 function sleep(ms) {
@@ -3437,6 +3438,9 @@ async function runVerifyUI() {
       console.log(`  │ ${namePadded} │ ${effPadded} │  ${r.status}  │`);
     });
     console.log('  └─────────────────────────────────────┴────────────────────────────────────┴────────┘\n');
+
+    // DC1: Departments Comparison tab (seventh tab)
+    await require('./verify-ui-comparison').runComparisonUiChecks({ cdp, assert, appPort: APP_PORT, adminToken, screenshotsDir });
 
     // ──────────────────────────────────────────
     // TEST 8.9: UI2-1 Numeric Column Alignment Invariant (All 6 Tabs @ 1280, 1440, 1920)

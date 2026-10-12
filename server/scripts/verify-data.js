@@ -1803,5 +1803,8 @@ check('HF1 Invariant 27c: 0 other_adjustment allocations with bank or cash journ
   `${badOtherAdj} other_adjustment allocations with bank/cash journal`
 );
 
+// DC1: Departments comparison tab invariants
+require('./verify-departments-comparison').runDepartmentsComparisonChecks({ engine, db, check });
+
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);
