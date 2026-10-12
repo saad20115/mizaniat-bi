@@ -1038,7 +1038,8 @@ async function renderDashboard(container) {
   }
 
   if (activeTab === 'comparison') {
-    renderDepartmentsComparisonTab(body, container, timeFilter, selectedNumCos, globalFilters);
+    await renderDepartmentsComparisonTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 }
@@ -1418,6 +1419,9 @@ async function openSharesModal(container) {
               </label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
                 <input type="checkbox" class="chk-scoped-tab" value="profitability" checked /> الربحية
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="comparison" /> مقارنة الأقسام
               </label>
               <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
                 <input type="checkbox" class="chk-scoped-tab" value="guarantees" /> الضمانات البنكية

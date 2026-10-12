@@ -1828,7 +1828,8 @@ router.get('/departments-comparison', async (req, res) => {
         dateTo: dateTo || undefined,
         asOfDate: asOfDate || undefined,
         departmentIds: dIds ? (Array.isArray(dIds) ? dIds : String(dIds).split(',')).map(Number) : undefined,
-        costCenters: jIds
+        costCenters: jIds,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
     res.json(result);

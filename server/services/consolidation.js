@@ -8144,7 +8144,18 @@ class ConsolidationEngine {
    * Rounding: every (company, department) cell is pinned to the integer the executive tab displays,
    * then split over cost centers by largest remainder, so parent == sum of displayed children at every level.
    */
-  getDepartmentsComparison({ companyIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters } = {}) {
+  getDepartmentsComparison({ companyIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters, scopedCostCenters } = {}) {
+    // Scoped share link: every query below is restricted to the link's (company, cost center) pairs inside its SQL.
+    // A requested pair is honoured only when it belongs to the scope; with none requested, the whole scope applies.
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const scopePairs = scopedCostCenters.map(sc => `${Number(sc.companyId)}|${sc.costCenterKey}`);
+      const requested = [...(costCenters || []), ...(journalIds || [])].map(String).filter(v => scopePairs.includes(v));
+      costCenters = requested.length > 0 ? Array.from(new Set(requested)) : scopePairs;
+      journalIds = undefined;
+      const scopeCompanyIds = Array.from(new Set(scopedCostCenters.map(sc => Number(sc.companyId))));
+      const requestedCompanies = companyIds ? (Array.isArray(companyIds) ? companyIds : String(companyIds).split(',')).map(Number).filter(id => scopeCompanyIds.includes(id)) : [];
+      companyIds = requestedCompanies.length > 0 ? requestedCompanies : scopeCompanyIds;
+    }
     const round1 = (n) => Math.round(n * 10) / 10;
     const round2 = (n) => Math.round((n || 0) * 100) / 100;
     const cashChannelsSql = `pa.channel IN ('bank', 'sister_company', 'other_adjustment')`;
@@ -8153,7 +8164,7 @@ class ConsolidationEngine {
     const exec = this.getExecutiveSummary({
       companyIds, years, year, dateFrom, dateTo, asOfDate,
       fullTree: false, includeAging: false,
-      departmentIds, journalIds, costCenters
+      departmentIds, journalIds, costCenters, scopedCostCenters
     });
     const execCompanies = exec.tree.rows;
     const targetLedgerIds = execCompanies.map(c => c.company_id);
@@ -8582,7 +8593,7 @@ class ConsolidationEngine {
     }
 
     // 7. Customer payments not reconciled to invoices: outside both collection columns (as the collections tab reports them)
-    const collections = this.getCollections({ companyIds: targetLedgerIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters });
+    const collections = this.getCollections({ companyIds: targetLedgerIds, years, year, dateFrom, dateTo, asOfDate, departmentIds, journalIds, costCenters, scopedCostCenters });
     const unlinkedMoves = (collections.accounts_comparison && collections.accounts_comparison.unallocated_moves) || [];
 
     // 8. Highlights, computed from the same department rows the table shows.

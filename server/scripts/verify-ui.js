@@ -1503,9 +1503,9 @@ async function runVerifyUI() {
           .map(t => t.dataset.tab);
       })()
     `);
-    const expectedTabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat', 'actual-collections'];
-    const tabsMatch = visibleTabs.length === 6 && expectedTabs.every(t => visibleTabs.includes(t));
-    assert(tabsMatch, `D4/C1: Exactly 6 clean tabs visible: [${visibleTabs.join(', ')}]`);
+    const expectedTabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat', 'actual-collections', 'comparison'];
+    const tabsMatch = visibleTabs.length === 7 && expectedTabs.every(t => visibleTabs.includes(t));
+    assert(tabsMatch, `D4/C1: Exactly 7 clean tabs visible (the six original tabs + DC1 «مقارنة الأقسام»): [${visibleTabs.join(', ')}]`);
 
     const hiddenLegacyCount = await cdp.eval(`
       (() => {

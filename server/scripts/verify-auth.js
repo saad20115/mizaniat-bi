@@ -774,6 +774,67 @@ async function run() {
     'Authorization': `Bearer ${adminToken}`
   }, undefined, 200);
 
+  // (h) DC1: departments comparison tab under scoped links
+  console.log('\n── DC1: Departments comparison under scoped share links');
+  await test('Scoped Viewer GET /api/departments-comparison (tab not selected for this link -> 403)', '/api/departments-comparison?years=2026', 'GET', scopedHeaders, undefined, 403);
+
+  const dcScopePairs = [{ companyId: 1, costCenterKey: 'an:7:27' }, { companyId: 2, costCenterKey: 'an:7:24' }];
+  const dcScopeRes = await test('Admin POST /api/presentation/scoped-shares (create DC1 scope with the comparison tab)', '/api/presentation/scoped-shares', 'POST', {
+    'Authorization': `Bearer ${adminToken}`,
+    'Content-Type': 'application/json'
+  }, {
+    name: 'مقارنة الأقسام - مختبر جدة',
+    costCenters: dcScopePairs,
+    tabs: ['comparison'],
+    allowAdminAllocation: false,
+    allowedPhones: ['0507776655']
+  }, 200);
+  const dcScope = await dcScopeRes.clone().json();
+  const dcLoginRes = await test('DC1 scope login -> 200', '/api/auth/scoped-share/login', 'POST', { 'Content-Type': 'application/json' }, { token: dcScope.token, phone: '0507776655' }, 200);
+  const dcHeaders = { 'x-viewer-token': (await dcLoginRes.clone().json()).token };
+
+  await test('DC1 scope GET /api/executive (tab not selected -> 403)', '/api/executive?years=2026', 'GET', dcHeaders, undefined, 403);
+  await test('DC1 scope GET /api/departments-comparison?companyIds=3 (outsider company -> 403)', '/api/departments-comparison?years=2026&companyIds=3', 'GET', dcHeaders, undefined, 403);
+  await test('DC1 scope GET /api/departments-comparison?costCenters=an:7:16 (outsider cost center -> 403)', '/api/departments-comparison?years=2026&costCenters=an:7:16', 'GET', dcHeaders, undefined, 403);
+
+  for (const yr of ['2026', 'ALL']) {
+    const dcScRes = await test(`DC1 scope GET /api/departments-comparison?years=${yr} -> 200`, `/api/departments-comparison?years=${yr}`, 'GET', dcHeaders, undefined, 200);
+    const dcAdRes = await test(`Admin GET /api/departments-comparison?years=${yr} with the same pairs`, `/api/departments-comparison?years=${yr}&companyIds=1,2&costCenters=${scopedCCsParam}`, 'GET', adminHeaders, undefined, 200);
+    const dcFullRes = await test(`Admin GET /api/departments-comparison?years=${yr} unfiltered`, `/api/departments-comparison?years=${yr}`, 'GET', adminHeaders, undefined, 200);
+    const sc = await dcScRes.clone().json();
+    const ad = await dcAdRes.clone().json();
+    const full = await dcFullRes.clone().json();
+
+    const dcKeys = ['revenue', 'expenses', 'net_profit', 'cash_collected', 'cash_collected_gross', 'collected_invoices', 'remaining', 'open_total', 'open_total_gross'];
+    const dcDiffs = dcKeys.filter(k => sc.totals[k] !== ad.totals[k]);
+    assert(dcDiffs.length === 0, `DC1 scope (${yr}): totals identical to admin with the same pairs, difference 0 (revenue ${sc.totals.revenue}, cash ${sc.totals.cash_collected}, total remaining ${sc.totals.open_total})`);
+
+    const dcLeaves = [];
+    for (const d of sc.tree) for (const cc of d.children) for (const leaf of cc.children) dcLeaves.push(leaf);
+    const dcAdminLeaves = ad.tree.reduce((n, d) => n + d.children.reduce((m, cc) => m + cc.children.length, 0), 0);
+    const dcOutside = dcLeaves.filter(l => !dcScopePairs.some(p => p.companyId === l.company_id && p.costCenterKey === l.cost_center_key));
+    assert(dcLeaves.length > 0 && dcLeaves.length === dcAdminLeaves && dcOutside.length === 0,
+      `DC1 scope (${yr}): every row is one of the link's (company, cost center) pairs — ${dcLeaves.length} rows, ${dcOutside.length} outside, same row count as admin (${dcAdminLeaves})`);
+    assert(sc.tree.length === ad.tree.length && sc.tree.length < full.tree.length && sc.totals.expenses < full.totals.expenses,
+      `DC1 scope (${yr}): ${sc.tree.length} department(s) instead of ${full.tree.length}; scoped response differs from the unfiltered one`);
+
+    const dcJson = JSON.stringify(sc);
+    const dcOutsiderNames = full.tree.filter(d => !sc.tree.some(x => x.department_id === d.department_id)).map(d => d.name).filter(n => n && n.length > 3);
+    const dcLeaked = dcOutsiderNames.filter(n => dcJson.includes(n));
+    assert(dcOutsiderNames.length > 0 && dcLeaked.length === 0, `DC1 scope (${yr}): no outsider department name appears in the response (${dcOutsiderNames.length} names checked)`);
+
+    const dcUnlinkedOutside = (sc.unlinked_payments.moves || []).filter(m => ![1, 2].includes(Number(m.company_id)));
+    assert(dcUnlinkedOutside.length === 0 && sc.unlinked_payments.count === ad.unlinked_payments.count, `DC1 scope (${yr}): unlinked payments limited to the link's companies and equal to admin with the same pairs (${sc.unlinked_payments.count})`);
+  }
+
+  const dcAdminAfter = await (await test('Admin GET /api/departments-comparison after scoped requests (cache not polluted)', '/api/departments-comparison?years=2026', 'GET', adminHeaders, undefined, 200)).clone().json();
+  const dcAdminScoped = await (await test('Admin GET /api/departments-comparison with pairs (reference)', `/api/departments-comparison?years=2026&companyIds=1,2&costCenters=${scopedCCsParam}`, 'GET', adminHeaders, undefined, 200)).clone().json();
+  assert(dcAdminAfter.totals.revenue !== dcAdminScoped.totals.revenue && dcAdminAfter.tree.length > dcAdminScoped.tree.length, 'DC1: admin unfiltered response is not served from the scoped cache');
+
+  await test('Admin DELETE /api/presentation/scoped-shares/:id (delete DC1 scope)', `/api/presentation/scoped-shares/${dcScope.id}`, 'DELETE', {
+    'Authorization': `Bearer ${adminToken}`
+  }, undefined, 200);
+
   // 11. Cache Isolation & Alternating Requests (Admin -> Scoped -> Admin)
   console.log('\n── SH1: Cache Isolation & Non-Pollution');
   const adminFullRes1 = await test('Admin GET /api/executive (unfiltered 1)', '/api/executive?years=2026', 'GET', adminHeaders, undefined, 200);

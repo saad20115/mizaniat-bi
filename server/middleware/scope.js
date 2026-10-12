@@ -38,6 +38,7 @@ function isRouteAllowed(path) {
   if (path === '/customers-collection' || path.startsWith('/customers-collection/')) return true;
   if (path === '/actual-collections' || path.startsWith('/actual-collections/')) return true;
   if (path === '/departments-profitability' || path.startsWith('/departments-profitability/')) return true;
+  if (path === '/departments-comparison') return true;
 
   return false;
 }
@@ -47,6 +48,7 @@ function getTabForPath(path) {
   if (path === '/customers-collection' || path.startsWith('/customers-collection/')) return 'customers';
   if (path === '/actual-collections' || path.startsWith('/actual-collections/')) return 'actual-collections';
   if (path === '/departments-profitability' || path.startsWith('/departments-profitability/')) return 'profitability';
+  if (path === '/departments-comparison') return 'comparison';
   return null;
 }
 
