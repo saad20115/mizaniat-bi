@@ -622,6 +622,27 @@ const monthlyRevSum = exec26.monthly_series.reduce((s, m) => s + m.revenue, 0);
 check('executive summary (2026): monthly series revenue sum equals cards.revenue', monthlyRevSum === exec26.cards.revenue,
   `monthly sum ${monthlyRevSum} == cards ${exec26.cards.revenue}`);
 
+// 18b-2. Monthly series collected_cash sum equals getCollections total_collected (with and without cost center filter)
+for (const yr of ['2026', '2025', '2024']) {
+  const colResAll = engine.getCollections({ year: yr });
+  const execYrAll = engine.getExecutiveSummary({ year: yr });
+  const monthlyColSumAll = execYrAll.monthly_series.reduce((s, m) => s + m.collected_cash, 0);
+  const targetColAll = Math.round(colResAll.cards.total_collected);
+  check(`executive summary (${yr}): monthly series collected_cash sum equals total_collected`,
+    monthlyColSumAll === targetColAll,
+    `monthly sum ${monthlyColSumAll} == total_collected ${targetColAll}`);
+}
+
+const filterPairs = '1|an:7:27,2|an:7:24';
+const colResFilt = engine.getCollections({ year: '2026', costCenters: filterPairs });
+const execYrFilt = engine.getExecutiveSummary({ year: '2026', costCenters: filterPairs });
+const monthlyColSumFilt = execYrFilt.monthly_series.reduce((s, m) => s + m.collected_cash, 0);
+const targetColFilt = Math.round(colResFilt.cards.total_collected);
+check(`executive summary (2026 filtered): monthly series collected_cash sum equals total_collected`,
+  monthlyColSumFilt === targetColFilt,
+  `monthly sum ${monthlyColSumFilt} == total_collected ${targetColFilt}`);
+
+
 // 18c. Hierarchy integrity: Department sum equals company total, and company sum equals group totals for all columns
 let treeDeptsMatch = true;
 for (const co of exec26.tree.rows) {
@@ -838,14 +859,14 @@ for (const co of exec26.tree.rows) {
       const cDiff = Math.abs((childrenData.clientsSummary?.collected || 0) - dept.collected);
       const rDiff = Math.abs((childrenData.clientsSummary?.residual || 0) - dept.residual);
       check(`R3-8 (Dept ${dept.name || did}): clientsSummary matches parent department (billed, collected, residual)`,
-        bDiff <= 2 && cDiff <= 1 && rDiff <= 2,
+        bDiff === 0 && cDiff === 0 && rDiff === 0,
         `billed ${childrenData.clientsSummary?.billed}==${dept.billed}, col ${childrenData.clientsSummary?.collected}==${dept.collected}, res ${childrenData.clientsSummary?.residual}==${dept.residual}`);
     }
     if (dept.revenue > 0) {
       const revDiff = Math.abs((childrenData.accountsSummary?.revenue || 0) - dept.revenue);
       const expDiff = Math.abs((childrenData.accountsSummary?.expenses || 0) - dept.expenses);
       check(`R3-8 (Dept ${dept.name || did}): accountsSummary matches parent department (revenue, expenses)`,
-        revDiff <= 1 && expDiff <= 1,
+        revDiff === 0 && expDiff === 0,
         `rev ${childrenData.accountsSummary?.revenue}==${dept.revenue}, exp ${childrenData.accountsSummary?.expenses}==${dept.expenses}`);
     }
   }

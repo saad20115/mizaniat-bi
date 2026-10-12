@@ -914,7 +914,7 @@ function getMainTableColumns(prefs) {
   if (cols.includes('revenue')) list.push({ id: 'revenue', label: 'الإيرادات', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
   if (cols.includes('expenses')) list.push({ id: 'expenses', label: 'المصروفات', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
   if (cols.includes('net_profit')) list.push({ id: 'net_profit', label: 'صافي الربح', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
-  if (cols.includes('margin')) list.push({ id: 'margin', label: 'هامش الربح', align: 'center', width: '80px', minWidth: '65px', priority: 2 });
+  if (cols.includes('margin')) list.push({ id: 'margin', label: 'هامش الربح', align: 'left', width: '80px', minWidth: '65px', priority: 2 });
   if (cols.includes('collected')) list.push({ id: 'collected', label: 'المحصّل', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
   if (cols.includes('collection_rate')) list.push({ id: 'collection_rate', label: 'نسبة التحصيل', align: 'center', flex: true, minWidth: '120px', priority: 2 });
   if (cols.includes('residual')) list.push({ id: 'residual', label: 'المتبقي', align: 'left', width: '90px', minWidth: '75px', priority: 1 });
@@ -1008,13 +1008,13 @@ function renderMainTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf 
         <span data-tree-name="true" class="tree-node-name" title="${escapeHtml(nodeName)}" style="vertical-align:middle;${nodeColor}">${escapeHtml(nodeName)}</span>
         ${isClient && node.invoices ? `<span style="font-size:11px;color:var(--text-muted);margin-right:6px;">(${node.invoices.length} فواتير)</span>` : ''}
       </td>
-      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${revVal}</td>` : ''}
-      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${expVal}</td>` : ''}
-      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${netVal}</td>` : ''}
-      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${marginVal}</td>` : ''}
-      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${colVal}</td>` : ''}
-      ${showRate ? `<td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 12px;">${rateVal}</td>` : ''}
-      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;">${resVal}</td>` : ''}
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${revVal}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${expVal}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${netVal}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${marginVal}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${colVal}</td>` : ''}
+      ${showRate ? `<td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:8px 10px;">${rateVal}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${resVal}</td>` : ''}
     </tr>
   `;
 }
@@ -1034,14 +1034,14 @@ function renderMainTableTotals(totals) {
 
   return `
     <tr class="exec-sticky-footer">
-      <td data-col-id="name" data-priority="1" class="tree-col-name" style="font-weight:700;font-size:14px;color:var(--text-primary);">الإجمالي</td>
-      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.revenue)}</td>` : ''}
-      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.expenses)}</td>` : ''}
-      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.net_profit)}</td>` : ''}
-      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num" style="text-align:center;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
-      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.collected)}</td>` : ''}
+      <td data-col-id="name" data-priority="1" class="tree-col-name" style="padding:14px 14px;font-weight:700;font-size:14px;color:var(--text-primary);">الإجمالي</td>
+      ${showRev ? `<td data-col-id="revenue" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(totals.revenue)}</td>` : ''}
+      ${showExp ? `<td data-col-id="expenses" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(totals.expenses)}</td>` : ''}
+      ${showNet ? `<td data-col-id="net_profit" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(totals.net_profit)}</td>` : ''}
+      ${showMargin ? `<td data-col-id="margin" data-priority="2" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtRate(totals.margin, true, totals.revenue)}</td>` : ''}
+      ${showCol ? `<td data-col-id="collected" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(totals.collected)}</td>` : ''}
       ${showRate ? `
-        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:10px 14px;">
+        <td data-col-id="collection_rate" data-priority="2" class="tree-col-visual" style="text-align:center;padding:14px 10px;">
           <div style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-width:110px;">
             <div style="flex:1;height:6px;background:var(--bg-surface);border-radius:3px;overflow:hidden;">
               <div style="width:${Math.min(100, totRate)}%;height:100%;background:${rateColor};border-radius:3px;"></div>
@@ -1050,7 +1050,7 @@ function renderMainTableTotals(totals) {
           </div>
         </td>
       ` : ''}
-      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num" style="text-align:left;">${fmtVal(totals.residual)}</td>` : ''}
+      ${showRes ? `<td data-col-id="residual" data-priority="1" class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(totals.residual)}</td>` : ''}
     </tr>
   `;
 }
@@ -1325,32 +1325,32 @@ function renderAgingTableRow({ node, pathKey, depth, isExpanded, hasKids, isLeaf
             </span>
           </div>
         </td>
-        <td style="text-align:left;">${bKey === 'not_due' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;">${bKey === 'b1_30' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;">${bKey === 'b31_60' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;">${bKey === 'b61_90' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b91_180' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b181_365' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'over_365' ? fmtVal(node.total_residual) : '—'}</td>
-        <td style="text-align:left;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${bKey === 'not_due' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${bKey === 'b1_30' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${bKey === 'b31_60' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${bKey === 'b61_90' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b91_180' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'b181_365' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${isOver90 ? 'var(--status-negative)' : ''};">${bKey === 'over_365' ? fmtVal(node.total_residual) : '—'}</td>
+        <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
       </tr>
     `;
   }
 
   return `
     <tr data-tree-row="true" data-path-key="${escapeHtml(pathKey)}" style="${cursor} ${rowBg}">
-      <td style="padding-right:${indent + 14}px;">
+      <td class="tree-col-name" style="padding:10px 14px;padding-right:${indent + 14}px;">
         <span data-tree-toggle="true" style="display:inline-block;width:18px;color:var(--text-muted);">${iconSvg}</span>
         ${escapeHtml(node.name || node.partner_name || node.company_name || '')}
       </td>
-      <td style="text-align:left;">${fmtVal(bk.not_due)}</td>
-      <td style="text-align:left;">${fmtVal(bk.b1_30)}</td>
-      <td style="text-align:left;">${fmtVal(bk.b31_60)}</td>
-      <td style="text-align:left;">${fmtVal(bk.b61_90)}</td>
-      <td style="text-align:left;color:${bk.b91_180 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b91_180)}</td>
-      <td style="text-align:left;color:${bk.b181_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b181_365)}</td>
-      <td style="text-align:left;color:${bk.over_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.over_365)}</td>
-      <td style="text-align:left;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.not_due)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.b1_30)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.b31_60)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;">${fmtVal(bk.b61_90)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${bk.b91_180 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b91_180)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${bk.b181_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.b181_365)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;color:${bk.over_365 > 0 ? 'var(--status-negative)' : ''};">${fmtVal(bk.over_365)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:8px 10px;font-weight:700;color:var(--status-negative);">${fmtVal(node.total_residual)}</td>
     </tr>
   `;
 }
@@ -1359,15 +1359,15 @@ function renderAgingTableTotals(totals) {
   const b = totals.buckets || {};
   return `
     <tr class="exec-sticky-footer">
-      <td style="color:var(--text-primary);font-weight:700;">الإجمالي</td>
-      <td style="text-align:left;">${fmtVal(b.not_due)}</td>
-      <td style="text-align:left;">${fmtVal(b.b1_30)}</td>
-      <td style="text-align:left;">${fmtVal(b.b31_60)}</td>
-      <td style="text-align:left;">${fmtVal(b.b61_90)}</td>
-      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.b91_180)}</td>
-      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.b181_365)}</td>
-      <td style="text-align:left;color:var(--status-negative);">${fmtVal(b.over_365)}</td>
-      <td style="text-align:left;color:var(--status-negative);font-weight:700;">${fmtVal(totals.total_residual)}</td>
+      <td class="tree-col-name" style="padding:14px 14px;color:var(--text-primary);font-weight:700;">الإجمالي</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(b.not_due)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(b.b1_30)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(b.b31_60)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;">${fmtVal(b.b61_90)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;color:var(--status-negative);">${fmtVal(b.b91_180)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;color:var(--status-negative);">${fmtVal(b.b181_365)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;color:var(--status-negative);">${fmtVal(b.over_365)}</td>
+      <td class="tree-col-num tabular-nums" style="text-align:left;padding:14px 10px;color:var(--status-negative);font-weight:700;">${fmtVal(totals.total_residual)}</td>
     </tr>
   `;
 }

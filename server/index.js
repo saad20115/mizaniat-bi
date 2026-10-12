@@ -8,10 +8,12 @@ const apiRoutes = require('./routes/api');
 const externalRoutes = require('./routes/external-api');
 const authRoutes = require('./routes/auth');
 const salesRoutes = require('./routes/sales');
-const { requireAdmin, requireViewer } = require('./middleware/auth');
+const { requireAdmin, requireViewer, resolveUser } = require('./middleware/auth');
 const { validateFilterQuery } = require('./middleware/validator');
+const { enforceScope } = require('./middleware/scope');
 const { startScheduler } = require('./cron/scheduler');
 const { startScheduler: startSalesScheduler } = require('./cron/sales_scheduler');
+const CacheService = require('./services/cache');
 
 const app = express();
 app.set('trust proxy', 'loopback');
@@ -29,6 +31,7 @@ app.use('/api/auth', authRoutes);
 
 // Smart API protection middleware
 app.use('/api', (req, res, next) => {
+  res.setHeader('X-Data-Version', String(CacheService.getDataVersion()));
   // Skip auth routes
   if (req.path.startsWith('/auth')) return next();
 
@@ -41,6 +44,23 @@ app.use('/api', (req, res, next) => {
       }
     }
     return next();
+  }
+
+  // Resolve user identity if credentials provided
+  const user = resolveUser(req);
+  if (user) {
+    req.user = user;
+    if (user.role === 'admin') req.admin = user.admin;
+    if (user.role === 'viewer') req.viewer = user.viewer;
+    if (user.role === 'scoped_viewer') {
+      req.viewer = user.viewer;
+      req.scopedShare = user.scopedShare;
+    }
+  }
+
+  // Scoped viewer requests are guarded and scoped here (strict allowlist, 403 on forbidden)
+  if (req.scopedShare) {
+    return enforceScope(req, res, next);
   }
 
   // Viewer-accessible routes: require viewer OR admin token
@@ -57,6 +77,9 @@ app.use('/api', (req, res, next) => {
     '/search', '/search/tree',
     '/cache/stats', '/sync/latest-status'
   ];
+  if (req.path.startsWith('/presentation/scoped-shares')) {
+    return requireAdmin(req, res, next);
+  }
   const isViewerPath = viewerPaths.some(p => req.path.startsWith(p));
   if (isViewerPath) {
     // SEC1: Strict read-only for viewers. Any non-GET requires admin, EXCEPT PUT /preferences/:key

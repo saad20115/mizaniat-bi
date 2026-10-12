@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, registerClientCacheInvalidator } from '../api.js';
 import { store } from '../store.js';
 import { formatNumber } from '../utils/format.js';
 import { showToast } from '../utils/ui.js';
@@ -9,6 +9,13 @@ import { renderGuaranteesComponent } from './guarantees.js';
 import { renderVatTab } from './presentation-vat.js';
 import { renderActualCollectionsTab } from './presentation-collections.js';
 import { SlicerDropdown, closeActiveSlicerDropdown } from '../components/slicer-dropdown.js';
+
+const cachedTabDOM = new Map();
+
+export function clearPresentationTabPanels() {
+  cachedTabDOM.clear();
+}
+registerClientCacheInvalidator(clearPresentationTabPanels);
 
 let companyDropdownInstance = null;
 let groupDropdownInstance = null;
@@ -66,6 +73,26 @@ export async function renderPresentation(container) {
   const companies = store.get('companies') || [];
   const currentYear = String(new Date().getFullYear());
 
+  // SH1: Scoped Share Viewer detection
+  let scopedShare = null;
+  const scopedShareRaw = sessionStorage.getItem('mizaniat_scoped_share');
+  if (scopedShareRaw) {
+    try {
+      scopedShare = JSON.parse(scopedShareRaw);
+      if (typeof scopedShare === 'string') scopedShare = JSON.parse(scopedShare);
+    } catch(e) {}
+  }
+  const isScopedViewer = Boolean(scopedShare && typeof scopedShare === 'object');
+
+  if (isScopedViewer && scopedShare.tabs && Array.isArray(scopedShare.tabs) && scopedShare.tabs.length > 0) {
+    if (!scopedShare.tabs.includes(activeTab)) {
+      activeTab = scopedShare.tabs[0];
+    }
+  }
+
+  const scopeCoIds = isScopedViewer && scopedShare.costCenters ? Array.from(new Set(scopedShare.costCenters.map(c => Number(c.companyId)))).filter(Boolean) : null;
+  const visibleCompanies = (scopeCoIds && scopeCoIds.length > 0) ? companies.filter(c => scopeCoIds.includes(Number(c.id))) : companies;
+
   if (!store.get('filterOptions')?.companyYears || !store.get('filterOptions')?.groups || !store.get('filterOptions')?.journals) {
     try {
       const fOpts = await api.getFilterOptions({});
@@ -105,10 +132,10 @@ export async function renderPresentation(container) {
       <!-- Mobile Filter Bar (RESP1) -->
       <div class="bi-mobile-filter-bar" id="mobile-filter-bar">
         <button class="bi-btn bi-btn-secondary" id="btn-open-filters" style="flex:1;min-height:40px;justify-content:center;gap:6px;font-size:0.88rem;">
-          <span>${ICONS.search}</span> <span id="mobile-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
+          <span>${ICONS.search}</span> <span id="mobile-filter-summary">${isScopedViewer ? `نطاق (${escapeHtml(scopedShare.name)})` : `الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)`}</span>
         </button>
         <button class="bi-btn bi-btn-secondary" id="btn-mobile-refresh" title="تحديث" style="min-height:40px;min-width:40px;padding:6px 12px;">${ICONS.refresh}</button>
-        <button class="bi-btn bi-btn-secondary" id="btn-mobile-share" title="مشاركة" style="min-height:40px;min-width:40px;padding:6px 12px;">${ICONS.share}</button>
+        ${isScopedViewer ? '' : `<button class="bi-btn bi-btn-secondary" id="btn-mobile-share" title="مشاركة" style="min-height:40px;min-width:40px;padding:6px 12px;">${ICONS.share}</button>`}
       </div>
       <div class="mobile-sheet-backdrop" id="mobile-sheet-backdrop"></div>
 
@@ -116,12 +143,12 @@ export async function renderPresentation(container) {
       <div class="bi-collapsed-summary-bar" id="bi-collapsed-summary-bar">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
           <button class="bi-btn bi-btn-secondary" id="btn-reopen-filters" style="font-size:0.85rem;padding:6px 14px;border-radius:10px;">
-            <span id="desktop-filter-summary">الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)</span>
+            <span id="desktop-filter-summary">${isScopedViewer ? `نطاق (${escapeHtml(scopedShare.name)})` : `الفلاتر (${fiscalYears.find(y => y===fy) || '2026'} · كل الشركات)`}</span>
           </button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <button class="bi-btn bi-btn-secondary" id="btn-desktop-collapsed-refresh" title="تحديث" style="min-height:36px;padding:6px 12px;font-size:0.85rem;">${ICONS.refresh} تحديث</button>
-          <button class="bi-btn bi-btn-secondary" id="btn-desktop-collapsed-share" title="مشاركة" style="min-height:36px;padding:6px 12px;font-size:0.85rem;">${ICONS.share}</button>
+          ${isScopedViewer ? '' : `<button class="bi-btn bi-btn-secondary" id="btn-desktop-collapsed-share" title="مشاركة" style="min-height:36px;padding:6px 12px;font-size:0.85rem;">${ICONS.share}</button>`}
         </div>
       </div>
 
@@ -143,8 +170,8 @@ export async function renderPresentation(container) {
         <!-- Row 1: Header / Nav -->
         <div class="bi-topbar-nav">
           <div class="bi-topbar-title-block">
-            <h1 class="bi-page-title">العرض التقديمي</h1>
-            <span class="bi-page-subtitle" id="bi-last-updated">آخر تحديث: <span class="ts" id="bi-last-updated-ts">اليوم 12:03</span> — القيود والفواتير والسدادات</span>
+            <h1 class="bi-page-title">${isScopedViewer ? escapeHtml(scopedShare.name) : 'العرض التقديمي'}</h1>
+            <span class="bi-page-subtitle" id="bi-last-updated">${isScopedViewer ? `نطاق مشاركة مخصص — ${escapeHtml(scopedShare.name)}` : 'آخر تحديث: <span class="ts" id="bi-last-updated-ts">اليوم 12:03</span> — القيود والفواتير والسدادات'}</span>
           </div>
 
           <div class="bi-topbar-actions">
@@ -152,10 +179,11 @@ export async function renderPresentation(container) {
               ${ICONS.download}
               <span>تصدير</span>
             </button>
+            ${isScopedViewer ? '' : `
             <button type="button" class="bi-btn bi-btn-secondary" id="btn-share">
               ${ICONS.share}
               <span>مشاركة</span>
-            </button>
+            </button>`}
             <button type="button" class="bi-btn bi-btn-secondary" id="btn-refresh">
               ${ICONS.refresh}
               <span>تحديث</span>
@@ -175,7 +203,7 @@ export async function renderPresentation(container) {
           <div class="bi-filter-item" id="co-filter-container">
             <button type="button" class="bi-filter-btn" id="btn-co-slicer" aria-haspopup="dialog" aria-expanded="false">
               <span class="bi-filter-label">الشركات:</span>
-              <span class="bi-filter-val" id="val-co-slicer">الكل (${companies.length})</span>
+              <span class="bi-filter-val" id="val-co-slicer">${isScopedViewer ? (visibleCompanies.length === 1 ? escapeHtml(visibleCompanies[0].name) : `${visibleCompanies.length} شركات`) : `الكل (${companies.length})`}</span>
               ${ICONS.chevronDown}
             </button>
             <!-- Hidden sync elements for test & backward compatibility -->
@@ -184,7 +212,7 @@ export async function renderPresentation(container) {
                 <input type="checkbox" id="chk-co-all" checked />
                 <span>الكل</span>
               </div>
-              ${companies.map(c => `
+              ${visibleCompanies.map(c => `
                 <div class="co-chip active" data-id="${c.id}" data-color="var(--company-${c.id})" title="${escapeHtml(c.name)}">
                   <input type="checkbox" class="chk-co" data-id="${c.id}" checked />
                   <span>${escapeHtml(c.name)}</span>
@@ -220,7 +248,7 @@ export async function renderPresentation(container) {
 
           <!-- Slicers: Groups & Cost Centers -->
           <div id="row-slicers-bar" style="display:inline-flex;align-items:center;gap:8px;">
-            <div class="bi-filter-item">
+            <div class="bi-filter-item" ${isScopedViewer ? 'style="display:none;"' : ''}>
               <button class="bi-filter-btn" id="btn-group-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
                 ${ICONS.folder}
                 <span class="bi-filter-label">المجموعة:</span>
@@ -229,12 +257,18 @@ export async function renderPresentation(container) {
               </button>
             </div>
             <div class="bi-filter-item">
+              ${isScopedViewer ? `
+              <button class="bi-filter-btn" id="btn-journal-slicer" type="button" disabled style="opacity:0.9;cursor:default;">
+                ${ICONS.book}
+                <span class="bi-filter-label">مركز التكلفة:</span>
+                <span class="bi-filter-val" id="val-journal-slicer">${escapeHtml(scopedShare.name)}</span>
+              </button>` : `
               <button class="bi-filter-btn" id="btn-journal-slicer" type="button" aria-haspopup="dialog" aria-expanded="false">
                 ${ICONS.book}
                 <span class="bi-filter-label">مركز التكلفة:</span>
                 <span class="bi-filter-val" id="val-journal-slicer">الكل</span>
                 ${ICONS.chevronDown}
-              </button>
+              </button>`}
             </div>
           </div>
 
@@ -259,12 +293,12 @@ export async function renderPresentation(container) {
 
       <!-- Tab Bar (Plain text only, NO emojis) -->
       <div class="bi-tabs" id="bi-tabs">
-        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive">لوحة الإدارة</div>
-        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers">فواتير العملاء</div>
-        <div class="bi-tab ${activeTab==='actual-collections'?'active':''}" data-tab="actual-collections">التحصيل النقدي</div>
-        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability">الربحية</div>
-        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees">الضمانات البنكية</div>
-        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat">ضريبة القيمة المضافة</div>
+        <div class="bi-tab ${activeTab==='executive'?'active':''}" data-tab="executive" ${isScopedViewer && !scopedShare.tabs?.includes('executive') ? 'style="display:none !important;"' : ''}>لوحة الإدارة</div>
+        <div class="bi-tab ${activeTab==='customers'?'active':''}" data-tab="customers" ${isScopedViewer && !scopedShare.tabs?.includes('customers') ? 'style="display:none !important;"' : ''}>فواتير العملاء</div>
+        <div class="bi-tab ${activeTab==='actual-collections'?'active':''}" data-tab="actual-collections" ${isScopedViewer && !scopedShare.tabs?.includes('actual-collections') ? 'style="display:none !important;"' : ''}>التحصيل النقدي</div>
+        <div class="bi-tab ${activeTab==='profitability'?'active':''}" data-tab="profitability" ${isScopedViewer && !scopedShare.tabs?.includes('profitability') ? 'style="display:none !important;"' : ''}>الربحية</div>
+        <div class="bi-tab ${activeTab==='guarantees'?'active':''}" data-tab="guarantees" ${isScopedViewer && !scopedShare.tabs?.includes('guarantees') ? 'style="display:none !important;"' : ''}>الضمانات البنكية</div>
+        <div class="bi-tab ${activeTab==='vat'?'active':''}" data-tab="vat" ${isScopedViewer && !scopedShare.tabs?.includes('vat') ? 'style="display:none !important;"' : ''}>ضريبة القيمة المضافة</div>
 
         <!-- Legacy hidden tabs required for verify-ui D4 test compliance -->
         <div class="bi-tab" data-tab="overview" style="display:none;"></div>
@@ -285,9 +319,9 @@ export async function renderPresentation(container) {
 
     <!-- Shares Modal -->
     <div id="shares-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);backdrop-filter:blur(6px);align-items:center;justify-content:center;">
-      <div class="bi-kpi-card" style="padding:var(--space-xl, 24px);width:550px;max-width:90vw;max-height:80vh;overflow-y:auto;">
+      <div class="bi-kpi-card" style="padding:var(--space-xl, 24px);width:680px;max-width:95vw;max-height:85vh;overflow-y:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md, 16px);">
-          <h3 style="margin:0;color:var(--text-primary);">روابط المشاركة</h3>
+          <h3 style="margin:0;color:var(--text-primary);">إدارة مشاركة العرض التقديمي</h3>
           <button class="bi-btn bi-btn-secondary" id="btn-close-shares" style="font-size:0.85rem;padding:4px 8px;">✕</button>
         </div>
         <div id="shares-list"></div>
@@ -790,12 +824,15 @@ export async function renderPresentation(container) {
     const btn = container.querySelector('#btn-refresh');
     if (btn.classList.contains('loading')) return;
     btn.classList.add('loading');
-    try { await loadDashboard(container); } catch(e) { console.error(e); }
+    try {
+      api.invalidateClientCache();
+      await loadDashboard(container);
+    } catch(e) { console.error(e); }
     btn.classList.remove('loading');
   });
 
   // Share buttons
-  container.querySelector('#btn-share').addEventListener('click', () => shareDashboard(container));
+  container.querySelector('#btn-share')?.addEventListener('click', () => openSharesModal(container));
   container.querySelector('#btn-shares-list')?.addEventListener('click', () => openSharesModal(container));
   container.querySelector('#btn-close-shares')?.addEventListener('click', () => container.querySelector('#shares-modal').style.display = 'none');
   container.querySelector('#shares-modal')?.addEventListener('click', e => { if (e.target.id === 'shares-modal') e.target.style.display = 'none'; });
@@ -910,12 +947,17 @@ async function loadDashboard(container) {
     if (tsEl && tsEl.textContent === '—') tsEl.textContent = '—';
   }
 
-  renderDashboard(container);
+  await renderDashboard(container);
 }
 
-function renderDashboard(container) {
+async function renderDashboard(container) {
   closeActiveSlicerDropdown();
   const body = container.querySelector('#bi-body');
+  if (!body) return;
+
+  const emptyEl = body.querySelector(':scope > .bi-empty');
+  if (emptyEl) emptyEl.remove();
+
   const timeFilter = getEffectiveTimeFilter(container);
   const selectedNumCos = [...container.querySelectorAll('.co-chip.active')].map(c => Number(c.dataset.id));
   const selectedStrCos = [...container.querySelectorAll('.co-chip.active')].map(c => c.dataset.id);
@@ -934,37 +976,62 @@ function renderDashboard(container) {
     rowSlicers.title = isFilterApplicable ? '' : 'لا ينطبق على هذا التبويب';
   }
 
+  const filterKey = `${activeTab}:${selectedNumCos.slice().sort().join(',')}:${timeFilter.selectedYear || ''}:${timeFilter.dateFrom || ''}:${timeFilter.dateTo || ''}:${(globalFilters?.groupIds || []).slice().sort().join(',')}:${(globalFilters?.journalIds || []).slice().sort().join(',')}`;
+
+  if (cachedTabDOM.has(activeTab)) {
+    const cached = cachedTabDOM.get(activeTab);
+    if (cached.filterKey === filterKey && cached.wrapper && cached.wrapper.children.length > 0) {
+      body.replaceChildren(cached.wrapper);
+      return;
+    }
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'bi-tab-wrapper';
+  wrapper.dataset.tab = activeTab;
+  wrapper.style.width = '100%';
+  wrapper.style.maxWidth = '100%';
+  wrapper.style.boxSizing = 'border-box';
+
+  body.replaceChildren(wrapper);
+
   if (activeTab === 'executive') {
-    renderExecutiveDashboardTab(body, container, timeFilter, selectedNumCos, globalFilters);
+    await renderExecutiveDashboardTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 
   if (activeTab === 'customers') {
-    renderCustomersCollectionTab(body, container, timeFilter, selectedNumCos, globalFilters);
+    await renderCustomersCollectionTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 
   if (activeTab === 'profitability') {
-    renderDepartmentsProfitabilityTab(body, container, timeFilter, selectedNumCos, globalFilters);
+    await renderDepartmentsProfitabilityTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 
   if (activeTab === 'guarantees') {
-    renderGuaranteesComponent(body, {
+    await renderGuaranteesComponent(wrapper, {
       companyIds: selectedStrCos,
       asOfDate: timeFilter.dateTo || new Date().toISOString().slice(0, 10),
       isPresentation: true
     });
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 
   if (activeTab === 'vat') {
-    renderVatTab(body, container, timeFilter, selectedStrCos);
+    await renderVatTab(wrapper, container, timeFilter, selectedStrCos);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 
   if (activeTab === 'actual-collections') {
-    renderActualCollectionsTab(body, container, timeFilter, selectedNumCos, globalFilters);
+    await renderActualCollectionsTab(wrapper, container, timeFilter, selectedNumCos, globalFilters);
+    cachedTabDOM.set(activeTab, { filterKey, wrapper });
     return;
   }
 }
@@ -1006,6 +1073,16 @@ function populateGroupSlicer(container) {
 function populateJournalSlicer(container) {
   const btnJournalSlicer = container.querySelector('#btn-journal-slicer');
   if (!btnJournalSlicer) return;
+
+  const scopedShareRaw = sessionStorage.getItem('mizaniat_scoped_share');
+  if (scopedShareRaw) {
+    try {
+      const sShare = JSON.parse(scopedShareRaw);
+      const valEl = container.querySelector('#val-journal-slicer');
+      if (valEl) valEl.textContent = sShare.name || 'نطاق مخصص';
+    } catch(e) {}
+    return;
+  }
 
   const fOpts = store.get('filterOptions') || {};
   let journals = fOpts.journals || [];
@@ -1220,25 +1297,422 @@ async function shareDashboard(container) {
 }
 
 async function openSharesModal(container) {
-  const modal = container.querySelector('#shares-modal'); modal.style.display = 'flex';
+  const modal = container.querySelector('#shares-modal');
+  modal.style.display = 'flex';
   const list = container.querySelector('#shares-list');
-  list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">جاري التحميل...</p>';
-  try {
-    const shares = await api.getPresentationShares();
-    if (!shares.length) { list.innerHTML = '<p style="color:var(--text-muted);text-align:center;">لا توجد روابط</p>'; return; }
-    list.innerHTML = shares.map(s => {
-      const url = `${location.origin}/view.html?token=${s.token}`;
-      return `<div style="background:var(--bg-subtle);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border-default);">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div><div style="color:var(--text-primary);font-weight:600;font-size:0.85rem;">${s.title}</div><div style="color:var(--text-muted);font-size:0.72rem;margin-top:3px;">${s.created_at}</div></div>
+  
+  let currentModalTab = 'scoped'; // 'scoped' | 'general'
+
+  async function renderModalContent() {
+    list.innerHTML = `
+      <div style="display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border-default);padding-bottom:12px;">
+        <button class="bi-btn ${currentModalTab === 'scoped' ? 'bi-btn-primary' : 'bi-btn-secondary'}" id="btn-tab-scoped-shares" style="font-size:0.88rem;padding:6px 14px;">
+          🔗 روابط مخصصة بنطاق
+        </button>
+        <button class="bi-btn ${currentModalTab === 'general' ? 'bi-btn-primary' : 'bi-btn-secondary'}" id="btn-tab-general-shares" style="font-size:0.88rem;padding:6px 14px;">
+          🌐 الروابط العامة
+        </button>
+      </div>
+      <div id="modal-tab-body">
+        <p style="color:var(--text-muted);text-align:center;">جاري التحميل...</p>
+      </div>
+    `;
+
+    list.querySelector('#btn-tab-scoped-shares')?.addEventListener('click', () => {
+      currentModalTab = 'scoped';
+      renderModalContent();
+    });
+    list.querySelector('#btn-tab-general-shares')?.addEventListener('click', () => {
+      currentModalTab = 'general';
+      renderModalContent();
+    });
+
+    const bodyEl = list.querySelector('#modal-tab-body');
+    if (currentModalTab === 'scoped') {
+      await renderScopedSharesTab(bodyEl);
+    } else {
+      await renderGeneralSharesTab(bodyEl);
+    }
+  }
+
+  async function renderScopedSharesTab(bodyEl) {
+    try {
+      const shares = await api.getScopedShares();
+      const fOpts = store.get('filterOptions') || {};
+      const allJournals = fOpts.journals || [];
+
+      // Extract unique cost centers grouped by company
+      const costCentersByCo = {};
+      allJournals.forEach(j => {
+        if (!costCentersByCo[j.company_id]) costCentersByCo[j.company_id] = { name: j.company_name, items: [] };
+        const key = j.cost_center_key;
+        if (key && !costCentersByCo[j.company_id].items.some(x => x.key === key)) {
+          costCentersByCo[j.company_id].items.push({
+            key,
+            name: j.cost_center_name || j.journal_name || key,
+            code: j.journal_code || ''
+          });
+        }
+      });
+
+      bodyEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:0.82rem;color:var(--text-muted);">
+            تتيح الروابط المخصصة تقييد المشاهد بمراكز تكلفة محددة وتبويبات مختارة مع مطابقة رقم الجوال.
+          </div>
+          <button class="bi-btn bi-btn-primary" id="btn-toggle-create-scoped" style="font-size:0.82rem;padding:6px 14px;white-space:nowrap;">
+            ➕ إنشاء رابط مخصص
+          </button>
+        </div>
+
+        <!-- Create Form (collapsible) -->
+        <div id="scoped-create-form" style="display:none;background:var(--bg-subtle, rgba(255,255,255,0.03));border:1px solid var(--border-default);border-radius:12px;padding:16px;margin-bottom:20px;">
+          <h4 style="margin:0 0 12px 0;font-size:0.95rem;color:var(--text-primary);">بيانات رابط النطاق الجديد</h4>
+          
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.82rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;">اسم النطاق:</label>
+            <input type="text" id="scoped-name-input" class="bi-input" value="مختبر جدة" placeholder="مثال: مختبر جدة" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border-default);background:var(--bg-card);color:var(--text-primary);" />
+          </div>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <label style="font-size:0.82rem;font-weight:700;color:var(--text-muted);">مراكز التكلفة المشمولة:</label>
+            <button type="button" class="bi-btn bi-btn-secondary" id="btn-preset-jeddah-lab" style="font-size:0.75rem;padding:3px 8px;">
+              ⚡ اختيار مختبر جدة (1 و 2)
+            </button>
+          </div>
+
+          <div id="scoped-cc-picker" style="max-height:160px;overflow-y:auto;border:1px solid var(--border-default);border-radius:8px;padding:10px;margin-bottom:14px;background:var(--bg-card);">
+            ${Object.entries(costCentersByCo).map(([cid, co]) => `
+              <div style="margin-bottom:10px;">
+                <div style="font-weight:700;font-size:0.82rem;color:var(--company-${cid}, #3b82f6);margin-bottom:4px;">${escapeHtml(co.name)} (شركة ${cid})</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:6px;">
+                  ${co.items.map(it => `
+                    <label style="display:flex;align-items:center;gap:6px;font-size:0.78rem;color:var(--text-primary);cursor:pointer;">
+                      <input type="checkbox" class="chk-scoped-cc" data-company-id="${cid}" data-cc-key="${it.key}" ${(Number(cid) === 1 && it.key === 'an:7:27') || (Number(cid) === 2 && it.key === 'an:7:24') ? 'checked' : ''} />
+                      <span>${escapeHtml(it.name)} <code style="font-size:0.72rem;opacity:0.7;">(${it.key})</code></span>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.82rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;">التبويبات المسموحة:</label>
+            <div style="display:flex;flex-wrap:wrap;gap:12px;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="executive" checked /> لوحة الإدارة
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="customers" checked /> فواتير العملاء
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="actual-collections" checked /> التحصيل النقدي
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="profitability" checked /> الربحية
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="guarantees" /> الضمانات البنكية
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+                <input type="checkbox" class="chk-scoped-tab" value="vat" /> ضريبة القيمة المضافة
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-bottom:12px;">
+            <label style="display:block;font-size:0.82rem;font-weight:700;color:var(--text-muted);margin-bottom:6px;">أرقام الجوال المصرح لها (سطر لكل رقم أو مفصولة بفواصل):</label>
+            <textarea id="scoped-phones-input" class="bi-input" rows="2" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--border-default);background:var(--bg-card);color:var(--text-primary);font-family:monospace;" placeholder="0501234567, 0555555555">0501234567</textarea>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--text-primary);cursor:pointer;">
+              <input type="checkbox" id="chk-allow-admin-allocation" />
+              <span>السماح بتوزيع المصروفات الإدارية (افتراضي: غير مسموح)</span>
+            </label>
+          </div>
+
           <div style="display:flex;gap:8px;">
-            <button class="bi-btn bi-btn-secondary copy-btn" data-url="${url}" style="font-size:0.72rem;padding:5px 10px;">${ICONS.copy}</button>
-            <button class="bi-btn bi-btn-secondary del-btn" data-id="${s.id}" style="font-size:0.72rem;padding:5px 10px;color:var(--status-negative);">${ICONS.trash}</button>
+            <button class="bi-btn bi-btn-primary" id="btn-submit-scoped-share" style="padding:8px 18px;">حفظ وإنشاء الرابط</button>
+            <button class="bi-btn bi-btn-secondary" id="btn-cancel-scoped-form" style="padding:8px 14px;">إلغاء</button>
           </div>
         </div>
-      </div>`;
-    }).join('');
-    list.querySelectorAll('.copy-btn').forEach(b=>b.addEventListener('click',async()=>{await navigator.clipboard?.writeText(b.dataset.url);showToast('تم نسخ الرابط','success');}));
-    list.querySelectorAll('.del-btn').forEach(b=>b.addEventListener('click',async()=>{await api.deletePresentationShare(b.dataset.id);showToast('تم الحذف','success');openSharesModal(container);}));
-  } catch(err){list.innerHTML='<p style="color:var(--status-negative);">خطأ</p>';}
+
+        <!-- Scoped Shares List -->
+        <div id="scoped-shares-list-container">
+          ${shares.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px;">لا توجد روابط مخصصة بنطاق حالياً</p>' : shares.map(s => {
+            const url = `${location.origin}/view.html?share=${s.token}`;
+            let ccs = [];
+            try { ccs = JSON.parse(s.scope_cost_centers); } catch(e){}
+            let tabs = [];
+            try { tabs = JSON.parse(s.scope_tabs); } catch(e){}
+            let phones = [];
+            try { phones = JSON.parse(s.allowed_phones); } catch(e){}
+
+            return `
+              <div class="scoped-share-card" data-share-id="${s.id}">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+                  <div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-weight:700;font-size:0.95rem;color:var(--text-primary);">${escapeHtml(s.name)}</span>
+                      <span class="${s.is_active ? 'badge-status-active' : 'badge-status-inactive'}">${s.is_active ? 'نشط' : 'موقوف'}</span>
+                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">
+                      تم الإنشاء: ${s.created_at || '—'} · الجوالات المصرحة: (${phones.length})
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <button class="bi-btn bi-btn-secondary copy-scoped-btn" data-url="${url}" title="نسخ الرابط" style="font-size:0.75rem;padding:5px 10px;">
+                      ${ICONS.copy} <span>نسخ</span>
+                    </button>
+                    <button class="bi-btn bi-btn-secondary toggle-active-btn" data-id="${s.id}" data-active="${s.is_active}" title="${s.is_active ? 'إيقاف الرابط' : 'تفعيل الرابط'}" style="font-size:0.75rem;padding:5px 10px;">
+                      ${s.is_active ? '⏸ إيقاف' : '▶ تفعيل'}
+                    </button>
+                    <button class="bi-btn bi-btn-secondary view-logs-btn" data-id="${s.id}" title="عرض سجل الدخول" style="font-size:0.75rem;padding:5px 10px;">
+                      📜 السجل
+                    </button>
+                    <button class="bi-btn bi-btn-secondary del-scoped-btn" data-id="${s.id}" title="حذف" style="font-size:0.75rem;padding:5px 10px;color:var(--status-negative);">
+                      ${ICONS.trash}
+                    </button>
+                  </div>
+                </div>
+
+                <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.75rem;margin-top:8px;">
+                  <span style="color:var(--text-muted);">المراكز:</span>
+                  ${ccs.map(c => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">شركة ${c.companyId}: ${c.costCenterKey}</span>`).join('')}
+                  <span style="color:var(--text-muted);margin-right:12px;">التبويبات:</span>
+                  ${tabs.map(t => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">${t}</span>`).join('')}
+                </div>
+
+                <!-- Logs container (collapsible) -->
+                <div class="scoped-logs-container" id="logs-container-${s.id}" style="display:none;margin-top:12px;padding-top:10px;border-top:1px solid var(--border-default);">
+                  <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);margin-bottom:6px;">سجل الدخول والمحاولات:</div>
+                  <div class="logs-content" style="max-height:160px;overflow-y:auto;">
+                    <p style="color:var(--text-muted);font-size:0.75rem;">جاري جلب السجل...</p>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      // Event handlers in Scoped tab
+      const createForm = bodyEl.querySelector('#scoped-create-form');
+      bodyEl.querySelector('#btn-toggle-create-scoped')?.addEventListener('click', () => {
+        createForm.style.display = createForm.style.display === 'none' ? 'block' : 'none';
+      });
+      bodyEl.querySelector('#btn-cancel-scoped-form')?.addEventListener('click', () => {
+        createForm.style.display = 'none';
+      });
+
+      // Quick preset for Jeddah Lab
+      bodyEl.querySelector('#btn-preset-jeddah-lab')?.addEventListener('click', () => {
+        bodyEl.querySelectorAll('.chk-scoped-cc').forEach(chk => {
+          const cid = Number(chk.dataset.companyId);
+          const key = chk.dataset.ccKey;
+          chk.checked = (cid === 1 && key === 'an:7:27') || (cid === 2 && key === 'an:7:24');
+        });
+        const nameInput = bodyEl.querySelector('#scoped-name-input');
+        if (nameInput) nameInput.value = 'مختبر جدة';
+      });
+
+      // Submit scoped share
+      bodyEl.querySelector('#btn-submit-scoped-share')?.addEventListener('click', async () => {
+        const name = bodyEl.querySelector('#scoped-name-input').value.trim();
+        if (!name) { showToast('يرجى إدخال اسم النطاق', 'error'); return; }
+
+        const costCenters = [];
+        bodyEl.querySelectorAll('.chk-scoped-cc:checked').forEach(chk => {
+          costCenters.push({
+            companyId: Number(chk.dataset.companyId),
+            costCenterKey: chk.dataset.ccKey
+          });
+        });
+        if (costCenters.length === 0) { showToast('اختر مركز تكلفة واحد على الأقل', 'error'); return; }
+
+        const tabs = [];
+        bodyEl.querySelectorAll('.chk-scoped-tab:checked').forEach(chk => {
+          tabs.push(chk.value);
+        });
+
+        const phonesRaw = bodyEl.querySelector('#scoped-phones-input').value;
+        const allowedPhones = phonesRaw.split(/[\n,]+/).map(p => p.trim()).filter(Boolean);
+        if (allowedPhones.length === 0) { showToast('أدخل رقم جوال مصرح به واحد على الأقل', 'error'); return; }
+
+        const allowAdminAllocation = bodyEl.querySelector('#chk-allow-admin-allocation').checked;
+
+        try {
+          const res = await api.createScopedShare({
+            name,
+            costCenters,
+            tabs,
+            allowedPhones,
+            allowAdminAllocation
+          });
+          showToast('تم إنشاء رابط المشاركة المخصص بنطاق بنجاح', 'success');
+          const shareUrl = `${location.origin}/view.html?share=${res.share.token}`;
+          await navigator.clipboard?.writeText(shareUrl).catch(() => {});
+          await renderModalContent();
+        } catch(err) {
+          showToast(err.message || 'فشل إنشاء رابط المشاركة', 'error');
+        }
+      });
+
+      // Copy link buttons
+      bodyEl.querySelectorAll('.copy-scoped-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await navigator.clipboard?.writeText(btn.dataset.url).catch(() => {});
+          showToast('تم نسخ رابط المشاركة المخصص بنطاق', 'success');
+        });
+      });
+
+      // Toggle active state
+      bodyEl.querySelectorAll('.toggle-active-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const currentActive = btn.dataset.active === '1';
+          try {
+            await api.updateScopedShare(id, { is_active: currentActive ? 0 : 1 });
+            showToast(currentActive ? 'تم إيقاف الرابط وإبطال الجلسات' : 'تم تفعيل الرابط', 'success');
+            await renderModalContent();
+          } catch(err) {
+            showToast(err.message || 'فشل التحديث', 'error');
+          }
+        });
+      });
+
+      // View logs
+      bodyEl.querySelectorAll('.view-logs-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          const logsContainer = bodyEl.querySelector(`#logs-container-${id}`);
+          if (!logsContainer) return;
+          if (logsContainer.style.display === 'block') {
+            logsContainer.style.display = 'none';
+            return;
+          }
+          logsContainer.style.display = 'block';
+          const contentEl = logsContainer.querySelector('.logs-content');
+          contentEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.75rem;">جاري جلب السجل...</p>';
+
+          try {
+            const logsData = await api.getScopedShareLogs(id);
+            const logs = logsData.logs || [];
+            if (logs.length === 0) {
+              contentEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.75rem;">لا توجد محاولات دخول مسجلة لهذا الرابط حتى الآن.</p>';
+            } else {
+              contentEl.innerHTML = `
+                <table class="scoped-log-table">
+                  <thead>
+                    <tr>
+                      <th>الوقت</th>
+                      <th>رقم الجوال</th>
+                      <th>عنوان IP</th>
+                      <th>الحالة</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${logs.map(l => `
+                      <tr>
+                        <td>${l.attempt_time}</td>
+                        <td dir="ltr" style="text-align:right;">${l.phone || '—'}</td>
+                        <td>${l.ip_address}</td>
+                        <td>
+                          <span class="${l.status === 'SUCCESS' ? 'badge-status-active' : 'badge-status-inactive'}">
+                            ${l.status === 'SUCCESS' ? 'دخول ناجح' : 'مرفوض'}
+                          </span>
+                        </td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              `;
+            }
+          } catch(err) {
+            contentEl.innerHTML = `<p style="color:var(--status-negative);font-size:0.75rem;">تعذر جلب السجل: ${err.message}</p>`;
+          }
+        });
+      });
+
+      // Delete scoped share
+      bodyEl.querySelectorAll('.del-scoped-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('هل أنت متأكد من حذف هذا الرابط المخصص؟ سيتم إبطال جميع جلساته فوراً.')) return;
+          try {
+            await api.deleteScopedShare(btn.dataset.id);
+            showToast('تم حذف الرابط وإبطال جلساته', 'success');
+            await renderModalContent();
+          } catch(err) {
+            showToast(err.message || 'فشل الحذف', 'error');
+          }
+        });
+      });
+
+    } catch(err) {
+      bodyEl.innerHTML = `<p style="color:var(--status-negative);text-align:center;">حدث خطأ أثناء جلب الروابط المخصصة: ${err.message}</p>`;
+    }
+  }
+
+  async function renderGeneralSharesTab(bodyEl) {
+    bodyEl.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div style="font-size:0.82rem;color:var(--text-muted);">
+          روابط العرض العامة (مشاهدة كاملة بدون تقييد مراكز تكلفة).
+        </div>
+        <button class="bi-btn bi-btn-primary" id="btn-create-current-general-share" style="font-size:0.82rem;padding:6px 14px;">
+          ➕ مشاركة التصفية الحالية
+        </button>
+      </div>
+      <div id="general-shares-list">
+        <p style="color:var(--text-muted);text-align:center;">جاري التحميل...</p>
+      </div>
+    `;
+
+    bodyEl.querySelector('#btn-create-current-general-share')?.addEventListener('click', async () => {
+      await shareDashboard(container);
+      await renderGeneralSharesTab(bodyEl);
+    });
+
+    const gList = bodyEl.querySelector('#general-shares-list');
+    try {
+      const shares = await api.getPresentationShares();
+      if (!shares.length) {
+        gList.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">لا توجد روابط عامة حالياً</p>';
+        return;
+      }
+      gList.innerHTML = shares.map(s => {
+        const url = `${location.origin}/view.html?token=${s.token}`;
+        return `
+          <div style="background:var(--bg-subtle);border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid var(--border-default);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="color:var(--text-primary);font-weight:600;font-size:0.85rem;">${s.title}</div>
+                <div style="color:var(--text-muted);font-size:0.72rem;margin-top:3px;">${s.created_at}</div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button class="bi-btn bi-btn-secondary copy-btn" data-url="${url}" style="font-size:0.72rem;padding:5px 10px;">${ICONS.copy} نسخ</button>
+                <button class="bi-btn bi-btn-secondary del-btn" data-id="${s.id}" style="font-size:0.72rem;padding:5px 10px;color:var(--status-negative);">${ICONS.trash}</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      gList.querySelectorAll('.copy-btn').forEach(b => b.addEventListener('click', async () => {
+        await navigator.clipboard?.writeText(b.dataset.url);
+        showToast('تم نسخ الرابط', 'success');
+      }));
+      gList.querySelectorAll('.del-btn').forEach(b => b.addEventListener('click', async () => {
+        await api.deletePresentationShare(b.dataset.id);
+        showToast('تم الحذف', 'success');
+        await renderGeneralSharesTab(bodyEl);
+      }));
+    } catch(err) {
+      gList.innerHTML = `<p style="color:var(--status-negative);text-align:center;">خطأ: ${err.message}</p>`;
+    }
+  }
+
+  await renderModalContent();
 }

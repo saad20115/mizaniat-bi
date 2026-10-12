@@ -1,4 +1,7 @@
 const NodeCache = require('node-cache');
+const { AsyncLocalStorage } = require('async_hooks');
+
+const scopeContext = new AsyncLocalStorage();
 
 // Bounded in-memory cache with safety TTL (12 hours) and key limit (500 entries)
 // Per Claude R2-8 specifications
@@ -101,10 +104,19 @@ const CacheService = {
   },
 
   /**
-   * Generate cache key from request params, bound to dataVersion
+   * Run a callback within a scoped context for cache isolation
+   */
+  runWithScope(scope, fn) {
+    return scopeContext.run(scope, fn);
+  },
+
+  /**
+   * Generate cache key from request params, bound to dataVersion and scope
    */
   makeKey(prefix, params = {}) {
     checkDateRollover();
+    const currentScope = scopeContext.getStore();
+    const scopePrefix = currentScope?.scopedShareId ? `scoped:${currentScope.scopedShareId}:` : '';
     const sortedParams = {};
     if (params && typeof params === 'object') {
       Object.keys(params).sort().forEach(k => {
@@ -113,7 +125,7 @@ const CacheService = {
         }
       });
     }
-    return `v${dataVersion}:${prefix}:${JSON.stringify(sortedParams)}`;
+    return `v${dataVersion}:${scopePrefix}${prefix}:${JSON.stringify(sortedParams)}`;
   },
 
   /**

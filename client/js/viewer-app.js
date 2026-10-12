@@ -8,6 +8,13 @@ import { api } from './api.js';
 import { renderPresentation } from './pages/presentation.js';
 
 // ===== VIEWER AUTH =====
+const urlParams = new URLSearchParams(window.location.search);
+const currentUrlScopedToken = urlParams.get('share') || urlParams.get('scoped');
+if (currentUrlScopedToken) {
+  sessionStorage.setItem('mizaniat_scoped_token', currentUrlScopedToken);
+}
+const scopedShareToken = currentUrlScopedToken || sessionStorage.getItem('mizaniat_scoped_token') || '';
+
 let viewerToken = sessionStorage.getItem('mizaniat_viewer_token') || '';
 
 // Override api.js request behavior: use viewer token instead of admin JWT
@@ -37,16 +44,22 @@ async function checkAuth() {
   // If we have a stored viewer token, verify it
   if (viewerToken) {
     try {
-      const vr = await originalFetch('/api/auth/viewer/verify', {
+      const verifyEndpoint = scopedShareToken ? '/api/auth/scoped-share/verify' : '/api/auth/viewer/verify';
+      const vr = await originalFetch(verifyEndpoint, {
         headers: { 'x-viewer-token': viewerToken }
       });
       if (vr.ok) {
+        const vdata = await vr.json().catch(() => ({}));
+        if (vdata.share) {
+          sessionStorage.setItem('mizaniat_scoped_share', JSON.stringify(vdata.share));
+        }
         hideLogin();
         loadApp();
         return;
       }
     } catch (e) {}
     sessionStorage.removeItem('mizaniat_viewer_token');
+    sessionStorage.removeItem('mizaniat_scoped_share');
     viewerToken = '';
   }
   // Show phone login
@@ -57,6 +70,16 @@ function showLogin() {
   document.getElementById('viewer-login-overlay').classList.remove('hidden');
   document.getElementById('viewer-loading').style.display = 'none';
   document.getElementById('main-content').style.display = 'none';
+
+  if (scopedShareToken) {
+    const subtitleEl = document.querySelector('.viewer-login-subtitle');
+    if (subtitleEl) subtitleEl.textContent = 'رابط مشاركة مخصص بنطاق محدد';
+    const labelEl = document.querySelector('.viewer-login-label');
+    if (labelEl) labelEl.textContent = 'أدخل رقم الجوال المصرح به لعرض التقرير:';
+    const footerEl = document.querySelector('.viewer-login-footer');
+    if (footerEl) footerEl.textContent = 'الدخول مقتصر على أرقام الجوال المصرح لها لهذا الرابط';
+  }
+
   const phoneInput = document.getElementById('viewer-phone');
   phoneInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   phoneInput.focus();
@@ -83,14 +106,17 @@ async function doLogin() {
   btn.textContent = 'جاري التحقق...';
 
   try {
-    const r = await originalFetch('/api/auth/viewer/login', {
+    const loginEndpoint = scopedShareToken ? '/api/auth/scoped-share/login' : '/api/auth/viewer/login';
+    const loginBody = scopedShareToken ? { token: scopedShareToken, phone } : { phone };
+
+    const r = await originalFetch(loginEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone })
+      body: JSON.stringify(loginBody)
     });
     const data = await r.json();
     if (!r.ok) {
-      errEl.textContent = data.error || 'رقم الجوال غير مسجل — تواصل مع المسؤول';
+      errEl.textContent = data.error || (scopedShareToken ? 'رابط المشاركة أو رقم الجوال غير صحيح' : 'رقم الجوال غير مسجل — تواصل مع المسؤول');
       errEl.classList.add('show');
       return;
     }
@@ -100,6 +126,11 @@ async function doLogin() {
     localStorage.setItem('mizaniat_viewer_token', viewerToken);
     localStorage.setItem('mizaniat_viewer_mode', 'true');
     localStorage.removeItem('mizaniat_admin_token');
+
+    if (data.share) {
+      sessionStorage.setItem('mizaniat_scoped_share', JSON.stringify(data.share));
+    }
+
     hideLogin();
     loadApp();
   } catch (e) {

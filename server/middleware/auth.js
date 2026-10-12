@@ -39,9 +39,91 @@ function verifyToken(token) {
   }
 }
 
+function normalizePhone(phone) {
+  if (!phone) return '';
+  let cleaned = String(phone).replace(/[\s\-\(\)\.]/g, '').trim();
+  cleaned = cleaned.replace(/[٠-٩]/g, d => '0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]);
+  if (cleaned.startsWith('+966')) {
+    cleaned = '0' + cleaned.slice(4);
+  } else if (cleaned.startsWith('00966')) {
+    cleaned = '0' + cleaned.slice(5);
+  } else if (cleaned.startsWith('966')) {
+    cleaned = '0' + cleaned.slice(3);
+  } else if (cleaned.startsWith('5') && cleaned.length === 9) {
+    cleaned = '0' + cleaned;
+  }
+  return cleaned;
+}
+
+function resolveScopedSession(token, db) {
+  if (!token) return null;
+  try {
+    const scopedSession = db.prepare(`
+      SELECT sv.*, ss.id as share_id, ss.name as share_name, ss.token as share_token, ss.scope_cost_centers,
+             ss.scope_tabs, ss.allow_admin_allocation, ss.allowed_phones, ss.is_active as share_is_active,
+             ss.expires_at as share_expires_at
+      FROM scoped_viewer_sessions sv
+      INNER JOIN scoped_shares ss ON ss.id = sv.scoped_share_id
+      WHERE sv.session_token = ?
+        AND sv.expires_at > datetime('now')
+        AND ss.is_active = 1
+        AND (ss.expires_at IS NULL OR ss.expires_at > datetime('now'))
+    `).get(token);
+
+    if (!scopedSession) return null;
+
+    let phones = [];
+    try { phones = JSON.parse(scopedSession.allowed_phones); } catch(e) {}
+    const normalizedAllowed = phones.map(p => normalizePhone(p));
+    const normalizedUserPhone = normalizePhone(scopedSession.phone);
+    if (!normalizedAllowed.includes(normalizedUserPhone)) {
+      try {
+        db.prepare('DELETE FROM scoped_viewer_sessions WHERE id = ?').run(scopedSession.id);
+      } catch(e) {}
+      return null;
+    }
+
+    try {
+      db.prepare("UPDATE scoped_viewer_sessions SET last_activity = datetime('now') WHERE id = ?").run(scopedSession.id);
+    } catch(e) {}
+
+    let costCenters = [];
+    try { costCenters = JSON.parse(scopedSession.scope_cost_centers); } catch(e) {}
+
+    let tabs = [];
+    try { tabs = JSON.parse(scopedSession.scope_tabs); } catch(e) {}
+
+    return {
+      userType: 'scoped_viewer',
+      userId: scopedSession.id,
+      displayName: `${scopedSession.share_name} (${scopedSession.phone})`,
+      phone: scopedSession.phone,
+      role: 'scoped_viewer',
+      scopedShare: {
+        id: scopedSession.share_id,
+        name: scopedSession.share_name,
+        token: scopedSession.share_token,
+        costCenters,
+        tabs,
+        allowAdminAllocation: Boolean(scopedSession.allow_admin_allocation),
+        allowedPhones: phones
+      },
+      viewer: {
+        id: scopedSession.id,
+        phone: scopedSession.phone,
+        name: scopedSession.share_name,
+        role: 'scoped_viewer'
+      }
+    };
+  } catch (err) {
+    console.error('[Auth] Error resolving scoped session:', err.message);
+    return null;
+  }
+}
+
 /**
  * Central identity resolver: extracts and authenticates credentials from request.
- * Returns { userType: 'admin'|'viewer', userId, displayName, role: 'admin'|'viewer' } or null.
+ * Returns { userType: 'admin'|'viewer'|'scoped_viewer', userId, displayName, role } or null.
  * Pluggable for future IdPs (e.g. Odoo).
  */
 function resolveUser(req) {
@@ -66,7 +148,7 @@ function resolveUser(req) {
       }
     }
 
-    // Check if Bearer token is a viewer session token
+    // Check if Bearer token is a regular viewer session token
     const vSession = db.prepare(
       "SELECT vs.*, av.id as viewer_id, av.name as viewer_name, av.is_active FROM viewer_sessions vs INNER JOIN allowed_viewers av ON av.phone = vs.phone WHERE vs.token = ? AND vs.expires_at > datetime('now') AND av.is_active = 1"
     ).get(token);
@@ -80,10 +162,16 @@ function resolveUser(req) {
         viewer: { id: vSession.viewer_id, phone: vSession.phone, name: vSession.viewer_name }
       };
     }
+
+    // Check if Bearer token is a scoped viewer session token
+    const scopedUser = resolveScopedSession(token, db);
+    if (scopedUser) {
+      return scopedUser;
+    }
   }
 
-  // 2. Check x-viewer-token (query param token is intentionally disallowed for security)
-  const viewerToken = req.headers['x-viewer-token'];
+  // 2. Check x-viewer-token or x-scoped-token (query param token is intentionally disallowed for security)
+  const viewerToken = req.headers['x-viewer-token'] || req.headers['x-scoped-token'];
   if (viewerToken) {
     const vSession = db.prepare(
       "SELECT vs.*, av.id as viewer_id, av.name as viewer_name, av.is_active FROM viewer_sessions vs INNER JOIN allowed_viewers av ON av.phone = vs.phone WHERE vs.token = ? AND vs.expires_at > datetime('now') AND av.is_active = 1"
@@ -97,6 +185,11 @@ function resolveUser(req) {
         role: 'viewer',
         viewer: { id: vSession.viewer_id, phone: vSession.phone, name: vSession.viewer_name }
       };
+    }
+
+    const scopedUser = resolveScopedSession(viewerToken, db);
+    if (scopedUser) {
+      return scopedUser;
     }
   }
 
@@ -119,7 +212,7 @@ function requireAdmin(req, res, next) {
 
 /**
  * Middleware: require viewer authentication
- * Allows both admin and viewer to access viewer-permitted routes
+ * Allows admin, general viewer, and scoped viewer to access viewer-permitted routes
  */
 function requireViewer(req, res, next) {
   const user = resolveUser(req);
@@ -133,6 +226,10 @@ function requireViewer(req, res, next) {
   }
   if (user.role === 'viewer') {
     req.viewer = user.viewer;
+  }
+  if (user.role === 'scoped_viewer') {
+    req.viewer = user.viewer;
+    req.scopedShare = user.scopedShare;
   }
   next();
 }
@@ -162,8 +259,10 @@ module.exports = {
   generateAdminToken,
   verifyToken,
   resolveUser,
+  resolveScopedSession,
   requireAdmin,
   requireViewer,
   hashPassword,
-  verifyPassword
+  verifyPassword,
+  normalizePhone
 };

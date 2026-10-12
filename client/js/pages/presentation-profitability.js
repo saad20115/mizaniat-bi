@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, registerClientCacheInvalidator } from '../api.js';
 import { store } from '../store.js';
 import { formatNumber, formatCurrency } from '../utils/format.js';
 import { createTreeTable } from '../components/tree-table.js';
@@ -19,6 +19,18 @@ let currentRedistribute = false;
 let currentSearchQuery = '';
 let currentTimeFilter = null;
 let currentGlobalFilters = { groupIds: [], journalIds: [] };
+const clientCache = new Map();
+const intlEn = new Intl.NumberFormat('en-US');
+
+export function clearProfitabilityClientCache() {
+  clientCache.clear();
+}
+registerClientCacheInvalidator(clearProfitabilityClientCache);
+
+if (typeof window !== 'undefined') {
+  window.__getProfitabilityClientCacheSize = () => clientCache.size;
+}
+
 
 function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -35,9 +47,9 @@ function fmtVal(num, showZeroDash = true) {
   const rounded = Math.round(Number(num));
   if (rounded === 0 && showZeroDash) return '—';
   if (rounded < 0) {
-    return `<span class="exec-num-neg" style="color:var(--exec-danger, #ef4444);direction:ltr;display:inline-block;">(${Math.abs(rounded).toLocaleString('en-US')})</span>`;
+    return `<span class="exec-num-neg" style="color:var(--exec-danger, #ef4444);direction:ltr;display:inline-block;">(${intlEn.format(Math.abs(rounded))})</span>`;
   }
-  return `<span class="exec-num">${rounded.toLocaleString('en-US')}</span>`;
+  return `<span class="exec-num">${intlEn.format(rounded)}</span>`;
 }
 
 function fmtMargin(margin) {
@@ -89,6 +101,7 @@ export async function renderDepartmentsProfitabilityTab(body, container, timeFil
   if (globalFilters) {
     currentGlobalFilters = globalFilters;
   }
+
   body.innerHTML = `
     <div style="direction:rtl;display:flex;flex-direction:column;gap:20px;padding:4px 0;width:100%;max-width:100%;min-width:0;box-sizing:border-box;">
       <!-- Loading Placeholder -->
@@ -100,15 +113,52 @@ export async function renderDepartmentsProfitabilityTab(body, container, timeFil
     </div>
   `;
 
+  const periodParams = getPeriodParamsFromFilter(timeFilter);
+  const companyIdsParam = (selectedCos && selectedCos.length > 0) ? selectedCos.join(',') : undefined;
+  const grpIds = (currentGlobalFilters?.groupIds || []).join(',');
+  const jrnIds = (currentGlobalFilters?.journalIds || []).join(',');
+  const cacheKey = `${companyIdsParam || 'all'}:${periodParams.years || 'cur'}:${periodParams.dateFrom || ''}:${periodParams.dateTo || ''}:${currentMeasure}:${currentTimeGrain}:${currentRedistribute}:g${grpIds}:j${jrnIds}`;
+
+  const loadingEl = body.querySelector('#prof-loading');
+  const contentEl = body.querySelector('#prof-main-content');
+
+  if (clientCache.has(cacheKey)) {
+    const data = clientCache.get(cacheKey);
+    currentData = data;
+    currentTimeFilter = timeFilter;
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) {
+      contentEl.style.display = 'flex';
+      renderContent(contentEl, body, container, timeFilter, selectedCos, data);
+    }
+    return;
+  }
+
   await loadAndRender(body, container, timeFilter, selectedCos);
 }
 
 async function loadAndRender(body, container, timeFilter, selectedCos) {
   const periodParams = getPeriodParamsFromFilter(timeFilter);
   const companyIdsParam = (selectedCos && selectedCos.length > 0) ? selectedCos.join(',') : undefined;
+  const grpIds = (currentGlobalFilters?.groupIds || []).join(',');
+  const jrnIds = (currentGlobalFilters?.journalIds || []).join(',');
+  const cacheKey = `${companyIdsParam || 'all'}:${periodParams.years || 'cur'}:${periodParams.dateFrom || ''}:${periodParams.dateTo || ''}:${currentMeasure}:${currentTimeGrain}:${currentRedistribute}:g${grpIds}:j${jrnIds}`;
 
   const loadingEl = body.querySelector('#prof-loading');
   const contentEl = body.querySelector('#prof-main-content');
+
+  if (clientCache.has(cacheKey)) {
+    const data = clientCache.get(cacheKey);
+    currentData = data;
+    currentTimeFilter = timeFilter;
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) {
+      contentEl.style.display = 'flex';
+      renderContent(contentEl, body, container, timeFilter, selectedCos, data);
+    }
+    return;
+  }
+
   if (loadingEl) loadingEl.style.display = 'block';
   if (contentEl) contentEl.style.display = 'none';
 
@@ -129,6 +179,7 @@ async function loadAndRender(body, container, timeFilter, selectedCos) {
 
     currentData = data;
     currentTimeFilter = timeFilter;
+    clientCache.set(cacheKey, data);
     if (loadingEl) loadingEl.style.display = 'none';
     if (contentEl) {
       contentEl.style.display = 'flex';
@@ -173,21 +224,21 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
       <!-- Card 1: Revenue -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card">
         <span class="bi-kpi-label">إجمالي الإيرادات</span>
-        <div class="bi-kpi-value">${(s.total_revenue || 0).toLocaleString('en-US')}</div>
+        <div class="bi-kpi-value">${intlEn.format(Math.round(s.total_revenue || 0))}</div>
         <span class="bi-kpi-sub">عن الفترة المحددة</span>
       </div>
 
       <!-- Card 2: Expenses -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card">
         <span class="bi-kpi-label">إجمالي المصروفات</span>
-        <div class="bi-kpi-value">${(s.total_expenses || 0).toLocaleString('en-US')}</div>
+        <div class="bi-kpi-value">${intlEn.format(Math.round(s.total_expenses || 0))}</div>
         <span class="bi-kpi-sub">${currentRedistribute ? 'تشمل المصروفات الإدارية الموزعة' : 'المصروفات الفعلية المباشرة'}</span>
       </div>
 
       <!-- Card 3: Net Profit (HERO Card) -->
       <div class="bi-kpi bi-kpi-card hero exec-kpi-card">
         <span class="bi-kpi-label">صافي الربح</span>
-        <div class="bi-kpi-value">${(s.net_profit || 0) < 0 ? `(${Math.abs(s.net_profit).toLocaleString('en-US')})` : (s.net_profit || 0).toLocaleString('en-US')}</div>
+        <div class="bi-kpi-value">${(s.net_profit || 0) < 0 ? `(${intlEn.format(Math.abs(Math.round(s.net_profit)))})` : intlEn.format(Math.round(s.net_profit || 0))}</div>
         <span class="bi-kpi-sub">الإيرادات − المصروفات</span>
       </div>
 
@@ -201,7 +252,7 @@ function renderContent(contentEl, body, container, timeFilter, selectedCos, data
       <!-- Card 5: Admin Redistribution -->
       <div class="bi-kpi bi-kpi-card exec-kpi-card">
         <span class="bi-kpi-label">المصروفات الإدارية القابلة للتوزيع</span>
-        <div class="bi-kpi-value">${(s.admin_expenses_redistributed || 0).toLocaleString('en-US')}</div>
+        <div class="bi-kpi-value">${intlEn.format(Math.round(s.admin_expenses_redistributed || 0))}</div>
         <span class="bi-kpi-sub">${currentRedistribute ? 'موزعة تناسبياً على الأقسام' : 'معروضة كمركز مستقل'}</span>
       </div>
 
@@ -411,26 +462,36 @@ function getFilteredPeriodColumns(rawPeriodCols, treeData, totals, isCustomDate)
     return nonFutureCols;
   }
 
-  function isColAllZero(key) {
-    const totVal = totals?.values?.[key] ?? totals?.[key];
+  const nonZeroCols = new Set();
+  for (const c of nonFutureCols) {
+    const totVal = totals?.values?.[c.key] ?? totals?.[c.key];
     if (totVal !== undefined && Math.abs(Number(totVal) || 0) >= 0.005) {
-      return false;
+      nonZeroCols.add(c.key);
     }
-    const checkNodes = (nodes) => {
-      for (const n of nodes) {
-        const v = n.values?.[key] ?? n.periods?.[key] ?? n[key];
-        if (v !== undefined && Math.abs(Number(v) || 0) >= 0.005) {
-          return false;
-        }
-        const kids = n.departments || n.costCenters || n.accounts || n.children;
-        if (kids && !checkNodes(kids)) return false;
-      }
-      return true;
-    };
-    return checkNodes(treeData);
   }
 
-  const colZeroStatus = nonFutureCols.map(c => isColAllZero(c.key));
+  if (nonZeroCols.size < nonFutureCols.length) {
+    const scanNodes = (nodes) => {
+      for (const n of nodes) {
+        const vals = n.values || n.periods || n;
+        for (const c of nonFutureCols) {
+          if (!nonZeroCols.has(c.key)) {
+            const v = vals[c.key];
+            if (v !== undefined && Math.abs(Number(v) || 0) >= 0.005) {
+              nonZeroCols.add(c.key);
+            }
+          }
+        }
+        if (nonZeroCols.size === nonFutureCols.length) return;
+        const kids = n.departments || n.costCenters || n.accounts || n.children;
+        if (kids && kids.length > 0) scanNodes(kids);
+        if (nonZeroCols.size === nonFutureCols.length) return;
+      }
+    };
+    scanNodes(treeData);
+  }
+
+  const colZeroStatus = nonFutureCols.map(c => !nonZeroCols.has(c.key));
 
   let firstNonZero = -1;
   let lastNonZero = -1;
@@ -478,7 +539,7 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
   ];
 
   if (currentMeasure === 'net') {
-    columns.push({ id: 'margin', label: 'هامش الربح', align: 'center', width: '70px', minWidth: '60px', priority: 2 });
+    columns.push({ id: 'margin', label: 'هامش الربح', align: 'left', width: '70px', minWidth: '60px', priority: 2 });
   }
 
   // R2-9: Contribution (المساهمة)
@@ -547,7 +608,7 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
         const pctStr = isNeg ? `-${absPct.toFixed(1)}%` : `${absPct.toFixed(1)}%`;
         const barColor = isNeg ? 'var(--status-negative)' : 'var(--status-positive)';
         const textColor = isNeg ? 'var(--status-negative)' : 'var(--status-positive)';
-        const tip = `حصة من إجمالي ${escapeHtml(node._parentName || 'الأب')}: ${Math.round(nodeTot).toLocaleString('en-US')} من أصل ${Math.round(parentTot).toLocaleString('en-US')}`;
+        const tip = `حصة من إجمالي ${escapeHtml(node._parentName || 'الأب')}: ${intlEn.format(Math.round(nodeTot))} من أصل ${intlEn.format(Math.round(parentTot))}`;
         contribHtml = `
           <div class="prof-contrib-cell" title="${escapeHtml(tip)}">
             <div class="prof-contrib-track">
@@ -572,15 +633,15 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
           ${periodCols.map((col, idx) => {
             const val = node.values?.[col.key] || 0;
             const prio = (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1;
-            return `<td class="tree-col-num" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;">${fmtVal(val)}</td>`;
+            return `<td class="tree-col-num tabular-nums" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;padding:8px 10px;">${fmtVal(val)}</td>`;
           }).join('')}
-          <td class="tree-col-num" data-col-id="total" data-priority="1" style="text-align:left;font-weight:700;">${fmtVal(node.total)}</td>
+          <td class="tree-col-num tabular-nums" data-col-id="total" data-priority="1" style="text-align:left;font-weight:700;padding:8px 10px;">${fmtVal(node.total)}</td>
           ${currentMeasure === 'net' ? `
-            <td class="tree-col-num" data-col-id="margin" data-priority="2" style="text-align:center;">
+            <td class="tree-col-num tabular-nums" data-col-id="margin" data-priority="2" style="text-align:left;padding:8px 10px;">
               ${node.margin !== undefined ? fmtMargin(node.margin) : '—'}
             </td>
           ` : ''}
-          <td class="tree-col-num" data-col-id="contribution" data-priority="1" style="text-align:center;padding:6px 10px;">
+          <td class="tree-col-visual" data-col-id="contribution" data-priority="1" style="text-align:center;padding:6px 10px;">
             ${contribHtml}
           </td>
         </tr>
@@ -594,19 +655,19 @@ function initProfitabilityTreeTable(container, data, timeFilter) {
 
       return `
         <tr style="background:rgba(59,130,246,0.12);font-weight:900;border-top:2px solid rgba(59,130,246,0.3);font-size:0.98rem;">
-          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 18px;">المجموع الكلي للمجموعة</td>
+          <td class="tree-col-name" data-col-id="name" data-priority="1" style="padding:14px 14px;">المجموع الكلي للمجموعة</td>
           ${periodCols.map((col, idx) => {
             const v = vals[col.key] || 0;
             const prio = (periodCols.length > 2 && idx < periodCols.length - 2) ? 2 : 1;
-            return `<td class="tree-col-num" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;padding:14px 18px;">${fmtVal(v)}</td>`;
+            return `<td class="tree-col-num tabular-nums" data-col-id="${col.key}" data-priority="${prio}" style="text-align:left;padding:14px 10px;">${fmtVal(v)}</td>`;
           }).join('')}
-          <td class="tree-col-num" data-col-id="total" data-priority="1" style="text-align:left;padding:14px 18px;">${fmtVal(totals.total)}</td>
+          <td class="tree-col-num tabular-nums" data-col-id="total" data-priority="1" style="text-align:left;padding:14px 10px;">${fmtVal(totals.total)}</td>
           ${currentMeasure === 'net' ? `
-            <td class="tree-col-num" data-col-id="margin" data-priority="2" style="text-align:center;padding:14px 18px;">
+            <td class="tree-col-num tabular-nums" data-col-id="margin" data-priority="2" style="text-align:left;padding:14px 10px;">
               ${fmtMargin(overallMargin)}
             </td>
           ` : ''}
-          <td class="tree-col-num" data-col-id="contribution" data-priority="1" style="text-align:center;padding:14px 18px;font-weight:800;color:var(--exec-accent, #60a5fa);">
+          <td class="tree-col-visual" data-col-id="contribution" data-priority="1" style="text-align:center;padding:14px 10px;font-weight:800;color:var(--exec-accent, #60a5fa);">
             100.0%
           </td>
         </tr>

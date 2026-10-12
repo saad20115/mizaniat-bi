@@ -1092,7 +1092,7 @@ class ConsolidationEngine {
   /**
    * Get available filters data
    */
-  getFilterOptions({ companyIds }) {
+  getFilterOptions({ companyIds, scopedCostCenters }) {
     const params = {};
     let companyFilter = '';
 
@@ -1113,7 +1113,7 @@ class ConsolidationEngine {
       SELECT DISTINCT ji.account_type FROM journal_items ji ${companyFilter} ORDER BY ji.account_type
     `).all(params).map(r => r.account_type);
 
-    const costCenters = this.db.prepare(`
+    let costCenters = this.db.prepare(`
       SELECT DISTINCT ji.analytic_account FROM journal_items ji 
       ${companyFilter ? companyFilter + ' AND' : 'WHERE'} ji.analytic_account IS NOT NULL AND ji.analytic_account != ''
       ORDER BY ji.analytic_account
@@ -1126,14 +1126,14 @@ class ConsolidationEngine {
       ORDER BY ji.company_id, ji.fiscal_year
     `).all();
 
-    const companyYears = {};
+    let companyYears = {};
     for (const r of companyYearsRows) {
       const cid = String(r.company_id);
       if (!companyYears[cid]) companyYears[cid] = [];
       companyYears[cid].push(String(r.fiscal_year));
     }
 
-    const groups = this.db.prepare(`
+    let groups = this.db.prepare(`
       SELECT id, name, color, sort_order 
       FROM analytic_groups 
       ORDER BY sort_order, name
@@ -1185,7 +1185,7 @@ class ConsolidationEngine {
       ORDER BY c.id, m.dominant_dept_id, id.cost_center_name
     `).all(jParams);
 
-    const journals = rawCostCenters.map(r => {
+    let journals = rawCostCenters.map(r => {
       const cleanName = (r.cost_center_name || '').replace(/\s+/g, ' ').trim();
       const ccKey = r.cost_center_key || ('j:' + (r.journal_id || 0));
       const synthId = this._resolveGroupId(r.group_id, r.cost_center_key);
@@ -1257,6 +1257,23 @@ class ConsolidationEngine {
           original_journals: r.original_journals
         });
       }
+    }
+
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const allowedPairs = new Set(scopedCostCenters.map(sc => `${sc.companyId}|${sc.costCenterKey}`));
+      journals = journals.filter(j => allowedPairs.has(j.id) || allowedPairs.has(`${j.company_id}|${j.cost_center_key}`));
+      for (const j of journals) {
+        delete j.original_journals;
+      }
+      const allowedGroupIds = new Set(journals.map(j => j.group_id));
+      groups = groups.filter(g => allowedGroupIds.has(g.id));
+      costCenters = Array.from(new Set(journals.map(j => j.name || j.cost_center_name))).filter(Boolean);
+      const allowedCids = new Set(scopedCostCenters.map(sc => String(sc.companyId)));
+      const filteredCy = {};
+      for (const [cid, yrs] of Object.entries(companyYears)) {
+        if (allowedCids.has(cid)) filteredCy[cid] = yrs;
+      }
+      companyYears = filteredCy;
     }
 
     return { periods, fiscalYears, accountTypes, costCenters, companyYears, groups, journals };
@@ -1756,7 +1773,8 @@ class ConsolidationEngine {
       sortOrder = 'desc',
       page = 1,
       limit = 50,
-      asOfDate
+      asOfDate,
+      scopedCostCenters
     } = options;
 
     const round = (n) => Math.round((n || 0) * 100) / 100;
@@ -1916,6 +1934,26 @@ class ConsolidationEngine {
       if (recPeriod.sql !== '1=1') {
         whereClause += ` AND ${recPeriod.sql}`;
         Object.assign(params, recPeriod.params);
+      }
+      if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+        const scopedCoMap = new Map();
+        for (const sc of scopedCostCenters) {
+          const cId = Number(sc.companyId);
+          if (!scopedCoMap.has(cId)) scopedCoMap.set(cId, []);
+          scopedCoMap.get(cId).push(sc.costCenterKey);
+        }
+        const scopeClauses = [];
+        let sIdx = 0;
+        for (const [cId, keys] of scopedCoMap.entries()) {
+          const kPh = keys.map((_, i) => `@sc_aging_k_${sIdx}_${i}`).join(',');
+          keys.forEach((k, i) => { params[`sc_aging_k_${sIdx}_${i}`] = k; });
+          params[`sc_aging_cid_${sIdx}`] = cId;
+          scopeClauses.push(`(c.id = @sc_aging_cid_${sIdx} AND id.cost_center_key IN (${kPh}))`);
+          sIdx++;
+        }
+        if (scopeClauses.length > 0) {
+          whereClause += ` AND (${scopeClauses.join(' OR ')})`;
+        }
       }
 
       const rows = this.db.prepare(`
@@ -3273,7 +3311,7 @@ class ConsolidationEngine {
    * 3. Hierarchical Performance & Collection Tree (Company -> Department -> Clients / Accounts) with Sticky Footer Totals
    * 4. Folded Aging Tree (Company -> Department -> Client with 7 buckets)
    */
-  getExecutiveSummary({ companyIds, years, year, dateFrom, dateTo, asOfDate, fullTree = false, includeAging = false, departmentIds, journalIds, costCenters }) {
+  getExecutiveSummary({ companyIds, years, year, dateFrom, dateTo, asOfDate, fullTree = false, includeAging = false, departmentIds, journalIds, costCenters, scopedCostCenters }) {
     const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'exec_');
     const isAll = period.isAll;
     const refDate = period.refDate;
@@ -3614,8 +3652,7 @@ class ConsolidationEngine {
           fd.year as grain_key,
           fd.year as grain_label,
           ROUND(SUM(fd.revenue), 2) as rev,
-          ROUND(SUM(fd.expense), 2) as exp,
-          ROUND(SUM(fd.collected), 2) as col
+          ROUND(SUM(fd.expense), 2) as exp
         FROM fact_daily fd
         ${fdWhere}
         GROUP BY fd.year
@@ -3627,8 +3664,7 @@ class ConsolidationEngine {
           fd.month as grain_key,
           fd.month as grain_label,
           ROUND(SUM(fd.revenue), 2) as rev,
-          ROUND(SUM(fd.expense), 2) as exp,
-          ROUND(SUM(fd.collected), 2) as col
+          ROUND(SUM(fd.expense), 2) as exp
         FROM fact_daily fd
         ${fdWhere}
         GROUP BY fd.month
@@ -3636,19 +3672,122 @@ class ConsolidationEngine {
       `).all(fdParams);
     }
 
-    const monthly_series = monthlyRows.map(r => {
-      let label = r.grain_label;
-      if (!isMultiYear && r.grain_key && r.grain_key.includes('-')) {
-        const [y, m] = r.grain_key.split('-');
+    // Calculate monthly/yearly collections from payment_allocations (channels bank, sister_company, other_adjustment)
+    let paTargetLedgerIds = [...targetLedgerIds];
+    const explicitCoIds = [];
+    if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
+      const chkFilter = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'dummy', prefix: 'chk_pa_' });
+      if (chkFilter.pairs && chkFilter.pairs.length > 0) {
+        for (const p of chkFilter.pairs) {
+          if (p.companyId && !explicitCoIds.includes(p.companyId)) {
+            explicitCoIds.push(p.companyId);
+          }
+        }
+      }
+    }
+    if (explicitCoIds.length > 0) {
+      paTargetLedgerIds = paTargetLedgerIds.filter(id => explicitCoIds.includes(id));
+      if (paTargetLedgerIds.length === 0) paTargetLedgerIds = explicitCoIds;
+    }
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const scopedCids = Array.from(new Set(scopedCostCenters.map(sc => Number(sc.companyId)))).filter(Boolean);
+      paTargetLedgerIds = paTargetLedgerIds.filter(id => scopedCids.includes(id));
+      if (paTargetLedgerIds.length === 0) paTargetLedgerIds = scopedCids;
+    }
+
+    const paParams = {};
+    const paCoPh = paTargetLedgerIds.map((_, i) => `@pa_m_cid_${i}`).join(',');
+    paTargetLedgerIds.forEach((id, i) => { paParams[`pa_m_cid_${i}`] = id; });
+    const paWhereClauses = [`pa.company_id IN (${paCoPh})`];
+
+    const paPeriod = this._periodFilter({ years: period.yearsList, year: period.year, dateFrom: period.dateFrom, dateTo: period.dateTo }, 'pa.payment_date', 'pa_m_dt_');
+    if (paPeriod.sql !== '1=1') {
+      paWhereClauses.push(paPeriod.sql);
+      Object.assign(paParams, paPeriod.params);
+    }
+
+    if (departmentIds && departmentIds.length > 0) {
+      const grpFilter = this._buildGroupCondition({ departmentIds, tableAlias: 'pa', prefix: 'pa_m_dept_' });
+      if (grpFilter.sql) {
+        paWhereClauses.push(grpFilter.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(paParams, grpFilter.params);
+      }
+    }
+
+    if ((journalIds && journalIds.length > 0) || (costCenters && costCenters.length > 0)) {
+      const ccFilterPa = this._buildCostCenterCondition({ journalIds, costCenters, tableAlias: 'pa', prefix: 'pa_m_cc_' });
+      if (ccFilterPa.sql) {
+        paWhereClauses.push(ccFilterPa.sql.replace(/^\s*AND\s*/i, ''));
+        Object.assign(paParams, ccFilterPa.params);
+      }
+    } else if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const sMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        if (!sMap.has(cId)) sMap.set(cId, []);
+        sMap.get(cId).push(sc.costCenterKey);
+      }
+      const sClauses = [];
+      let sIdx = 0;
+      for (const [cId, keys] of sMap.entries()) {
+        const kPh = keys.map((_, i) => `@pa_m_sc_${sIdx}_${i}`).join(',');
+        keys.forEach((k, i) => { paParams[`pa_m_sc_${sIdx}_${i}`] = k; });
+        paParams[`pa_m_sc_cid_${sIdx}`] = cId;
+        sClauses.push(`(pa.company_id = @pa_m_sc_cid_${sIdx} AND pa.cost_center_key IN (${kPh}))`);
+        sIdx++;
+      }
+      if (sClauses.length > 0) {
+        paWhereClauses.push(`(${sClauses.join(' OR ')})`);
+      }
+    }
+
+    paWhereClauses.push(`pa.channel IN ('bank', 'sister_company', 'other_adjustment')`);
+    const paWhereSql = `WHERE ${paWhereClauses.join(' AND ')}`;
+
+    const paGrainCol = isMultiYear ? 'pa.payment_year' : 'pa.payment_month';
+    const paRows = this.db.prepare(`
+      SELECT 
+        ${paGrainCol} as grain_key,
+        ROUND(SUM(pa.amount), 2) as col
+      FROM payment_allocations pa
+      ${paWhereSql}
+      GROUP BY ${paGrainCol}
+      ORDER BY ${paGrainCol} ASC
+    `).all(paParams);
+
+    const paMap = new Map();
+    let totalPaCol = 0;
+    for (const r of paRows) {
+      if (r.grain_key) {
+        paMap.set(r.grain_key, r.col || 0);
+        totalPaCol += (r.col || 0);
+      }
+    }
+
+    const allGrainKeysSet = new Set(monthlyRows.map(r => r.grain_key));
+    for (const k of paMap.keys()) {
+      allGrainKeysSet.add(k);
+    }
+    const allGrainKeys = Array.from(allGrainKeysSet).sort();
+
+    const monthlyRowMap = new Map();
+    for (const r of monthlyRows) monthlyRowMap.set(r.grain_key, r);
+
+    const monthly_series = allGrainKeys.map(k => {
+      const r = monthlyRowMap.get(k);
+      let label = r?.grain_label || k;
+      if (!isMultiYear && k && k.includes('-')) {
+        const [y, m] = k.split('-');
         label = `${ARABIC_MONTHS[m] || m} ${y}`;
       }
+      const paCol = paMap.get(k) || 0;
       return {
-        key: r.grain_key,
+        key: k,
         label,
         is_year: isMultiYear,
-        revenue: Math.round(r.rev || 0),
-        expenses: Math.round(r.exp || 0),
-        collected_cash: Math.round(r.col || 0)
+        revenue: Math.round(r?.rev || 0),
+        expenses: Math.round(r?.exp || 0),
+        collected_cash: Math.round(paCol)
       };
     });
 
@@ -3664,6 +3803,17 @@ class ConsolidationEngine {
         if (monthly_series[i].revenue > monthly_series[maxIdx].revenue) maxIdx = i;
       }
       monthly_series[maxIdx].revenue += revDiff;
+    }
+
+    const sumMonthlyCol = monthly_series.reduce((s, m) => s + m.collected_cash, 0);
+    const targetCol = Math.round(totalPaCol);
+    const colDiff = targetCol - sumMonthlyCol;
+    if (colDiff !== 0 && monthly_series.length > 0) {
+      let maxColIdx = 0;
+      for (let i = 1; i < monthly_series.length; i++) {
+        if (monthly_series[i].collected_cash > monthly_series[maxColIdx].collected_cash) maxColIdx = i;
+      }
+      monthly_series[maxColIdx].collected_cash += colDiff;
     }
 
     // 4. Accounts from fact_daily for Tree (optimized CTE: aggregate first, then join metadata)
@@ -4058,10 +4208,42 @@ class ConsolidationEngine {
   /**
    * Lazy-fetch department children (clients and/or accounts)
    */
-  getExecutiveDepartmentChildren({ companyId, departmentId, kind = 'both', years, year, dateFrom, dateTo, journalIds }) {
+  getExecutiveDepartmentChildren({ companyId, departmentId, kind = 'both', years, year, dateFrom, dateTo, journalIds, costCenters, targetRevenue, targetExpenses, targetBilled, targetCollected, targetResidual, scopedCostCenters }) {
     const period = this._periodFilter({ years, year, dateFrom, dateTo, defaultToCurrentYear: true }, 'si.date', 'dept_');
     const cid = Number(companyId);
     const did = Number(departmentId);
+
+    let effTargetRev = targetRevenue;
+    let effTargetExp = targetExpenses;
+    let effTargetBilled = targetBilled;
+    let effTargetCollected = targetCollected;
+    let effTargetResidual = targetResidual;
+
+    if (effTargetRev === undefined || effTargetExp === undefined || effTargetBilled === undefined) {
+      try {
+        const summary = this.getExecutiveSummary({
+          years,
+          year,
+          dateFrom,
+          dateTo,
+          journalIds,
+          costCenters,
+          scopedCostCenters,
+          fullTree: false
+        });
+        const co = summary?.tree?.rows?.find(c => c.company_id === cid || c.id === `co_${cid}`);
+        const dept = co?.children?.find(d => d.department_id === did || d.id === `dept_${cid}_${did}`);
+        if (dept) {
+          if (effTargetRev === undefined && dept.revenue !== undefined) effTargetRev = dept.revenue;
+          if (effTargetExp === undefined && dept.expenses !== undefined) effTargetExp = dept.expenses;
+          if (effTargetBilled === undefined && dept.billed !== undefined) effTargetBilled = dept.billed;
+          if (effTargetCollected === undefined && dept.collected !== undefined) effTargetCollected = dept.collected;
+          if (effTargetResidual === undefined && dept.residual !== undefined) effTargetResidual = dept.residual;
+        }
+      } catch (e) {
+        // Fallback to raw sums if summary lookup fails
+      }
+    }
 
     // Map company to sales company
     const coRow = this.db.prepare(`
@@ -4223,9 +4405,9 @@ class ConsolidationEngine {
         };
       });
 
-      const sumBilled = Math.round(totalRawBilled);
-      const sumCollected = Math.round(totalRawCollected);
-      const sumResidual = Math.round(totalRawResidual);
+      const sumBilled = effTargetBilled !== undefined ? effTargetBilled : Math.round(totalRawBilled);
+      const sumCollected = effTargetCollected !== undefined ? effTargetCollected : Math.round(totalRawCollected);
+      const sumResidual = effTargetResidual !== undefined ? effTargetResidual : Math.round(totalRawResidual);
       const sumRate = sumBilled > 0 ? Math.round((sumCollected / sumBilled) * 1000) / 10 : 0;
       clientsSummary = {
         billed: sumBilled,
@@ -4297,8 +4479,8 @@ class ConsolidationEngine {
 
       const rawTotRev = rawAccounts.reduce((s, a) => s + (a.revenue || 0), 0);
       const rawTotExp = rawAccounts.reduce((s, a) => s + (a.expense || 0), 0);
-      const totRev = Math.round(rawTotRev);
-      const totExp = Math.round(rawTotExp);
+      const totRev = effTargetRev !== undefined ? effTargetRev : Math.round(rawTotRev);
+      const totExp = effTargetExp !== undefined ? effTargetExp : Math.round(rawTotExp);
       const totNet = totRev - totExp;
       const totMargin = totRev > 0 ? Math.round((totNet / totRev) * 1000) / 10 : 0;
       accountsSummary = {
@@ -4339,14 +4521,33 @@ class ConsolidationEngine {
   /**
    * Lazy-fetch client invoices for slide-over drawer (filters by department when provided)
    */
-  getExecutiveClientInvoices({ companyId, partnerId, departmentId, journalId, journal_id, costCenterKey, years, year, dateFrom, dateTo, asOfDate }) {
-    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'cinv_');
+  getExecutiveClientInvoices({ companyId, partnerId, departmentId, journalId, journal_id, costCenterKey, years, year, dateFrom, dateTo, asOfDate, scopedCostCenters }) {
+    const pid = partnerId !== undefined && partnerId !== 'null' && partnerId !== '' ? Number(partnerId) : null;
+    const defaultToCurrentYear = !pid;
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear }, 'si.date', 'cinv_');
     const refDate = period.refDate;
     const cid = Number(companyId);
     const did = departmentId !== undefined && departmentId !== 'null' && departmentId !== '' ? Number(departmentId) : null;
-    const pid = partnerId !== undefined && partnerId !== 'null' && partnerId !== '' ? Number(partnerId) : null;
     const rawJid = journalId !== undefined ? journalId : journal_id;
     const jid = rawJid !== undefined && rawJid !== 'null' && rawJid !== '' ? Number(rawJid) : null;
+
+    let scopeKeysForCompany = null;
+    if (scopedCostCenters && Array.isArray(scopedCostCenters)) {
+      scopeKeysForCompany = scopedCostCenters
+        .filter(sc => Number(sc.companyId) === cid)
+        .map(sc => sc.costCenterKey);
+      if (scopeKeysForCompany.length === 0) {
+        return {
+          company_id: cid,
+          department_id: did,
+          journal_id: jid,
+          cost_center_key: costCenterKey,
+          partner_id: pid,
+          partner_name: 'عميل',
+          invoices: []
+        };
+      }
+    }
 
     const coRow = this.db.prepare(`
       SELECT c.id as ledger_cid, sc.id as sales_cid
@@ -4370,8 +4571,23 @@ class ConsolidationEngine {
       const bareCcKey = (typeof costCenterKey === 'string' && costCenterKey.includes('|'))
         ? costCenterKey.slice(costCenterKey.indexOf('|') + 1).trim()
         : costCenterKey;
+      if (scopeKeysForCompany && !scopeKeysForCompany.includes(bareCcKey)) {
+        return {
+          company_id: cid,
+          department_id: did,
+          journal_id: jid,
+          cost_center_key: costCenterKey,
+          partner_id: pid,
+          partner_name: 'عميل',
+          invoices: []
+        };
+      }
       invWhere += ' AND id.cost_center_key = @costCenterKey';
       invParams.costCenterKey = bareCcKey;
+    } else if (scopeKeysForCompany) {
+      const skPh = scopeKeysForCompany.map((_, i) => `@sk_${i}`).join(',');
+      scopeKeysForCompany.forEach((k, i) => { invParams[`sk_${i}`] = k; });
+      invWhere += ` AND id.cost_center_key IN (${skPh})`;
     } else if (jid !== null && !isNaN(jid)) {
       invWhere += ' AND si.journal_id = @jid';
       invParams.jid = jid;
@@ -4381,16 +4597,25 @@ class ConsolidationEngine {
       Object.assign(invParams, period.params);
     }
 
-    const joinClause = ((did !== null && !isNaN(did)) || costCenterKey)
+    const needsIdJoin = Boolean(
+      (did !== null && !isNaN(did)) ||
+      costCenterKey ||
+      scopeKeysForCompany
+    );
+    const joinClause = needsIdJoin
       ? 'JOIN invoice_departments id ON id.sales_invoice_id = si.id'
       : '';
+
+    const journalNameCol = needsIdJoin
+      ? `COALESCE(NULLIF(TRIM(id.cost_center_name), ''), NULLIF(TRIM(si.journal_name), ''), 'بدون دفتر')`
+      : `COALESCE(NULLIF(TRIM(si.journal_name), ''), 'بدون دفتر')`;
 
     const rows = this.db.prepare(`
       SELECT DISTINCT
         si.id,
         si.name as invoice_name,
         si.journal_id,
-        COALESCE(NULLIF(TRIM(si.journal_name), ''), 'بدون دفتر') as journal_name,
+        ${journalNameCol} as journal_name,
         si.partner_id,
         COALESCE(NULLIF(TRIM(si.partner_name), ''), 'بدون عميل') as partner_name,
         si.amount_untaxed,
@@ -4421,7 +4646,7 @@ class ConsolidationEngine {
   /**
    * Lazy-fetch full aging hierarchy
    */
-  getExecutiveAging({ companyIds, years, year, dateFrom, dateTo, asOfDate, includeInvoices = false }) {
+  getExecutiveAging({ companyIds, years, year, dateFrom, dateTo, asOfDate, includeInvoices = false, scopedCostCenters }) {
     const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'aging_');
     const refDate = period.refDate;
 
@@ -4440,7 +4665,8 @@ class ConsolidationEngine {
       dateFrom: period.dateFrom,
       dateTo: period.dateTo,
       asOfDate: refDate,
-      includePaid: false
+      includePaid: false,
+      scopedCostCenters
     });
 
     let tree = aging.tree || [];
@@ -5338,12 +5564,28 @@ class ConsolidationEngine {
    * D1 — Customer Account Statement (كشف حساب العميل)
    * Sequential transaction ledger with running balance
    */
-  getCustomerStatement({ companyId, partnerId, departmentId, years, year, dateFrom, dateTo, asOfDate }) {
-    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: true }, 'si.date', 'stmt_');
+  getCustomerStatement({ companyId, partnerId, departmentId, years, year, dateFrom, dateTo, asOfDate, scopedCostCenters }) {
+    const period = this._periodFilter({ years, year, dateFrom, dateTo, asOfDate, defaultToCurrentYear: false }, 'si.date', 'stmt_');
     const refDate = period.refDate;
     const cid = Number(companyId);
     const pid = Number(partnerId);
     const did = departmentId !== undefined && departmentId !== 'null' && departmentId !== '' ? Number(departmentId) : null;
+
+    let scopeKeysForCompany = null;
+    if (scopedCostCenters && Array.isArray(scopedCostCenters)) {
+      scopeKeysForCompany = scopedCostCenters
+        .filter(sc => Number(sc.companyId) === cid)
+        .map(sc => sc.costCenterKey);
+      if (scopeKeysForCompany.length === 0) {
+        return {
+          partner: { id: pid, name: 'العميل' },
+          company: { id: cid, name: `شركة ${cid}` },
+          period_label: period.label,
+          summary: { total_billed: 0, total_returns: 0, net_billed: 0, total_paid: 0, total_residual: 0, doc_count: 0, invoices_count: 0, returns_count: 0 },
+          items: []
+        };
+      }
+    }
 
     const coRow = this.db.prepare(`
       SELECT c.id as ledger_cid, c.name as ledger_name, sc.id as sales_cid, sc.name as sales_name
@@ -5359,12 +5601,18 @@ class ConsolidationEngine {
       invWhere += ` AND id.department_id = @did`;
       invParams.did = did;
     }
+    if (scopeKeysForCompany) {
+      const skPh = scopeKeysForCompany.map((_, i) => `@stmt_sk_${i}`).join(',');
+      scopeKeysForCompany.forEach((k, i) => { invParams[`stmt_sk_${i}`] = k; });
+      invWhere += ` AND id.cost_center_key IN (${skPh})`;
+    }
     if (period.sql !== '1=1') {
       invWhere += ` AND ${period.sql}`;
       Object.assign(invParams, period.params);
     }
 
-    const joinClause = (did !== null && !isNaN(did))
+    const needsIdJoin = Boolean((did !== null && !isNaN(did)) || scopeKeysForCompany);
+    const joinClause = needsIdJoin
       ? 'JOIN invoice_departments id ON id.sales_invoice_id = si.id'
       : '';
 
@@ -6590,7 +6838,8 @@ class ConsolidationEngine {
       partnerIds,
       partnerName,
       timeGrain = 'month',
-      includeInvoices = false
+      includeInvoices = false,
+      scopedCostCenters
     } = options;
 
     const round = (n) => Math.round((n || 0) * 100) / 100;
@@ -6625,6 +6874,12 @@ class ConsolidationEngine {
         else if (salesToLedger.has(id)) targetLedgerIds.push(salesToLedger.get(id).ledger_cid);
       }
       if (targetLedgerIds.length === 0) targetLedgerIds = [-1];
+    }
+
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const scopedCids = Array.from(new Set(scopedCostCenters.map(sc => Number(sc.companyId)))).filter(Boolean);
+      targetLedgerIds = targetLedgerIds.filter(id => scopedCids.includes(id));
+      if (targetLedgerIds.length === 0) targetLedgerIds = scopedCids;
     }
 
     // If cost center key or pairs contain explicit company IDs, restrict targetLedgerIds to those companies
@@ -6679,25 +6934,88 @@ class ConsolidationEngine {
         whereClauses.push(ccFilter.sql.replace(/^\s*AND\s*/i, ''));
         Object.assign(params, ccFilter.params);
       }
+    } else if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const sMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        if (!sMap.has(cId)) sMap.set(cId, []);
+        sMap.get(cId).push(sc.costCenterKey);
+      }
+      const sClauses = [];
+      let sIdx = 0;
+      for (const [cId, keys] of sMap.entries()) {
+        const kPh = keys.map((_, i) => `@pacc_sc_${sIdx}_${i}`).join(',');
+        keys.forEach((k, i) => { params[`pacc_sc_${sIdx}_${i}`] = k; });
+        params[`pacc_sc_cid_${sIdx}`] = cId;
+        sClauses.push(`(pa.company_id = @pacc_sc_cid_${sIdx} AND pa.cost_center_key IN (${kPh}))`);
+        sIdx++;
+      }
+      if (sClauses.length > 0) {
+        whereClauses.push(`(${sClauses.join(' OR ')})`);
+      }
     }
 
     // Extract distinct available journals in scope of companies & period (before journal filter is applied)
     const availParams = { ...period.params };
     const availCoPh = targetLedgerIds.map((_, i) => `@avail_cid_${i}`).join(',');
     targetLedgerIds.forEach((id, i) => { availParams[`avail_cid_${i}`] = id; });
+
+    let availCcClause = '';
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const sMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        if (!sMap.has(cId)) sMap.set(cId, []);
+        sMap.get(cId).push(sc.costCenterKey);
+      }
+      const sClauses = [];
+      let sIdx = 0;
+      for (const [cId, keys] of sMap.entries()) {
+        const kPh = keys.map((_, i) => `@avail_sc_${sIdx}_${i}`).join(',');
+        keys.forEach((k, i) => { availParams[`avail_sc_${sIdx}_${i}`] = k; });
+        availParams[`avail_sc_cid_${sIdx}`] = cId;
+        sClauses.push(`(pa.company_id = @avail_sc_cid_${sIdx} AND pa.cost_center_key IN (${kPh}))`);
+        sIdx++;
+      }
+      if (sClauses.length > 0) {
+        availCcClause = `AND (${sClauses.join(' OR ')})`;
+      }
+    }
+
     const availableJournalRows = this.db.prepare(`
       SELECT DISTINCT pa.invoice_journal_name
       FROM payment_allocations pa
       WHERE pa.company_id IN (${availCoPh})
+        ${availCcClause}
         ${period.sql !== '1=1' ? 'AND ' + period.sql : ''}
         AND pa.invoice_journal_name IS NOT NULL
       ORDER BY pa.invoice_journal_name
     `).all(availParams);
-    const available_journals = Array.from(new Set(
+    let available_journals = Array.from(new Set(
       availableJournalRows
         .map(r => (r.invoice_journal_name || '').trim())
         .filter(n => n && n !== 'بدون دفتر')
     )).sort((a, b) => a.localeCompare('ar'));
+
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const allowedNames = new Set();
+      for (const sc of scopedCostCenters) {
+        if (sc.costCenterName) allowedNames.add(sc.costCenterName.trim());
+      }
+      const cckParams = {};
+      scopedCostCenters.forEach((sc, i) => { cckParams[`cck_${i}`] = sc.costCenterKey; });
+      const cckPh = scopedCostCenters.map((_, i) => `@cck_${i}`).join(',');
+      try {
+        const idRows = this.db.prepare(`
+          SELECT DISTINCT cost_center_name FROM invoice_departments WHERE cost_center_key IN (${cckPh})
+        `).all(cckParams);
+        idRows.forEach(r => { if (r.cost_center_name) allowedNames.add(r.cost_center_name.trim()); });
+      } catch (e) {}
+      available_journals = available_journals.filter(jn => allowedNames.has(jn));
+      if (available_journals.length === 0 && allowedNames.size > 0) {
+        available_journals = Array.from(allowedNames).sort((a, b) => a.localeCompare('ar'));
+      }
+    }
 
     const jNamesList = [];
     if (journalName && typeof journalName === 'string' && journalName.trim()) {
@@ -7317,6 +7635,11 @@ class ConsolidationEngine {
       equation_note: 'إجمالي الدائن (حركات القيود باستثناء الإشعارات) = مخصص لفواتير النطاق + خصومات ورسوم + مخصص لدفاتر أخرى + دفعات غير مخصصة + فروقات غير مفسرة'
     };
 
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      delete accountsComparison.allocated_other_journals;
+      delete accountsComparison.other_journals_breakdown;
+    }
+
     // ── 6. «سدادات خارج بنك الشركة» - Audit / Oversight List
     const auditNonBankPayments = this.db.prepare(`
       SELECT 
@@ -7437,7 +7760,8 @@ class ConsolidationEngine {
       dateTo,
       channel,
       page = 1,
-      limit = 100
+      limit = 100,
+      scopedCostCenters
     } = options;
 
     const whereClauses = [];
@@ -7466,6 +7790,25 @@ class ConsolidationEngine {
     } else if (journalId) {
       whereClauses.push('pa.invoice_journal_id = @journalId');
       params.journalId = Number(journalId);
+    } else if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const sMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        if (!sMap.has(cId)) sMap.set(cId, []);
+        sMap.get(cId).push(sc.costCenterKey);
+      }
+      const sClauses = [];
+      let sIdx = 0;
+      for (const [cId, keys] of sMap.entries()) {
+        const kPh = keys.map((_, i) => `@pay_sc_${sIdx}_${i}`).join(',');
+        keys.forEach((k, i) => { params[`pay_sc_${sIdx}_${i}`] = k; });
+        params[`pay_sc_cid_${sIdx}`] = cId;
+        sClauses.push(`(pa.company_id = @pay_sc_cid_${sIdx} AND pa.cost_center_key IN (${kPh}))`);
+        sIdx++;
+      }
+      if (sClauses.length > 0) {
+        whereClauses.push(`(${sClauses.join(' OR ')})`);
+      }
     }
     if (journalNames) {
       const rawArr = Array.isArray(journalNames) ? journalNames : String(journalNames).split(',');
@@ -7517,7 +7860,9 @@ class ConsolidationEngine {
         pa.counterpart_account_name,
         pa.counterpart_partner_name,
         pa.amount,
-        pa.sister_company_name
+        pa.sister_company_name,
+        pa.cost_center_key,
+        pa.cost_center_name
       FROM payment_allocations pa
       JOIN companies c ON c.id = pa.company_id
       ${whereSql}
@@ -7546,7 +7891,7 @@ class ConsolidationEngine {
    * Returns paths to auto-expand matching nodes in TreeTable
    */
   searchHierarchyPaths(options = {}) {
-    const { companyIds, years, dateFrom, dateTo, query } = options;
+    const { companyIds, years, dateFrom, dateTo, query, scopedCostCenters } = options;
     if (!query || typeof query !== 'string' || query.trim().length === 0) {
       return { matches: [] };
     }
@@ -7594,6 +7939,31 @@ class ConsolidationEngine {
       }
     }
 
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const scopedCoMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        if (!scopedCoMap.has(cId)) scopedCoMap.set(cId, []);
+        scopedCoMap.get(cId).push(sc.costCenterKey);
+      }
+      const scopeClauses = [];
+      let sIdx = 0;
+      for (const [cId, keys] of scopedCoMap.entries()) {
+        const kPh = keys.map((_, i) => `@inv_sc_k_${sIdx}_${i}`).join(',');
+        keys.forEach((k, i) => { invParams[`inv_sc_k_${sIdx}_${i}`] = k; });
+        invParams[`inv_sc_cid_${sIdx}`] = cId;
+        scopeClauses.push(`(c.id = @inv_sc_cid_${sIdx} AND id.cost_center_key IN (${kPh}))`);
+        sIdx++;
+      }
+      if (scopeClauses.length > 0) {
+        invWhere += ` AND (${scopeClauses.join(' OR ')})`;
+      }
+    }
+
+    const idJoin = (scopedCostCenters && scopedCostCenters.length > 0)
+      ? 'JOIN invoice_departments id ON id.sales_invoice_id = si.id'
+      : 'LEFT JOIN invoice_departments id ON id.sales_invoice_id = si.id';
+
     const invoices = this.db.prepare(`
       SELECT 
         si.id,
@@ -7613,7 +7983,7 @@ class ConsolidationEngine {
       FROM sales_invoices si
       JOIN sales_companies sc ON sc.id = si.company_id
       JOIN companies c ON c.odoo_company_id = sc.sales_company_id
-      LEFT JOIN invoice_departments id ON id.sales_invoice_id = si.id
+      ${idJoin}
       LEFT JOIN analytic_group_mapping agm ON agm.company_id = c.id AND (agm.journal_id = si.journal_id OR TRIM(agm.journal_name) = TRIM(si.journal_name))
       LEFT JOIN analytic_groups ag ON ag.id = COALESCE(id.department_id, agm.group_id)
       ${invWhere}
@@ -7678,6 +8048,41 @@ class ConsolidationEngine {
       if (yrArr.length > 0) {
         jiWhere += ` AND ji.fiscal_year IN (${yrArr.map((_, i) => `@yr_${i}`).join(',')})`;
         yrArr.forEach((y, i) => { jiParams[`yr_${i}`] = y; });
+      }
+    }
+
+    if (scopedCostCenters && Array.isArray(scopedCostCenters) && scopedCostCenters.length > 0) {
+      const nameMap = new Map();
+      for (const sc of scopedCostCenters) {
+        const cId = Number(sc.companyId);
+        const rows = this.db.prepare(`
+          SELECT DISTINCT cost_center_name FROM invoice_departments 
+          WHERE cost_center_key = ?
+        `).all(sc.costCenterKey);
+        for (const r of rows) {
+          if (r.cost_center_name) {
+            if (!nameMap.has(cId)) nameMap.set(cId, new Set());
+            nameMap.get(cId).add(r.cost_center_name.trim());
+          }
+        }
+      }
+
+      const jiScopeClauses = [];
+      let jiIdx = 0;
+      for (const [cid, names] of nameMap.entries()) {
+        const nList = Array.from(names);
+        if (nList.length > 0) {
+          const nPh = nList.map((_, i) => `@ji_name_${jiIdx}_${i}`).join(',');
+          nList.forEach((n, i) => { jiParams[`ji_name_${jiIdx}_${i}`] = n; });
+          jiParams[`ji_cid_${jiIdx}`] = cid;
+          jiScopeClauses.push(`(ji.company_id = @ji_cid_${jiIdx} AND ji.analytic_account IN (${nPh}))`);
+          jiIdx++;
+        }
+      }
+      if (jiScopeClauses.length > 0) {
+        jiWhere += ` AND (${jiScopeClauses.join(' OR ')})`;
+      } else {
+        jiWhere += ` AND 1=0`;
       }
     }
 

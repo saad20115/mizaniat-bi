@@ -7,6 +7,7 @@ const SyncEngine = require('../services/sync-engine');
 const OdooConnector = require('../services/odoo-connector');
 const { reschedule, getSchedulerStatus } = require('../cron/scheduler');
 const { validateFilterQuery } = require('../middleware/validator');
+const { requireAdmin, normalizePhone } = require('../middleware/auth');
 
 router.use(validateFilterQuery);
 
@@ -637,10 +638,11 @@ router.get('/company-accounts', (req, res) => {
 // ===== FILTERS =====
 router.get('/filters', async (req, res) => {
   const companyIds = parseCompanyIds(req.query);
+  const scopedCostCenters = req.scopedShare?.costCenters;
   const cacheKey = CacheService.makeKey('filters', { companyIds });
   const data = await CacheService.getOrSet(cacheKey, () => {
     const engine = new ConsolidationEngine();
-    return engine.getFilterOptions({ companyIds });
+    return engine.getFilterOptions({ companyIds, scopedCostCenters });
   });
   res.json(data);
 });
@@ -651,8 +653,9 @@ router.get('/search/tree', (req, res) => {
     const { query, dateFrom, dateTo } = req.query;
     const companyIds = parseCompanyIds(req.query);
     const years = parseYearsParam(req);
+    const scopedCostCenters = req.scopedShare?.costCenters;
     const engine = new ConsolidationEngine();
-    const result = engine.searchHierarchyPaths({ companyIds, years, dateFrom, dateTo, query });
+    const result = engine.searchHierarchyPaths({ companyIds, years, dateFrom, dateTo, query, scopedCostCenters });
     res.json(result);
   } catch (err) {
     console.error('[API /search/tree] Error:', err);
@@ -1519,7 +1522,8 @@ router.get('/executive/invoices', async (req, res) => {
         years,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        asOfDate: asOfDate || undefined
+        asOfDate: asOfDate || undefined,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
     res.json(result);
@@ -1544,7 +1548,8 @@ router.get('/executive/aging', async (req, res) => {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         asOfDate: asOfDate || undefined,
-        includeInvoices: isIncInv
+        includeInvoices: isIncInv,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
     res.json(result);
@@ -1607,7 +1612,8 @@ router.get('/customers-collection/statement', async (req, res) => {
         years,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        asOfDate: asOfDate || undefined
+        asOfDate: asOfDate || undefined,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
     res.json(result);
@@ -1637,7 +1643,8 @@ router.get('/customers-collection/invoices', async (req, res) => {
         years,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        asOfDate: asOfDate || undefined
+        asOfDate: asOfDate || undefined,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
     res.json(result);
@@ -1693,9 +1700,15 @@ router.get('/actual-collections', async (req, res) => {
         journalName,
         partnerIds: pIds,
         partnerName,
-        timeGrain: timeGrain || 'month'
+        timeGrain: timeGrain || 'month',
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
+
+    if (req.scopedShare && result?.accounts_comparison) {
+      delete result.accounts_comparison.allocated_other_journals;
+      delete result.accounts_comparison.other_journals_breakdown;
+    }
 
     res.json(result);
   } catch (err) {
@@ -1740,7 +1753,8 @@ router.get('/actual-collections/payments', async (req, res) => {
         dateTo: dateTo || undefined,
         channel: channel || undefined,
         page: page ? Number(page) : 1,
-        limit: limit ? Number(limit) : 100
+        limit: limit ? Number(limit) : 100,
+        scopedCostCenters: req.scopedShare?.costCenters
       });
     });
 
@@ -1937,6 +1951,185 @@ router.delete('/presentation/share/:id', (req, res) => {
     db.prepare('UPDATE presentation_shares SET is_active = 0 WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ==============================================
+// ===== SCOPED PRESENTATION SHARES (SH1) =====
+// ==============================================
+
+// List all scoped shares (Admin only)
+router.get('/presentation/scoped-shares', requireAdmin, (req, res) => {
+  try {
+    const db = getDb();
+    const shares = db.prepare(`
+      SELECT ss.*,
+        (SELECT COUNT(*) FROM scoped_viewer_sessions sv WHERE sv.scoped_share_id = ss.id AND sv.expires_at > datetime('now')) as active_sessions_count
+      FROM scoped_shares ss
+      ORDER BY ss.created_at DESC
+    `).all();
+
+    const formatted = shares.map(s => ({
+      id: s.id,
+      token: s.token,
+      name: s.name,
+      costCenters: JSON.parse(s.scope_cost_centers || '[]'),
+      tabs: JSON.parse(s.scope_tabs || '[]'),
+      allowAdminAllocation: Boolean(s.allow_admin_allocation),
+      allowedPhones: JSON.parse(s.allowed_phones || '[]'),
+      isActive: Boolean(s.is_active),
+      activeSessionsCount: s.active_sessions_count,
+      expiresAt: s.expires_at,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error('[API /presentation/scoped-shares] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a new scoped share (Admin only)
+router.post('/presentation/scoped-shares', requireAdmin, (req, res) => {
+  try {
+    const { name, costCenters, tabs, allowAdminAllocation, allowedPhones, expiresAt } = req.body;
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'اسم النطاق مطلوب' });
+    }
+
+    if (!Array.isArray(costCenters) || costCenters.length === 0) {
+      return res.status(400).json({ error: 'يجب اختيار مركز تكلفة واحد على الأقل' });
+    }
+
+    if (!Array.isArray(tabs) || tabs.length === 0) {
+      return res.status(400).json({ error: 'يجب اختيار تبويب واحد على الأقل' });
+    }
+
+    if (!Array.isArray(allowedPhones) || allowedPhones.length === 0) {
+      return res.status(400).json({ error: 'يجب إضافة رقم جوال مصرح به واحد على الأقل' });
+    }
+
+    const normalizedPhones = allowedPhones.map(p => normalizePhone(p)).filter(Boolean);
+    if (normalizedPhones.length === 0) {
+      return res.status(400).json({ error: 'أرقام الجوال المدخلة غير صحيحة' });
+    }
+
+    // Cryptographically secure 32-byte token (64 hex characters)
+    const token = crypto.randomBytes(32).toString('hex');
+    const db = getDb();
+
+    const result = db.prepare(`
+      INSERT INTO scoped_shares (token, name, scope_cost_centers, scope_tabs, allow_admin_allocation, allowed_phones, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      token,
+      name.trim(),
+      JSON.stringify(costCenters),
+      JSON.stringify(tabs),
+      allowAdminAllocation ? 1 : 0,
+      JSON.stringify(normalizedPhones),
+      expiresAt || null
+    );
+
+    res.json({
+      success: true,
+      id: result.lastInsertRowid,
+      token,
+      url: `/view.html?share=${token}`
+    });
+  } catch (err) {
+    console.error('[API /presentation/scoped-shares POST] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a scoped share (Admin only)
+router.put('/presentation/scoped-shares/:id', requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, costCenters, tabs, allowAdminAllocation, allowedPhones, isActive, expiresAt } = req.body;
+    const db = getDb();
+
+    const existing = db.prepare('SELECT * FROM scoped_shares WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'رابط المشاركة المخصص غير موجود' });
+    }
+
+    const newName = name !== undefined ? String(name).trim() : existing.name;
+    const newCCs = costCenters !== undefined ? JSON.stringify(costCenters) : existing.scope_cost_centers;
+    const newTabs = tabs !== undefined ? JSON.stringify(tabs) : existing.scope_tabs;
+    const newAlloc = allowAdminAllocation !== undefined ? (allowAdminAllocation ? 1 : 0) : existing.allow_admin_allocation;
+    const newActive = isActive !== undefined ? (isActive ? 1 : 0) : existing.is_active;
+    const newExpires = expiresAt !== undefined ? (expiresAt || null) : existing.expires_at;
+
+    let newPhones = existing.allowed_phones;
+    if (allowedPhones !== undefined) {
+      const normalized = Array.isArray(allowedPhones) ? allowedPhones.map(p => normalizePhone(p)).filter(Boolean) : [];
+      newPhones = JSON.stringify(normalized);
+    }
+
+    db.prepare(`
+      UPDATE scoped_shares
+      SET name = ?, scope_cost_centers = ?, scope_tabs = ?, allow_admin_allocation = ?,
+          allowed_phones = ?, is_active = ?, expires_at = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(newName, newCCs, newTabs, newAlloc, newPhones, newActive, newExpires, id);
+
+    // If deactivated, immediately invalidate all active sessions!
+    if (newActive === 0) {
+      db.prepare('DELETE FROM scoped_viewer_sessions WHERE scoped_share_id = ?').run(id);
+    } else if (allowedPhones !== undefined) {
+      // Invalidate sessions for phones that were removed
+      const currentAllowed = JSON.parse(newPhones);
+      const activeSessions = db.prepare('SELECT id, phone FROM scoped_viewer_sessions WHERE scoped_share_id = ?').all(id);
+      for (const s of activeSessions) {
+        if (!currentAllowed.includes(normalizePhone(s.phone))) {
+          db.prepare('DELETE FROM scoped_viewer_sessions WHERE id = ?').run(s.id);
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[API /presentation/scoped-shares PUT] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a scoped share (Admin only)
+router.delete('/presentation/scoped-shares/:id', requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    // Invalidate sessions immediately
+    db.prepare('DELETE FROM scoped_viewer_sessions WHERE scoped_share_id = ?').run(id);
+    db.prepare('DELETE FROM scoped_shares WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[API /presentation/scoped-shares DELETE] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get access logs for a scoped share (Admin only)
+router.get('/presentation/scoped-shares/:id/logs', requireAdmin, (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = getDb();
+    const logs = db.prepare(`
+      SELECT id, token_prefix, phone, ip_address, user_agent, status, created_at
+      FROM scoped_share_logs
+      WHERE scoped_share_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(id);
+    res.json(logs);
+  } catch (err) {
+    console.error('[API /presentation/scoped-shares/:id/logs] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Get presentation data (multi-company × multi-year)

@@ -342,15 +342,15 @@ function renderVatTreeTable(body, data) {
   }
 
   const columns = [
-    { id: 'name', key: 'name', label: 'البيان / الفترة', width: '22%', minWidth: '220px', priority: 1 },
-    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '11.5%', minWidth: '110px', priority: 2 },
-    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '11%', minWidth: '105px', priority: 1 },
-    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '11.5%', minWidth: '110px', priority: 2 },
+    { id: 'name', key: 'name', label: 'البيان / الفترة', width: '20%', minWidth: '180px', priority: 1 },
+    { id: 'taxable_sales', key: 'taxable_sales', label: 'المبيعات الخاضعة', width: '11%', minWidth: '100px', priority: 2 },
+    { id: 'output_tax', key: 'output_tax', label: 'ضريبة المخرجات', width: '10.5%', minWidth: '100px', priority: 1 },
+    { id: 'taxable_purchases', key: 'taxable_purchases', label: 'المشتريات الخاضعة', width: '11%', minWidth: '100px', priority: 2 },
     { id: 'input_tax', key: 'input_tax', label: 'ضريبة المدخلات', width: '10.5%', minWidth: '100px', priority: 1 },
-    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '11.5%', minWidth: '110px', priority: 1 },
+    { id: 'net_tax_due', key: 'net_tax_due', label: 'صافي الضريبة', width: '11%', minWidth: '100px', priority: 1 },
     { id: 'settlements', key: 'settlements', label: 'التسويات والسداد', width: '10.5%', minWidth: '100px', priority: 2 },
-    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات والمدخلات', width: '8%', minWidth: '85px', align: 'center', priority: 1 },
-    { id: 'actions', key: 'actions', label: '', width: '3.5%', minWidth: '32px', maxWidth: '36px', priority: 1 }
+    { id: 'vat_visual', key: 'vat_visual', label: 'المخرجات والمدخلات', width: '12%', minWidth: '125px', align: 'center', priority: 1 },
+    { id: 'actions', key: 'actions', label: '', width: '44px', minWidth: '40px', maxWidth: '48px', priority: 1 }
   ];
 
   currentTreeTable = createTreeTable(container, {
@@ -455,7 +455,7 @@ function renderVatTreeTable(body, data) {
           <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 8px;">
             ${renderVatVisual(node)}
           </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:36px;min-width:32px;max-width:36px;padding:4px 2px;">
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="text-align:center;width:44px;min-width:40px;padding:4px 2px;">
             ${actionBtn}
           </td>
         </tr>
@@ -477,7 +477,7 @@ function renderVatTreeTable(body, data) {
           <td class="tree-col-visual" data-col-id="vat_visual" data-priority="1" style="text-align:center;padding:10px 8px;">
             ${renderVatVisual(tot)}
           </td>
-          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:36px;min-width:32px;max-width:36px;padding:4px 2px;"></td>
+          <td class="tree-col-action" data-col-id="actions" data-priority="1" style="width:44px;min-width:40px;padding:4px 2px;"></td>
         </tr>
       `;
     }
@@ -714,7 +714,7 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
       <!-- TAB 2: BY TAX TYPE -->
       <div id="dtab-by_tax" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
+        <table class="vat-drawer-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
               <th style="padding:10px 12px;font-size:12px;font-weight:500;">اسم الضريبة</th>
@@ -751,7 +751,7 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
       <!-- TAB 3: DOCUMENTS -->
       <div id="dtab-documents" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
+        <table class="vat-drawer-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
               <th style="padding:10px 10px;font-size:12px;font-weight:500;">الرقم</th>
@@ -790,7 +790,7 @@ function renderDrawerDetails(body, drawerContent, details, periodKey) {
 
       <!-- TAB 4: SETTLEMENTS -->
       <div id="dtab-settlements" class="drawer-pane" style="display:none;flex-direction:column;gap:12px;">
-        <table class="bi-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
+        <table class="vat-drawer-table" style="width:100%;border-collapse:collapse;font-size:13px;text-align:right;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-default);color:var(--text-muted);background:var(--bg-subtle);">
               <th style="padding:10px 10px;font-size:12px;font-weight:500;">رقم القيد</th>

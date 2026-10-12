@@ -196,6 +196,48 @@ function initializeSchema(targetDb) {
       expires_at TEXT
     );
 
+    -- Scoped share links (for restricted access by cost center and tabs)
+    CREATE TABLE IF NOT EXISTS scoped_shares (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      scope_cost_centers TEXT NOT NULL,
+      scope_tabs TEXT NOT NULL,
+      allow_admin_allocation INTEGER DEFAULT 0,
+      allowed_phones TEXT NOT NULL,
+      is_active INTEGER DEFAULT 1,
+      expires_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
+    -- Scoped viewer sessions
+    CREATE TABLE IF NOT EXISTS scoped_viewer_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scoped_share_id INTEGER NOT NULL,
+      session_token TEXT NOT NULL UNIQUE,
+      phone TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL,
+      last_activity TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (scoped_share_id) REFERENCES scoped_shares(id) ON DELETE CASCADE
+    );
+
+    -- Scoped share access & audit logs
+    CREATE TABLE IF NOT EXISTS scoped_share_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      scoped_share_id INTEGER,
+      token_prefix TEXT,
+      phone TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (scoped_share_id) REFERENCES scoped_shares(id) ON DELETE SET NULL
+    );
+
     -- Journal entries (header)
     CREATE TABLE IF NOT EXISTS journal_entries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -817,6 +859,10 @@ function initializeSchema(targetDb) {
     CREATE INDEX IF NOT EXISTS idx_pa_partner_name ON payment_allocations(partner_name);
     CREATE INDEX IF NOT EXISTS idx_pa_comp_inv_id ON payment_allocations(sales_company_id, invoice_id);
     CREATE INDEX IF NOT EXISTS idx_pa_cost_center ON payment_allocations(company_id, cost_center_key);
+    CREATE INDEX IF NOT EXISTS idx_scoped_shares_token ON scoped_shares(token);
+    CREATE INDEX IF NOT EXISTS idx_scoped_sessions_token ON scoped_viewer_sessions(session_token);
+    CREATE INDEX IF NOT EXISTS idx_scoped_sessions_share ON scoped_viewer_sessions(scoped_share_id);
+    CREATE INDEX IF NOT EXISTS idx_scoped_logs_share ON scoped_share_logs(scoped_share_id);
   `);
 
   // Seed default sister company partner mappings

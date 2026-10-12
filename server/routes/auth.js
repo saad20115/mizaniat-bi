@@ -10,7 +10,9 @@ const {
   generateAdminToken,
   requireAdmin,
   hashPassword,
-  verifyPassword
+  verifyPassword,
+  normalizePhone,
+  resolveScopedSession
 } = require('../middleware/auth');
 
 // ===== RATE LIMITING (5 failed attempts per IP / 15 minutes) =====
@@ -34,7 +36,11 @@ function recordFailedAttempt(ip) {
 }
 
 function clearFailedAttempts(ip) {
-  failedAttempts.delete(ip);
+  if (ip) {
+    failedAttempts.delete(ip);
+  } else {
+    failedAttempts.clear();
+  }
 }
 
 // ===== ADMIN AUTH =====
@@ -207,6 +213,186 @@ router.get('/viewer/verify', (req, res) => {
   }
 });
 
+// ===== SCOPED SHARE AUTH =====
+
+const scopedFailedAttempts = new Map();
+
+function isScopedRateLimited(key) {
+  const now = Date.now();
+  const timestamps = scopedFailedAttempts.get(key) || [];
+  const recent = timestamps.filter(t => (now - t) < FAILED_LOGIN_WINDOW_MS);
+  scopedFailedAttempts.set(key, recent);
+  return recent.length >= FAILED_LOGIN_LIMIT;
+}
+
+function recordScopedFailedAttempt(key) {
+  const now = Date.now();
+  const timestamps = scopedFailedAttempts.get(key) || [];
+  timestamps.push(now);
+  scopedFailedAttempts.set(key, timestamps);
+}
+
+function clearScopedFailedAttempts(key) {
+  scopedFailedAttempts.delete(key);
+}
+
+// Scoped Share login (token + phone number)
+router.post('/scoped-share/login', (req, res) => {
+  try {
+    const clientIp = req.ip || req.connection?.remoteAddress || '127.0.0.1';
+    const { token, phone } = req.body;
+
+    if (!token || !phone) {
+      return res.status(401).json({
+        error: 'رابط المشاركة أو رقم الجوال غير صحيح',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    const tokenPrefix = String(token).substring(0, 16);
+    const rateLimitKey = `${tokenPrefix}_${clientIp}`;
+
+    if (isScopedRateLimited(rateLimitKey)) {
+      return res.status(429).json({
+        error: 'تم تجاوز عدد محاولات الدخول المسموح بها، يرجى المحاولة بعد 15 دقيقة',
+        code: 'RATE_LIMIT_EXCEEDED'
+      });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+    const userAgent = req.headers['user-agent'] || '';
+    const db = getDb();
+
+    // Query active and unexpired scoped share
+    const share = db.prepare(`
+      SELECT * FROM scoped_shares
+      WHERE token = ? AND is_active = 1
+        AND (expires_at IS NULL OR expires_at > datetime('now'))
+    `).get(token);
+
+    if (!share) {
+      recordScopedFailedAttempt(rateLimitKey);
+      try {
+        db.prepare(`
+          INSERT INTO scoped_share_logs (scoped_share_id, token_prefix, phone, ip_address, user_agent, status)
+          VALUES (NULL, ?, ?, ?, ?, 'INVALID_CREDENTIALS')
+        `).run(tokenPrefix, normalizedPhone, clientIp, userAgent);
+      } catch (e) {}
+      return res.status(401).json({
+        error: 'رابط المشاركة أو رقم الجوال غير صحيح',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    // Verify phone is in allowed_phones
+    let allowedPhones = [];
+    try { allowedPhones = JSON.parse(share.allowed_phones); } catch (e) {}
+    const normalizedAllowed = allowedPhones.map(p => normalizePhone(p));
+
+    if (!normalizedAllowed.includes(normalizedPhone)) {
+      recordScopedFailedAttempt(rateLimitKey);
+      try {
+        db.prepare(`
+          INSERT INTO scoped_share_logs (scoped_share_id, token_prefix, phone, ip_address, user_agent, status)
+          VALUES (?, ?, ?, ?, ?, 'INVALID_CREDENTIALS')
+        `).run(share.id, tokenPrefix, normalizedPhone, clientIp, userAgent);
+      } catch (e) {}
+      return res.status(401).json({
+        error: 'رابط المشاركة أو رقم الجوال غير صحيح',
+        code: 'INVALID_CREDENTIALS'
+      });
+    }
+
+    // Success! Clear rate limiting
+    clearScopedFailedAttempts(rateLimitKey);
+
+    // Create session (12h expiration)
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    db.prepare(`
+      INSERT INTO scoped_viewer_sessions (scoped_share_id, session_token, phone, ip_address, user_agent, expires_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now', '+12 hours'))
+    `).run(share.id, sessionToken, normalizedPhone, clientIp, userAgent);
+
+    // Record success audit log
+    try {
+      db.prepare(`
+        INSERT INTO scoped_share_logs (scoped_share_id, token_prefix, phone, ip_address, user_agent, status)
+        VALUES (?, ?, ?, ?, ?, 'SUCCESS')
+      `).run(share.id, tokenPrefix, normalizedPhone, clientIp, userAgent);
+    } catch (e) {}
+
+    let tabs = [];
+    try { tabs = JSON.parse(share.scope_tabs); } catch (e) {}
+
+    let costCenters = [];
+    try { costCenters = JSON.parse(share.scope_cost_centers); } catch (e) {}
+
+    res.json({
+      success: true,
+      token: sessionToken,
+      share: {
+        id: share.id,
+        name: share.name,
+        tabs,
+        costCenters,
+        allowAdminAllocation: Boolean(share.allow_admin_allocation)
+      },
+      viewer: {
+        phone: normalizedPhone,
+        name: share.name,
+        role: 'scoped_viewer'
+      }
+    });
+  } catch (err) {
+    console.error('Scoped share login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify scoped share session
+router.get('/scoped-share/verify', (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const bearerToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.substring(7) : null;
+    const token = req.headers['x-viewer-token'] || req.headers['x-scoped-token'] || bearerToken;
+    if (!token) {
+      return res.status(401).json({ valid: false, error: 'رمز الجلسة مفقود' });
+    }
+
+    const db = getDb();
+    const scopedUser = resolveScopedSession(token, db);
+    if (!scopedUser) {
+      return res.status(401).json({ valid: false, error: 'الجلسة غير صالحة أو منتهية' });
+    }
+
+    res.json({
+      valid: true,
+      phone: scopedUser.phone,
+      name: scopedUser.displayName,
+      role: 'scoped_viewer',
+      share: scopedUser.scopedShare
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Logout scoped share session
+router.post('/scoped-share/logout', (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const bearerToken = (authHeader && authHeader.startsWith('Bearer ')) ? authHeader.substring(7) : null;
+    const token = req.headers['x-viewer-token'] || req.headers['x-scoped-token'] || bearerToken;
+    if (token) {
+      const db = getDb();
+      db.prepare('DELETE FROM scoped_viewer_sessions WHERE session_token = ?').run(token);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===== VIEWER MANAGEMENT (Admin only) =====
 
 // List all allowed viewers
@@ -303,6 +489,7 @@ const cleanupTimer = setInterval(() => {
   try {
     const db = getDb();
     db.prepare("DELETE FROM viewer_sessions WHERE expires_at <= datetime('now')").run();
+    db.prepare("DELETE FROM scoped_viewer_sessions WHERE expires_at <= datetime('now')").run();
   } catch (e) {}
 
   const now = Date.now();
@@ -311,9 +498,17 @@ const cleanupTimer = setInterval(() => {
     if (recent.length === 0) failedAttempts.delete(ip);
     else failedAttempts.set(ip, recent);
   }
+  for (const [key, timestamps] of scopedFailedAttempts.entries()) {
+    const recent = timestamps.filter(t => (now - t) < FAILED_LOGIN_WINDOW_MS);
+    if (recent.length === 0) scopedFailedAttempts.delete(key);
+    else scopedFailedAttempts.set(key, recent);
+  }
 }, CLEANUP_INTERVAL_MS);
 if (cleanupTimer.unref) cleanupTimer.unref();
 
-router._clearRateLimits = clearFailedAttempts;
+router._clearRateLimits = function() {
+  clearFailedAttempts();
+  scopedFailedAttempts.clear();
+};
 
 module.exports = router;

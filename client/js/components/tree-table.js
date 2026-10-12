@@ -326,6 +326,24 @@ export class TreeTable {
   isNodeSelfZero(node) {
     if (!node) return true;
 
+    // Fast-path: Check common total / net_profit properties directly
+    if (node.total !== undefined && node.total !== null) {
+      const nTot = Number(node.total);
+      if (!isNaN(nTot) && Math.abs(nTot) >= 0.5) return false;
+    }
+    if (node.net_profit !== undefined && node.net_profit !== null) {
+      const nNet = Number(node.net_profit);
+      if (!isNaN(nNet) && Math.abs(nNet) >= 0.5) return false;
+    }
+    if (node.total_revenue !== undefined && node.total_revenue !== null) {
+      const nRev = Number(node.total_revenue);
+      if (!isNaN(nRev) && Math.abs(nRev) >= 0.5) return false;
+    }
+    if (node.total_expenses !== undefined && node.total_expenses !== null) {
+      const nExp = Number(node.total_expenses);
+      if (!isNaN(nExp) && Math.abs(nExp) >= 0.5) return false;
+    }
+
     // Check all visible columns for non-zero displayed numbers
     for (const col of this.columns) {
       if (!col || !col.id) continue;
@@ -344,7 +362,9 @@ export class TreeTable {
       if (val === undefined && node.values) val = node.values[id];
       if (val === undefined || val === null) continue;
 
-      if (typeof col.format === 'function') {
+      if (typeof val === 'number') {
+        if (Math.abs(val) >= 0.5) return false;
+      } else if (typeof col.format === 'function') {
         try {
           const formatted = String(col.format(val, node));
           const stripped = formatted.replace(/<[^>]*>/g, '').replace(/[\s,،ر.سSAR%\u200e\u200f]/g, '');
@@ -392,22 +412,57 @@ export class TreeTable {
     return true;
   }
 
-  isSubtreeZero(node) {
-    if (!this.isNodeSelfZero(node)) return false;
+  isSubtreeZero(node, cache = null) {
+    if (!node) return true;
+    if (cache && cache.has(node)) return cache.get(node);
+    if (!this.isNodeSelfZero(node)) {
+      if (cache) cache.set(node, false);
+      return false;
+    }
     const kids = this.getChildren(node);
     if (Array.isArray(kids) && kids.length > 0) {
       for (const kid of kids) {
-        if (!this.isSubtreeZero(kid)) return false;
+        if (!this.isSubtreeZero(kid, cache)) {
+          if (cache) cache.set(node, false);
+          return false;
+        }
       }
     }
+    if (cache) cache.set(node, true);
     return true;
   }
 
-  getHiddenZeroCount() {
+  countExpandedNodes(forceShowZeros = true) {
+    let count = 0;
+    const subtreeZeroCache = new WeakMap();
+    const traverse = (node, parentPath = '', depth = 0) => {
+      if (!this.normalizedQuery && !forceShowZeros && this.isSubtreeZero(node, subtreeZeroCache)) {
+        return;
+      }
+      if (this.normalizedQuery && !this.hasSearchMatchInSubtree(node)) {
+        return;
+      }
+      count++;
+      const pathKey = this.getNodeKey(node, parentPath, depth);
+      if (this.expandedKeys.has(pathKey)) {
+        const kids = this.getChildren(node) || [];
+        for (const child of kids) {
+          traverse(child, pathKey, depth + 1);
+        }
+      }
+    };
+    const rootList = Array.isArray(this.data) ? this.data : (this.data.rows || []);
+    for (const rootNode of rootList) {
+      traverse(rootNode, '', 0);
+    }
+    return count;
+  }
+
+  getHiddenZeroCount(visibleRows) {
     if (this.showZeroItems) return 0;
-    const rowsOff = this.flattenTree(false);
-    const rowsOn = this.flattenTree(true);
-    return Math.max(0, rowsOn.length - rowsOff.length);
+    const visibleCount = visibleRows ? visibleRows.length : this.countExpandedNodes(false);
+    const totalCount = this.countExpandedNodes(true);
+    return Math.max(0, totalCount - visibleCount);
   }
 
   setShowZeroItems(show) {
@@ -458,10 +513,11 @@ export class TreeTable {
     if (this.normalizedQuery) {
       this.matchedCount = 0;
     }
+    const subtreeZeroCache = new WeakMap();
 
     const traverse = (node, parentPath = '', depth = 0) => {
       // If zero hiding is active, hide entire subtree if all values are zero (only when not searching)
-      if (!this.normalizedQuery && !forceShowZeros && this.isSubtreeZero(node)) {
+      if (!this.normalizedQuery && !forceShowZeros && this.isSubtreeZero(node, subtreeZeroCache)) {
         return;
       }
 
@@ -487,7 +543,7 @@ export class TreeTable {
       const allKids = this.getChildren(node) || [];
       const kids = forceShowZeros 
         ? allKids 
-        : (this.normalizedQuery ? allKids.filter(k => this.hasSearchMatchInSubtree(k)) : allKids.filter(k => !this.isSubtreeZero(k)));
+        : (this.normalizedQuery ? allKids.filter(k => this.hasSearchMatchInSubtree(k)) : allKids.filter(k => !this.isSubtreeZero(k, subtreeZeroCache)));
       
       const hasKids = forceShowZeros 
         ? this.hasChildren(node)
@@ -543,11 +599,12 @@ export class TreeTable {
           const prio = col.priority || 1;
           const isAction = col.id === 'actions';
           const isFlex = !!col.flex;
+          const isVisual = col.id === 'visual' || col.id === 'vat_visual' || col.id === 'aging_visual' || isFlex;
           const wStyle = isAction ? 'width:36px;' : (isFlex ? 'width:auto;' : (col.width ? `width:${col.width};` : 'width:85px;'));
           const minW = isAction ? 'min-width:36px;' : (isFlex ? 'min-width:100px;' : (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:75px;'));
           const maxW = isAction ? 'max-width:36px;' : (isFlex ? '' : (col.maxWidth ? `max-width:${col.maxWidth};` : ''));
-          const colClass = isAction ? 'tree-col-action' : (isFlex ? 'tree-col-visual' : 'tree-col-num');
-          const padStyle = isAction ? 'padding:6px 2px;' : 'padding:6px 8px;';
+          const colClass = isAction ? 'tree-col-action' : (isVisual ? 'tree-col-visual' : 'tree-col-num');
+          const padStyle = isAction ? 'padding:6px 2px;' : (isVisual ? 'padding:6px 6px;' : 'padding:6px 10px;');
           return `<td data-col-id="${col.id}" data-priority="${prio}" class="${colClass}" style="text-align:${col.align || 'left'};${wStyle}${minW}${maxW}${padStyle}">${formatted}</td>`;
         }).join('')}
       </tr>
@@ -694,7 +751,7 @@ export class TreeTable {
 
   render() {
     const visibleRows = this.flattenTree();
-    this.hiddenZeroCount = this.getHiddenZeroCount();
+    this.hiddenZeroCount = this.showZeroItems ? 0 : this.getHiddenZeroCount(visibleRows);
     if (typeof this.onHiddenCountChange === 'function') {
       try { this.onHiddenCountChange(this.hiddenZeroCount); } catch (e) {}
     }
@@ -709,14 +766,15 @@ export class TreeTable {
             const isFirst = idx === 0;
             const isAction = col.id === 'actions';
             const isFlex = !!col.flex;
+            const isVisual = col.id === 'visual' || col.id === 'vat_visual' || col.id === 'aging_visual' || isFlex;
             const prio = col.priority || 1;
             const wStyle = isFirst ? 'width:auto;' : (isAction ? 'width:36px;' : (isFlex ? 'width:auto;' : (col.width ? `width:${col.width};` : 'width:85px;')));
             const minW = isFirst ? (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:160px;') : (isAction ? 'min-width:36px;' : (isFlex ? 'min-width:100px;' : (col.minWidth ? `min-width:${col.minWidth};` : 'min-width:75px;')));
             const maxW = isFirst ? '' : (isAction ? 'max-width:36px;' : (isFlex ? '' : (col.maxWidth ? `max-width:${col.maxWidth};` : '')));
-            const align = col.align || (isFirst ? 'right' : 'left');
+            const align = col.align || (isFirst ? 'right' : (isVisual ? 'center' : 'left'));
             const colColor = col.color ? `color:${col.color};` : '';
-            const padStyle = isAction ? 'padding:6px 2px;' : 'padding:12px 10px;';
-            const colClass = isFirst ? 'tree-col-name' : (isAction ? 'tree-col-action' : (isFlex ? 'tree-col-visual' : 'tree-col-num'));
+            const padStyle = isAction ? 'padding:6px 2px;' : (isFirst ? 'padding:12px 14px;' : (isVisual ? 'padding:12px 6px;' : 'padding:12px 10px;'));
+            const colClass = isFirst ? 'tree-col-name' : (isAction ? 'tree-col-action' : (isVisual ? 'tree-col-visual' : 'tree-col-num'));
             return `
               <th data-col-id="${col.id}" data-priority="${prio}" ${col.title ? `title="${escapeHtml(col.title)}"` : ''} class="${colClass}" style="text-align:${align};font-size:12px;font-weight:500;${wStyle}${minW}${maxW}${colColor}${padStyle}">
                 ${escapeHtml(col.label)}
@@ -773,7 +831,7 @@ export class TreeTable {
             مجموع النتائج الظاهرة (${this.matchedCount} نتيجة):
           </td>
           ${this.columns.slice(1).map(col => {
-            if (col.id === 'actions' || col.id === 'visual' || col.id === 'aging_visual') {
+            if (col.id === 'actions' || col.id === 'visual' || col.id === 'vat_visual' || col.id === 'aging_visual' || col.flex) {
               return `<td class="tree-col-action" style="padding:12px 2px;"></td>`;
             }
             const val = searchTotals[col.id] !== undefined ? searchTotals[col.id] : null;
@@ -781,7 +839,7 @@ export class TreeTable {
             if (val !== null && !isNaN(val)) {
               formatted = col.format ? col.format(val, searchTotals) : Math.round(val).toLocaleString('en-US');
             }
-            return `<td class="tree-col-num" data-col-id="${col.id}" style="text-align:${col.align || 'left'};padding:12px 14px;color:var(--status-warning);">${formatted}</td>`;
+            return `<td class="tree-col-num tabular-nums" data-col-id="${col.id}" style="text-align:${col.align || 'left'};padding:12px 10px;color:var(--status-warning);">${formatted}</td>`;
           }).join('')}
         </tr>
       `;

@@ -522,6 +522,7 @@ async function runVerifyUI() {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Network.enable');
+    await cdp.send('Network.setBlockedURLs', { urls: ['*kaspersky*', '*kis.v2.scr*'] });
 
     await cdp.send('Page.addScriptToEvaluateOnNewDocument', {
       source: `
@@ -2132,24 +2133,74 @@ async function runVerifyUI() {
     const mutateRes = await cdp.eval(`
       (async () => {
         const token = localStorage.getItem('mizaniat_admin_token');
+        const getRes = await fetch('/api/companies', {
+          headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        });
+        const companies = await getRes.json();
+        const origVat = companies.find(c => c.id === 1)?.vat_period || 'quarterly';
+        const newVat = origVat === 'monthly' ? 'quarterly' : 'monthly';
         const res = await fetch('/api/companies/1/vat-period', {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ vat_period: 'quarterly' })
+          body: JSON.stringify({ vat_period: newVat })
         });
         const mutateData = await res.json();
         const statsRes = await fetch('/api/cache/stats', {
           headers: token ? { 'Authorization': 'Bearer ' + token } : {}
         });
         const statsData = await statsRes.json();
+        // Restore original vat_period
+        await fetch('/api/companies/1/vat-period', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ vat_period: origVat })
+        });
         return { mutateData, statsData };
       })()
     `);
     const vAfter = mutateRes?.statsData?.dataVersion || vBefore;
     assert(vAfter > vBefore, `R2-8 Invalidation: dataVersion incremented on live mutation (${vBefore} -> ${vAfter})`);
+
+    // SH1-R3: UI Verification of Client Cache Invalidation for Profitability & Customers
+    console.log('  Testing SH1-R3 Client Cache Invalidation for Profitability & Customers tabs...');
+    // Mark window to verify no full page reload happens
+    await cdp.eval('window.__no_reload_marker = "active";');
+    
+    // Visit profitability tab to populate cache
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"profitability\\"]")?.click();');
+    await waitForTabReady(cdp, 'profitability', 5000);
+    
+    // Visit customers tab to populate cache
+    await cdp.eval('document.querySelector(".bi-tab[data-tab=\\"customers\\"]")?.click();');
+    await waitForTabReady(cdp, 'customers', 5000);
+    
+    const sizesBefore = await cdp.eval(`({
+      prof: window.__getProfitabilityClientCacheSize ? window.__getProfitabilityClientCacheSize() : 0,
+      cust: window.__getCustomersClientCacheSize ? window.__getCustomersClientCacheSize() : 0
+    })`);
+    assert(sizesBefore.prof > 0 && sizesBefore.cust > 0, `SH1-R3: Client caches populated before refresh (prof: ${sizesBefore.prof}, cust: ${sizesBefore.cust})`);
+    
+    // Click Refresh button in the UI
+    await cdp.eval('document.querySelector("#btn-refresh")?.click();');
+    await sleep(400);
+    
+    // Confirm no page reload occurred
+    const markerVal = await cdp.eval('window.__no_reload_marker');
+    assert(markerVal === 'active', 'SH1-R3: UI refresh performed without page reload');
+    
+    // Central invalidation directly clears both registered caches
+    await cdp.eval('window.__invalidateClientCache && window.__invalidateClientCache();');
+    const sizesAfterDirect = await cdp.eval(`({
+      prof: window.__getProfitabilityClientCacheSize ? window.__getProfitabilityClientCacheSize() : -1,
+      cust: window.__getCustomersClientCacheSize ? window.__getCustomersClientCacheSize() : -1
+    })`);
+    assert(sizesAfterDirect.prof === 0 && sizesAfterDirect.cust === 0, `SH1-R3: Central invalidation clears all client caches (prof: ${sizesAfterDirect.prof}, cust: ${sizesAfterDirect.cust})`);
 
     // ──────────────────────────────────────────
     // TEST 7.5: RESP1 — Multi-Resolution Responsive, Layout & Theming Suite
@@ -3386,6 +3437,253 @@ async function runVerifyUI() {
       console.log(`  │ ${namePadded} │ ${effPadded} │  ${r.status}  │`);
     });
     console.log('  └─────────────────────────────────────┴────────────────────────────────────┴────────┘\n');
+
+    // ──────────────────────────────────────────
+    // TEST 8.9: UI2-1 Numeric Column Alignment Invariant (All 6 Tabs @ 1280, 1440, 1920)
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.9. UI2-1 Numeric Column Alignment Invariant (1280, 1440, 1920) ---');
+
+    const ui2Viewports = [1280, 1440, 1920];
+    const ui2Tabs = ['executive', 'customers', 'profitability', 'guarantees', 'vat', 'actual-collections'];
+    let totalUi2ColumnsEvaluated = 0;
+    let totalUi2Violations = 0;
+
+    for (const width of ui2Viewports) {
+      await cdp.send('Emulation.setDeviceMetricsOverride', {
+        width,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await sleep(300);
+
+      for (const tab of ui2Tabs) {
+        await cdp.send('Page.navigate', {
+          url: `http://localhost:${APP_PORT}/index.html?page=presentation&tab=${tab}&token=${adminToken}`
+        });
+        await waitForTabReady(cdp, tab, 15000);
+        await sleep(300);
+
+        if (tab === 'actual-collections') {
+          for (let i = 0; i < 30; i++) {
+            const ready = await cdp.eval(`(() => {
+              const t = document.querySelector('#col-series-tbody');
+              return !!(t && t.children.length > 0);
+            })()`);
+            if (ready) break;
+            await sleep(100);
+          }
+        }
+
+        const metrics = await cdp.eval(`(() => {
+          function getTextBounds(el) {
+            if (!el) return null;
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const rects = range.getClientRects();
+            if (rects.length > 0) return range.getBoundingClientRect();
+            return el.getBoundingClientRect();
+          }
+
+          const tables = Array.from(document.querySelectorAll('table')).filter(t => {
+            if (t.offsetParent === null) return false;
+            const drawer = t.closest('#vat-drawer, .drawer');
+            if (drawer) {
+              const dStyle = window.getComputedStyle(drawer);
+              if (dStyle.transform.includes('-') || dStyle.visibility === 'hidden' || dStyle.display === 'none' || drawer.style.transform.includes('-100%')) return false;
+            }
+            return true;
+          });
+          const alignResults = [];
+          const nonTreeResults = [];
+          const overflowResults = [];
+
+          tables.forEach((table, tIdx) => {
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            if (!thead || !tbody) return;
+
+            const headerRow = thead.rows[0];
+            if (!headerRow) return;
+
+            const ths = Array.from(headerRow.cells);
+            const isTreeTable = table.classList.contains('exec-table') || table.closest('.tree-table-wrap') !== null || (table.id && table.id.includes('tree'));
+            const isBiTable = table.classList.contains('bi-table');
+            const isGrTable = table.classList.contains('gr-table');
+            const isNonTree = !isTreeTable && (isBiTable || isGrTable);
+
+            // Filter rows to those with matching cell counts to avoid offset mismatches on colspan footers
+            const checkRows = Array.from(tbody.rows).filter(r => r.cells.length === ths.length).slice(0, 10);
+            const tfoot = table.querySelector('tfoot');
+            if (tfoot && tfoot.rows.length > 0) {
+              checkRows.push(...Array.from(tfoot.rows).filter(r => r.cells.length === ths.length));
+            }
+
+            const numericColIndices = [];
+
+            ths.forEach((th, colIdx) => {
+              const thText = (th.innerText || '').trim();
+              if (!thText) return;
+
+              // Determine if column is numeric
+              const isThNumeric = th.classList.contains('tree-col-num') || th.classList.contains('col-num') || th.classList.contains('num') || th.dataset.colId === 'inv_count' || th.dataset.colId === 'payments_count';
+              const isThVisualOrAction = th.classList.contains('tree-col-visual') || th.classList.contains('tree-col-action') || th.classList.contains('col-center') || th.dataset.colId === 'actions' || th.dataset.colId === 'vat_visual' || th.dataset.colId === 'contribution' || th.dataset.colId === 'collection_rate' || thText === '#' || thText === 'الإجراءات';
+              if (isThVisualOrAction) return;
+
+              let hasNumericCell = isThNumeric;
+              checkRows.forEach(row => {
+                const td = row.cells[colIdx];
+                if (!td || td.colSpan > 1) return;
+                if (td.classList.contains('tree-col-num') || td.classList.contains('col-num') || td.classList.contains('num') || td.classList.contains('tabular-nums')) {
+                  hasNumericCell = true;
+                }
+              });
+
+              if (!hasNumericCell) return;
+              numericColIndices.push(colIdx);
+
+              const thBounds = getTextBounds(th);
+              if (!thBounds || thBounds.width === 0) return;
+
+              let maxGap = 0;
+              let comparedCount = 0;
+              checkRows.forEach(row => {
+                const td = row.cells[colIdx];
+                if (!td || td.colSpan > 1) return;
+                const tdText = (td.innerText || '').trim();
+                if (!tdText || tdText === '—') return;
+                const tdBounds = getTextBounds(td);
+                if (!tdBounds || tdBounds.width === 0) return;
+
+                const leftGap = Math.abs(thBounds.left - tdBounds.left);
+                const rightGap = Math.abs(thBounds.right - tdBounds.right);
+                const colGap = Math.min(leftGap, rightGap);
+                if (colGap > maxGap) maxGap = colGap;
+                comparedCount++;
+              });
+
+              if (comparedCount > 0) {
+                alignResults.push({
+                  tableIdx: tIdx,
+                  colIdx,
+                  label: thText,
+                  maxGap: Math.round(maxGap * 10) / 10,
+                  violates: maxGap > 2
+                });
+              }
+            });
+
+            // UI2-1 Space Distribution checks for Non-Tree tables
+            if (isNonTree && numericColIndices.length >= 2) {
+              const numWidths = numericColIndices.map(cIdx => Math.round(ths[cIdx].getBoundingClientRect().width));
+              const minW = Math.min(...numWidths);
+              const maxW = Math.max(...numWidths);
+              const variancePct = minW > 0 ? Math.round(((maxW - minW) / minW) * 1000) / 10 : 0;
+
+              // Check adjacent numeric text gaps
+              let maxAdjGap = 0;
+              for (let i = 0; i < numericColIndices.length - 1; i++) {
+                const b1 = getTextBounds(ths[numericColIndices[i]]);
+                const b2 = getTextBounds(ths[numericColIndices[i + 1]]);
+                if (b1 && b2 && b1.width > 0 && b2.width > 0) {
+                  const g = Math.abs(b1.left - b2.right);
+                  if (g > maxAdjGap) maxAdjGap = g;
+                }
+              }
+
+              nonTreeResults.push({
+                tableIdx: tIdx,
+                numColCount: numericColIndices.length,
+                numWidths,
+                variancePct,
+                varianceViolates: variancePct > 10,
+                maxAdjGap: Math.round(maxAdjGap),
+                maxNumWidth: maxW,
+                gapRatio: Math.round((maxAdjGap / maxW) * 10) / 10,
+                gapViolates: maxAdjGap > 1.5 * maxW
+              });
+            } else if (isNonTree && numericColIndices.length === 1 && isGrTable) {
+              // Guarantees table (single numeric column: المبلغ): max-width <= 220px
+              const maxW = Math.round(ths[numericColIndices[0]].getBoundingClientRect().width);
+              nonTreeResults.push({
+                tableIdx: tIdx,
+                numColCount: 1,
+                numWidths: [maxW],
+                variancePct: 0,
+                varianceViolates: false,
+                maxAdjGap: 0,
+                maxNumWidth: maxW,
+                gapRatio: 0,
+                gapViolates: maxW > 220
+              });
+            }
+
+            // UI2-2: Zero cell overflow and zero button/link overflow invariant
+            const tRect = table.getBoundingClientRect();
+            const allCells = Array.from(table.querySelectorAll('th, td')).filter(c => c.offsetParent !== null);
+            allCells.forEach(cell => {
+              // (1) Check scrollWidth vs clientWidth (allowing 1px rounding tolerance)
+              if (cell.scrollWidth > cell.clientWidth + 1) {
+                overflowResults.push({
+                  type: 'cell-overflow',
+                  tableIdx: tIdx,
+                  text: cell.innerText.trim().slice(0, 30),
+                  scrollWidth: cell.scrollWidth,
+                  clientWidth: cell.clientWidth,
+                  diff: cell.scrollWidth - cell.clientWidth
+                });
+              }
+
+              // (2) Check button/link/interactive element bounds vs cell and table container
+              const interactive = Array.from(cell.querySelectorAll('button, a, .gr-btn, input'));
+              const cRect = cell.getBoundingClientRect();
+              interactive.forEach(btn => {
+                const bRect = btn.getBoundingClientRect();
+                if (bRect.width === 0 || bRect.height === 0) return;
+                const leftOverflow = Math.max(0, cRect.left - bRect.left);
+                const rightOverflow = Math.max(0, bRect.right - cRect.right);
+                const tableRightOverflow = Math.max(0, bRect.right - tRect.right);
+                const tableLeftOverflow = Math.max(0, tRect.left - bRect.left);
+
+                if (leftOverflow > 1 || rightOverflow > 1 || tableRightOverflow > 1 || tableLeftOverflow > 1) {
+                  overflowResults.push({
+                    type: 'button-overflow',
+                    tableIdx: tIdx,
+                    btnText: btn.innerText.trim() || btn.className,
+                    cellText: cell.innerText.trim().slice(0, 30),
+                    leftOverflow,
+                    rightOverflow,
+                    tableRightOverflow,
+                    tableLeftOverflow
+                  });
+                }
+              });
+            });
+          });
+
+          return { alignResults, nonTreeResults, overflowResults };
+        })()`);
+
+        const alignResults = metrics?.alignResults || [];
+        const nonTreeResults = metrics?.nonTreeResults || [];
+        const overflowViolations = metrics?.overflowResults || [];
+        const violations = alignResults.filter(m => m.violates);
+        const nonTreeViolations = nonTreeResults.filter(m => m.varianceViolates || m.gapViolates);
+
+        totalUi2ColumnsEvaluated += alignResults.length;
+        totalUi2Violations += (violations.length + nonTreeViolations.length + overflowViolations.length);
+
+        assert(alignResults.length > 0, `UI2-1 [${tab} @ ${width}px]: Evaluated at least one numeric column (found: ${alignResults.length})`);
+        assert(violations.length === 0, `UI2-1 Alignment [${tab} @ ${width}px]: All ${alignResults.length} numeric columns align within 2px (violations: ${violations.length})`);
+        assert(nonTreeViolations.length === 0, `UI2-1 Space Distribution [${tab} @ ${width}px]: Non-tree tables satisfy variance <=10% and gap <=1.5x (violations: ${nonTreeViolations.length})`);
+        if (overflowViolations.length > 0) {
+          console.error(`  [Overflow Details ${tab} @ ${width}px]:`, JSON.stringify(overflowViolations));
+        }
+        assert(overflowViolations.length === 0, `UI2-2 Zero Overflow [${tab} @ ${width}px]: Zero cell or button overflows detected in tables (violations: ${overflowViolations.length})`);
+      }
+    }
+
+    console.log(`  ✅ UI2-1 Numeric Column Alignment & Space Distribution Invariant passed! (Total evaluated: ${totalUi2ColumnsEvaluated}, Violations: ${totalUi2Violations})\n`);
 
     // ──────────────────────────────────────────
     // TEST 9: Zero Console Errors

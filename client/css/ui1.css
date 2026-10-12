@@ -1037,20 +1037,22 @@ body table.gr-table th,
 body table.bi-table th,
 body .bi-table th,
 body table th,
-body th.tree-col-num,
 body th.tree-col-name,
-body th.tree-col-visual,
-body th.tree-col-action,
 body.light-theme table.exec-table th,
 body.light-theme .tree-table-wrap th,
 body.light-theme table.bi-table th,
+body.light-theme table.gr-table th,
 [data-theme] table.exec-table th,
 [data-theme] .tree-table-wrap th,
 [data-theme] table.bi-table th,
+[data-theme] table.gr-table th,
 .exec-table th,
 .bi-table th {
-  padding: 12px 10px !important;
-  text-align: right !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  text-align: right;
   font-size: 12px !important;
   font-weight: 500 !important;
   line-height: 18px !important;
@@ -1060,6 +1062,196 @@ body.light-theme table.bi-table th,
   vertical-align: middle !important;
   white-space: nowrap !important;
   box-sizing: border-box !important;
+}
+
+/* UI2-1 Standards: Strict Column Alignment & Padding Symmetry */
+/* Numeric columns in all tables: header & cells left-aligned with identical padding */
+body .tree-table-wrap th.tree-col-num,
+body table.exec-table th.tree-col-num,
+body .tree-table-wrap td.tree-col-num,
+body table.exec-table td.tree-col-num,
+th.tree-col-num,
+td.tree-col-num,
+th.col-num,
+td.col-num,
+table.bi-table th.col-num,
+table.bi-table td.col-num,
+table.gr-table th.num,
+table.gr-table td.num {
+  text-align: left !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  box-sizing: border-box !important;
+}
+
+/* Statement / Description / Period / Name column (first column and text columns): right-aligned */
+body .tree-table-wrap th.tree-col-name,
+body table.exec-table th.tree-col-name,
+body .tree-table-wrap td.tree-col-name,
+body table.exec-table td.tree-col-name,
+body table.bi-table th.col-name,
+body table.bi-table td.col-name,
+th.tree-col-name,
+th.col-name,
+td.col-name,
+td.tree-col-name,
+table.bi-table th.col-name,
+table.bi-table td.col-name {
+  text-align: right !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  box-sizing: border-box !important;
+}
+
+/* Centered columns (#, Actions) */
+th.col-center,
+td.col-center,
+body .tree-table-wrap th.tree-col-action,
+body table.exec-table th.tree-col-action,
+body .tree-table-wrap td.tree-col-action,
+body table.exec-table td.tree-col-action,
+th.tree-col-action,
+td.tree-col-action {
+  text-align: center !important;
+  box-sizing: border-box !important;
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  width: 44px !important;
+  min-width: 40px !important;
+}
+
+/* Centered visual columns (VAT output/input visual, aging visual) */
+th.tree-col-visual,
+td.tree-col-visual,
+body .tree-table-wrap th.tree-col-visual,
+body .tree-table-wrap td.tree-col-visual,
+#vat-tree-container th.tree-col-visual,
+#vat-tree-container td.tree-col-visual {
+  text-align: center !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  box-sizing: border-box !important;
+}
+
+/* UI2-1 Alternative Space Distribution for Non-Tree Tables */
+table.bi-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+/* Statement / Period / Company column (first column): fixed 22-28% (25%), min-width 180px */
+table.bi-table th.col-name:first-child,
+table.bi-table td.col-name:first-child,
+table.bi-table th:first-child,
+table.bi-table td:first-child {
+  width: 25% !important;
+  min-width: 180px !important;
+  text-align: right !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  box-sizing: border-box !important;
+}
+
+/* Remaining width split equally across numeric columns */
+table.bi-table th.col-num,
+table.bi-table td.col-num {
+  width: auto !important;
+  white-space: nowrap !important;
+  text-align: left !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  box-sizing: border-box !important;
+}
+
+/* Guarantees Table layout */
+table.gr-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+
+body table.gr-table th,
+body table.gr-table td,
+body.light-theme table.gr-table th,
+body.light-theme table.gr-table td,
+[data-theme] table.gr-table th,
+[data-theme] table.gr-table td,
+table.gr-table th,
+table.gr-table td {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  box-sizing: border-box !important;
+}
+
+body table.gr-table th:not(.num):not(.col-actions),
+body table.gr-table td:not(.num):not(.col-actions),
+body.light-theme table.gr-table th:not(.num):not(.col-actions),
+body.light-theme table.gr-table td:not(.num):not(.col-actions),
+[data-theme] table.gr-table th:not(.num):not(.col-actions),
+[data-theme] table.gr-table td:not(.num):not(.col-actions),
+table.gr-table th:not(.num):not(.col-actions),
+table.gr-table td:not(.num):not(.col-actions) {
+  text-align: right !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+table.gr-table th.num,
+table.gr-table td.num {
+  width: 140px !important;
+  max-width: 220px !important;
+  text-align: left !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+}
+
+/* Guarantees Actions column (UI2-2): ensure width fits both buttons without clipping */
+table.gr-table th.col-actions,
+table.gr-table td.col-actions,
+table.gr-table th:last-child:not(.num),
+table.gr-table td:last-child:not(.num) {
+  width: 135px !important;
+  min-width: 130px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+}
+
+.gr-btn {
+  white-space: nowrap !important;
+}
+
+/* Rule 3: Totals row / tfoot alignment */
+.exec-sticky-footer td.tree-col-num,
+.exec-totals-row td.tree-col-num,
+.exec-table tfoot tr td.tree-col-num,
+.bi-table tfoot tr td.col-num {
+  text-align: left !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.exec-sticky-footer td.tree-col-name,
+.exec-totals-row td.tree-col-name,
+.exec-table tfoot tr td.tree-col-name,
+.bi-table tfoot tr td.col-name {
+  text-align: right !important;
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+}
+
+body tr[data-tree-row="true"] {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 36px;
 }
 
 body .tree-table-wrap td,
@@ -1134,10 +1326,40 @@ body.light-theme .exec-table tfoot tr td,
   background: var(--bg-subtle) !important;
   font-weight: 600 !important;
   font-size: 13px !important;
-  padding: 12px 14px !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
   border-top: 1px solid var(--border-default) !important;
   border-bottom: none !important;
   color: var(--text-primary) !important;
+}
+
+body .exec-sticky-footer td.tree-col-num,
+body .exec-table tfoot tr td.tree-col-num,
+body .tree-table-wrap tfoot tr td.tree-col-num,
+body.light-theme .exec-table tfoot tr td.tree-col-num,
+[data-theme] .exec-table tfoot tr td.tree-col-num,
+.exec-sticky-footer td.tree-col-num,
+.exec-table tfoot tr td.tree-col-num,
+.bi-table tfoot tr td.col-num,
+table.gr-table tfoot tr td.num {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  text-align: left !important;
+  font-family: var(--font-en) !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+body .exec-sticky-footer td.tree-col-name,
+body .exec-table tfoot tr td.tree-col-name,
+body .tree-table-wrap tfoot tr td.tree-col-name,
+body.light-theme .exec-table tfoot tr td.tree-col-name,
+[data-theme] .exec-table tfoot tr td.tree-col-name,
+.exec-sticky-footer td.tree-col-name,
+.exec-table tfoot tr td.tree-col-name,
+.bi-table tfoot tr td.col-name {
+  padding-left: 14px !important;
+  padding-right: 14px !important;
+  text-align: right !important;
 }
 
 /* Ensure desktop responsive does not shrink headers or cells below 12px/13px */
@@ -1379,7 +1601,9 @@ body.light-theme #gr-kpi-ledger-amt,
   box-sizing: border-box !important;
 }
 
+#vat-tree-container th.tree-col-num,
 #vat-tree-container td.tree-col-num,
+.vat-treetable-container th.tree-col-num,
 .vat-treetable-container td.tree-col-num,
 #vat-tree-container tr.exec-totals-row td.tree-col-num {
   overflow: visible !important;
@@ -1441,19 +1665,113 @@ body.light-theme #gr-kpi-ledger-amt,
 }
 
 /* 4. Table Numeric Cells across all tabs: No ellipsis, proper padding */
+body .tree-table-wrap th.tree-col-num,
+body table.exec-table th.tree-col-num,
 body .tree-table-wrap td.tree-col-num,
 body table.exec-table td.tree-col-num,
+th.tree-col-num,
 td.tree-col-num,
+th.col-num,
+td.col-num,
+table.bi-table th.col-num,
+table.bi-table td.col-num,
+table.gr-table th.num,
+table.gr-table td.num,
 td.exec-num,
-table td.tabular-nums {
-  padding-left: 8px !important;
-  padding-right: 8px !important;
+table td.tabular-nums,
+body .exec-sticky-footer td.tree-col-num,
+body .exec-table tfoot tr td.tree-col-num,
+body .tree-table-wrap tfoot tr td.tree-col-num,
+.exec-totals-row td.tree-col-num,
+.bi-table tfoot tr td.col-num,
+table.gr-table tfoot tr td.num {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
   font-family: var(--font-en) !important;
   font-variant-numeric: tabular-nums !important;
   font-size: 13px !important;
   white-space: nowrap !important;
   overflow: visible !important;
   text-overflow: clip !important;
+  text-align: left !important;
 }
 
+#vat-tree-container th.tree-col-num,
+#vat-tree-container td.tree-col-num,
+.vat-treetable-container th.tree-col-num,
+.vat-treetable-container td.tree-col-num,
+#vat-tree-container tr.exec-totals-row td.tree-col-num {
+  padding-left: 8px !important;
+  padding-right: 8px !important;
+  text-align: right !important;
+}
 
+/* UI2-2: Action columns (#, buttons) across all tree tables and views */
+body table.exec-table th.tree-col-action,
+body table.exec-table td.tree-col-action,
+body .tree-table-wrap th.tree-col-action,
+body .tree-table-wrap td.tree-col-action,
+#vat-tree-container th.tree-col-action,
+#vat-tree-container td.tree-col-action,
+th.tree-col-action,
+td.tree-col-action {
+  padding-left: 2px !important;
+  padding-right: 2px !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  width: 48px !important;
+  min-width: 44px !important;
+  max-width: 52px !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+/* SH1: Scoped Share Management Modal & Viewer Badges */
+.scoped-share-card {
+  background: var(--bg-subtle, rgba(255,255,255,0.03));
+  border: 1px solid var(--border-default, rgba(255,255,255,0.08));
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+.scoped-share-card:hover {
+  border-color: var(--border-hover, rgba(255,255,255,0.15));
+}
+.badge-status-active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+.badge-status-inactive {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+.scoped-log-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.scoped-log-table th {
+  background: var(--bg-subtle, rgba(255,255,255,0.04));
+  color: var(--text-muted);
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--border-default);
+}
+.scoped-log-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}

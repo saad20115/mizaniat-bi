@@ -320,15 +320,15 @@ async function loadGuaranteesData(container, options = {}) {
             <table class="gr-table" style="width:100% !important;min-width:100%;">
               <thead>
                 <tr>
-                  <th style="width:40px;text-align:center">#</th>
-                  <th style="width:110px">الحالة</th>
-                  <th style="width:95px">التاريخ</th>
-                  <th style="width:140px">رقم القيد</th>
-                  <th style="width:140px">الحساب</th>
-                  <th style="width:auto;min-width:200px">البيان والملاحظات</th>
-                  <th style="width:140px">الطرف</th>
-                  <th style="width:115px;text-align:left">المبلغ</th>
-                  ${!isViewer ? '<th style="width:75px;text-align:center">الإجراءات</th>' : ''}
+                  <th style="width:36px;text-align:center">#</th>
+                  <th style="width:90px">الحالة</th>
+                  <th style="width:90px">التاريخ</th>
+                  <th style="width:145px">رقم القيد</th>
+                  <th style="width:75px">الحساب</th>
+                  <th style="width:auto;min-width:140px">البيان والملاحظات</th>
+                  <th style="width:75px">الطرف</th>
+                  <th class="num" style="width:115px;text-align:left">المبلغ</th>
+                  ${!isViewer ? '<th class="col-actions" style="width:135px;text-align:center">الإجراءات</th>' : ''}
                 </tr>
               </thead>
               <tbody>
@@ -370,7 +370,7 @@ async function loadGuaranteesData(container, options = {}) {
               <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8)">${escapeHtml(item.partner || '')}</td>
               <td class="num" style="color:${isSub ? 'var(--gr-sub-amt-color, #c084fc)' : 'var(--gr-amt-color, #34d399)'}">${fmt(item.amount)}</td>
               ${!isViewer ? `
-                <td style="text-align:center;white-space:nowrap">
+                <td class="col-actions" style="text-align:center;white-space:nowrap">
                   <div style="display:inline-flex;gap:4px;align-items:center;">
                     ${isSub ? `
                       <button class="gr-btn gr-btn-release" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="0" title="إفراج عن البند الفرعي">إفراج</button>
@@ -418,7 +418,7 @@ async function loadGuaranteesData(container, options = {}) {
                 <td style="font-size:0.8rem;color:var(--exec-text-dim, #94a3b8)">${escapeHtml(item.partner || '')}</td>
                 <td class="num" style="color:var(--exec-text-dim, #94a3b8)">${fmt(item.amount)}</td>
                 ${!isViewer ? `
-                  <td style="text-align:center;white-space:nowrap">
+                  <td class="col-actions" style="text-align:center;white-space:nowrap">
                     <div style="display:inline-flex;gap:4px;align-items:center;">
                       ${isSub ? `
                         <button class="gr-btn gr-btn-unrelease" data-action="toggle-sub" data-subid="${item.subItemId}" data-released="1" title="إلغاء إفراج البند الفرعي">إلغاء</button>

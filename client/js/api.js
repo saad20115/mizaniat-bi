@@ -2,6 +2,7 @@ const API_BASE = '/api';
 
 // In-flight request deduplication map for GET requests
 const inflightRequests = new Map();
+let currentClientDataVersion = null;
 
 async function request(endpoint, options = {}) {
   const method = (options.method || 'GET').toUpperCase();
@@ -50,6 +51,16 @@ async function request(endpoint, options = {}) {
         throw new Error('جلسة غير صالحة');
       }
 
+      // Check server data version and invalidate local client caches if changed
+      const serverVersion = res.headers ? res.headers.get('x-data-version') : null;
+      if (serverVersion) {
+        if (currentClientDataVersion !== null && currentClientDataVersion !== serverVersion) {
+          console.log(`[API] Server dataVersion changed (${currentClientDataVersion} -> ${serverVersion}), invalidating client caches`);
+          invalidateClientCache();
+        }
+        currentClientDataVersion = serverVersion;
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || err.message || `HTTP ${res.status}`);
@@ -71,13 +82,33 @@ async function request(endpoint, options = {}) {
 
 // Session-level cache for static or low-churn metadata (companies, filters)
 const sessionCache = new Map();
+const clientCacheInvalidators = new Set();
+
+export function registerClientCacheInvalidator(fn) {
+  if (typeof fn === 'function') {
+    clientCacheInvalidators.add(fn);
+  }
+}
 
 export function invalidateClientCache() {
   sessionCache.clear();
+  for (const fn of clientCacheInvalidators) {
+    try {
+      fn();
+    } catch (e) {
+      console.error('[API] Cache invalidator error:', e);
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__invalidateClientCache = invalidateClientCache;
 }
 
 export const api = {
   clearCache: invalidateClientCache,
+  invalidateClientCache,
+  registerClientCacheInvalidator,
 
   // Companies
   getCompanies: async (options = {}) => {
@@ -143,6 +174,11 @@ export const api = {
   createPresentationShare: (data) => request('/presentation/share', { method: 'POST', body: data }),
   getPresentationShareData: (token) => request(`/presentation/share/${token}`),
   deletePresentationShare: (id) => request(`/presentation/share/${id}`, { method: 'DELETE' }),
+  getScopedShares: () => request('/presentation/scoped-shares'),
+  createScopedShare: (data) => request('/presentation/scoped-shares', { method: 'POST', body: data }),
+  updateScopedShare: (id, data) => request(`/presentation/scoped-shares/${id}`, { method: 'PUT', body: data }),
+  deleteScopedShare: (id) => request(`/presentation/scoped-shares/${id}`, { method: 'DELETE' }),
+  getScopedShareLogs: (id) => request(`/presentation/scoped-shares/${id}/logs`),
   createClosingEntry: (data) => request('/closing-entry', { method: 'POST', body: data }),
   getClosingEntries: (params) => request(`/closing-entries?${buildQuery(params)}`),
   deleteClosingEntry: (params) => request(`/closing-entry?${buildQuery(params)}`, { method: 'DELETE' }),
