@@ -2476,16 +2476,21 @@ class ConsolidationEngine {
     let cleanAnalytic = (analyticAccount || '').replace(/\s+/g, ' ').trim();
     let cleanCostCenterId = costCenterId || null;
 
+    let ambiguousJournal = false;
     if (!cleanAnalytic && !cleanCostCenterId && journalId && companyId) {
       try {
+        // Fall back to the journal's analytic account only when the journal maps to exactly ONE analytic account.
+        // A journal mapped to several (e.g. a company-wide sales journal) must not hand its first mapping to untagged lines.
         const mapped = this.db.prepare(`
-          SELECT analytic_account 
+          SELECT DISTINCT TRIM(analytic_account) as analytic_account
           FROM analytic_group_mapping 
-          WHERE company_id = ? AND journal_id = ? AND analytic_account IS NOT NULL AND analytic_account != ''
-          LIMIT 1
-        `).get(companyId, journalId);
-        if (mapped && mapped.analytic_account) {
-          cleanAnalytic = mapped.analytic_account.replace(/\s+/g, ' ').trim();
+          WHERE company_id = ? AND journal_id = ? AND analytic_account IS NOT NULL AND TRIM(analytic_account) != ''
+          LIMIT 2
+        `).all(companyId, journalId);
+        if (mapped.length === 1 && mapped[0].analytic_account) {
+          cleanAnalytic = mapped[0].analytic_account.replace(/\s+/g, ' ').trim();
+        } else if (mapped.length > 1) {
+          ambiguousJournal = true;
         }
       } catch (e) {}
     }
@@ -2541,15 +2546,16 @@ class ConsolidationEngine {
 
     const cleanJName = (journalName || '').trim();
     const jId = journalId || 0;
+    const baseName = cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر');
     return {
       key: 'j:' + jId,
-      name: cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر'),
+      name: ambiguousJournal ? `${baseName} — بدون مركز تكلفة` : baseName,
       type: 'journal',
       analytic_account: null,
       cost_center_id: null,
       instance_id: instanceId,
       journal_id: jId,
-      journal_name: cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر')
+      journal_name: baseName
     };
   }
 

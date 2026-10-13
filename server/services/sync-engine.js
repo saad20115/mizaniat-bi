@@ -830,6 +830,10 @@ class SyncEngine {
                 )
                 FROM analytic_group_mapping m
                 WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
+                  -- only a journal mapped to exactly one analytic account may lend it to untagged lines
+                  AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
+                       WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
+                         AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') = 1
                 LIMIT 1
               )
             END,
@@ -851,10 +855,22 @@ class SyncEngine {
                 SELECT TRIM(m.analytic_account)
                 FROM analytic_group_mapping m
                 WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
+                  AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
+                       WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
+                         AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') = 1
                 LIMIT 1
               )
             END,
-            NULLIF(TRIM(ji.journal_name), ''),
+            CASE
+              WHEN (ji.cost_center_id IS NULL OR ji.cost_center_id <= 0)
+                AND (ji.analytic_account IS NULL OR TRIM(ji.analytic_account) = '')
+                AND NULLIF(TRIM(ji.journal_name), '') IS NOT NULL
+                AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
+                     WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
+                       AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') > 1
+              THEN TRIM(ji.journal_name) || ' — بدون مركز تكلفة'
+              ELSE NULLIF(TRIM(ji.journal_name), '')
+            END,
             'بدون دفتر'
           ) as cost_center_name,
           ROUND(SUM(ji.debit), 2) as debit,
