@@ -1454,12 +1454,17 @@ async function openSharesModal(container) {
         <div id="scoped-shares-list-container">
           ${shares.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:20px;">لا توجد روابط مخصصة بنطاق حالياً</p>' : shares.map(s => {
             const url = `${location.origin}/view.html?share=${s.token}`;
-            let ccs = [];
-            try { ccs = JSON.parse(s.scope_cost_centers); } catch(e){}
-            let tabs = [];
-            try { tabs = JSON.parse(s.scope_tabs); } catch(e){}
-            let phones = [];
-            try { phones = JSON.parse(s.allowed_phones); } catch(e){}
+            // GET /presentation/scoped-shares returns camelCase fields with arrays already parsed
+            const asArray = (v) => {
+              if (Array.isArray(v)) return v;
+              if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch (e) { return []; } }
+              return [];
+            };
+            const ccs = asArray(s.costCenters ?? s.scope_cost_centers);
+            const tabs = asArray(s.tabs ?? s.scope_tabs);
+            const phones = asArray(s.allowedPhones ?? s.allowed_phones);
+            const isActive = Boolean(s.isActive ?? s.is_active);
+            const createdAt = s.createdAt ?? s.created_at;
 
             return `
               <div class="scoped-share-card" data-share-id="${s.id}">
@@ -1467,18 +1472,18 @@ async function openSharesModal(container) {
                   <div>
                     <div style="display:flex;align-items:center;gap:8px;">
                       <span style="font-weight:700;font-size:0.95rem;color:var(--text-primary);">${escapeHtml(s.name)}</span>
-                      <span class="${s.is_active ? 'badge-status-active' : 'badge-status-inactive'}">${s.is_active ? 'نشط' : 'موقوف'}</span>
+                      <span class="${isActive ? 'badge-status-active' : 'badge-status-inactive'}">${isActive ? 'نشط' : 'موقوف'}</span>
                     </div>
                     <div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">
-                      تم الإنشاء: ${s.created_at || '—'} · الجوالات المصرحة: (${phones.length})
+                      تم الإنشاء: ${escapeHtml(createdAt || '—')} · الجوالات المصرحة: (${phones.length})
                     </div>
                   </div>
                   <div style="display:flex;gap:6px;flex-wrap:wrap;">
                     <button class="bi-btn bi-btn-secondary copy-scoped-btn" data-url="${url}" title="نسخ الرابط" style="font-size:0.75rem;padding:5px 10px;">
                       ${ICONS.copy} <span>نسخ</span>
                     </button>
-                    <button class="bi-btn bi-btn-secondary toggle-active-btn" data-id="${s.id}" data-active="${s.is_active}" title="${s.is_active ? 'إيقاف الرابط' : 'تفعيل الرابط'}" style="font-size:0.75rem;padding:5px 10px;">
-                      ${s.is_active ? '⏸ إيقاف' : '▶ تفعيل'}
+                    <button class="bi-btn bi-btn-secondary toggle-active-btn" data-id="${s.id}" data-active="${isActive ? '1' : '0'}" title="${isActive ? 'إيقاف الرابط' : 'تفعيل الرابط'}" style="font-size:0.75rem;padding:5px 10px;">
+                      ${isActive ? '⏸ إيقاف' : '▶ تفعيل'}
                     </button>
                     <button class="bi-btn bi-btn-secondary view-logs-btn" data-id="${s.id}" title="عرض سجل الدخول" style="font-size:0.75rem;padding:5px 10px;">
                       📜 السجل
@@ -1491,9 +1496,9 @@ async function openSharesModal(container) {
 
                 <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:0.75rem;margin-top:8px;">
                   <span style="color:var(--text-muted);">المراكز:</span>
-                  ${ccs.map(c => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">شركة ${c.companyId}: ${c.costCenterKey}</span>`).join('')}
+                  ${ccs.map(c => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">شركة ${escapeHtml(String(c.companyId))}: ${escapeHtml(String(c.costCenterKey))}</span>`).join('')}
                   <span style="color:var(--text-muted);margin-right:12px;">التبويبات:</span>
-                  ${tabs.map(t => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">${t}</span>`).join('')}
+                  ${tabs.map(t => `<span style="background:var(--bg-card);border:1px solid var(--border-default);padding:2px 6px;border-radius:4px;">${escapeHtml(String(t))}</span>`).join('')}
                 </div>
 
                 <!-- Logs container (collapsible) -->
@@ -1562,9 +1567,13 @@ async function openSharesModal(container) {
             allowedPhones,
             allowAdminAllocation
           });
-          showToast('تم إنشاء رابط المشاركة المخصص بنطاق بنجاح', 'success');
-          const shareUrl = `${location.origin}/view.html?share=${res.share.token}`;
-          await navigator.clipboard?.writeText(shareUrl).catch(() => {});
+          showToast('تم إنشاء رابط المشاركة المخصص بنطاق بنجاح، ونُسخ الرابط', 'success');
+          // POST /presentation/scoped-shares returns { success, id, token, url } at the top level
+          const shareToken = res?.token || res?.share?.token;
+          if (shareToken) {
+            const shareUrl = `${location.origin}/view.html?share=${shareToken}`;
+            await navigator.clipboard?.writeText(shareUrl).catch(() => {});
+          }
           await renderModalContent();
         } catch(err) {
           showToast(err.message || 'فشل إنشاء رابط المشاركة', 'error');
@@ -1585,7 +1594,7 @@ async function openSharesModal(container) {
           const id = btn.dataset.id;
           const currentActive = btn.dataset.active === '1';
           try {
-            await api.updateScopedShare(id, { is_active: currentActive ? 0 : 1 });
+            await api.updateScopedShare(id, { isActive: !currentActive });
             showToast(currentActive ? 'تم إيقاف الرابط وإبطال الجلسات' : 'تم تفعيل الرابط', 'success');
             await renderModalContent();
           } catch(err) {
@@ -1610,7 +1619,8 @@ async function openSharesModal(container) {
 
           try {
             const logsData = await api.getScopedShareLogs(id);
-            const logs = logsData.logs || [];
+            // GET /presentation/scoped-shares/:id/logs returns a plain array of rows
+            const logs = Array.isArray(logsData) ? logsData : (logsData?.logs || []);
             if (logs.length === 0) {
               contentEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.75rem;">لا توجد محاولات دخول مسجلة لهذا الرابط حتى الآن.</p>';
             } else {
@@ -1627,9 +1637,9 @@ async function openSharesModal(container) {
                   <tbody>
                     ${logs.map(l => `
                       <tr>
-                        <td>${l.attempt_time}</td>
-                        <td dir="ltr" style="text-align:right;">${l.phone || '—'}</td>
-                        <td>${l.ip_address}</td>
+                        <td>${escapeHtml(l.created_at || l.attempt_time || '—')}</td>
+                        <td dir="ltr" style="text-align:right;">${escapeHtml(l.phone || '—')}</td>
+                        <td>${escapeHtml(l.ip_address || '—')}</td>
                         <td>
                           <span class="${l.status === 'SUCCESS' ? 'badge-status-active' : 'badge-status-inactive'}">
                             ${l.status === 'SUCCESS' ? 'دخول ناجح' : 'مرفوض'}

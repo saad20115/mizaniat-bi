@@ -52,9 +52,9 @@ async function runComparisonUiChecks({ cdp, assert, appPort, adminToken, screens
       cards: document.querySelectorAll('#dc-kpi-grid .bi-kpi-card').length,
       heroes: document.querySelectorAll('#dc-main-content .bi-kpi-card.hero').length,
       heroKey: document.querySelector('#dc-main-content .bi-kpi-card.hero')?.dataset.dcCard,
-      revenue: card('revenue'), expenses: card('expenses'), net: card('net_profit'), cash: card('cash_collected'), open: card('open_total'),
+      revenue: card('revenue'), expenses: card('expenses'), net: card('net_profit'), cash: card('cash_collected'), open: card('remaining'),
       cashGross: d(document.querySelector('#dc-cash-gross')?.textContent),
-      openGross: d(document.querySelector('#dc-open-gross')?.textContent),
+      openGross: d(document.querySelector('#dc-remaining-gross')?.textContent),
       unlinkedAmount: d(document.querySelector('#dc-unlinked-amount')?.textContent),
       unlinkedCount: d(document.querySelector('#dc-unlinked-count')?.textContent),
       highlights: [...document.querySelectorAll('#dc-highlight-grid .dc-highlight')].map(h => ({ key: h.dataset.dcHighlight, dept: h.dataset.deptId, value: d(h.querySelector('.dc-highlight-value')?.textContent) })),
@@ -72,10 +72,11 @@ async function runComparisonUiChecks({ cdp, assert, appPort, adminToken, screens
   assert(head.activeTab === 'comparison' && head.title === `مقارنة الأقسام — ${activeYear}`, `DC1: title is «مقارنة الأقسام — {الفترة}» (actual: ${head.title})`);
   assert(head.cards === 6 && head.heroes === 1 && head.heroKey === 'net_profit', `DC1: six totals cards with exactly one hero = net profit (cards ${head.cards}, heroes ${head.heroes})`);
   const c = data.cards;
+  // User decision 2026-10-13: the «إجمالي المتبقي» card follows the year filter (remainder of the period's invoices)
   assert(head.revenue === money(c.revenue) && head.expenses === money(c.expenses) && head.net === money(c.net_profit)
-    && head.cash === money(c.cash_collected) && head.open === money(c.open_total)
-    && head.cashGross === money(c.cash_collected_gross) && head.openGross === money(c.open_total_gross),
-    `DC1: card figures equal the API (revenue ${head.revenue}, expenses ${head.expenses}, net ${head.net}, cash ${head.cash}, total remaining ${head.open})`);
+    && head.cash === money(c.cash_collected) && head.open === money(c.remaining)
+    && head.cashGross === money(c.cash_collected_gross) && head.openGross === money(c.residual_gross),
+    `DC1: card figures equal the API (revenue ${head.revenue}, expenses ${head.expenses}, net ${head.net}, cash ${head.cash}, period remaining ${head.open})`);
   assert(head.unlinkedCount === String(data.unlinked_payments.count) && head.unlinkedAmount === money(data.unlinked_payments.amount),
     `DC1: unlinked payments card equals the API (count ${head.unlinkedCount}, amount ${head.unlinkedAmount})`);
   const hk = Object.keys(data.highlights);

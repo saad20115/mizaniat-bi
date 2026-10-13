@@ -116,8 +116,8 @@ const COLUMNS = [
     sub: (n) => (n.remaining === 0 && n.residual_gross === 0) ? '' : `${GROSS_LABEL} <span class="dc-sub-num">${plainMoney(n.residual_gross)}</span>`
   },
   {
-    id: 'open_total', label: 'إجمالي المتبقي',
-    title: 'كل ما لم يُسدَّد حتى اليوم على القسم من فواتير أي سنة حتى نهاية الفترة المختارة، بدون ضريبة',
+    id: 'open_total', label: 'الرصيد التراكمي — كل السنوات',
+    title: 'كل ما لم يُسدَّد حتى اليوم على القسم من فواتير كل السنوات حتى نهاية الفترة المختارة (لا يقتصر على فواتير الفترة)، بدون ضريبة',
     sub: (n) => (n.open_total === 0 && n.open_total_gross === 0) ? '' : `${GROSS_LABEL} <span class="dc-sub-num">${plainMoney(n.open_total_gross)}</span>`
   }
 ];
@@ -184,7 +184,7 @@ function renderHighlights(h) {
   if (h.largest_open) {
     cards.push(`
       <div class="dc-highlight" data-dc-highlight="largest_open" data-dept-id="${escapeHtml(h.largest_open.department_id)}">
-        <span class="dc-highlight-title"><span class="dc-dot dc-dot-warning"></span>أكبر إجمالي متبقٍّ</span>
+        <span class="dc-highlight-title"><span class="dc-dot dc-dot-warning"></span>أكبر رصيد تراكمي متبقٍّ</span>
         <span class="dc-highlight-name" title="${escapeHtml(h.largest_open.name)}">${escapeHtml(h.largest_open.name)}</span>
         <span class="dc-highlight-value">${plainMoney(h.largest_open.open_total)}</span>
         <span class="dc-highlight-sub">${h.largest_open.share_of_total === null ? '' : `<span class="dc-kpi-sub-num" dir="ltr">${pctText(h.largest_open.share_of_total)}</span> من الإجمالي · `}شامل الضريبة <span class="dc-kpi-sub-num">${plainMoney(h.largest_open.open_total_gross)}</span></span>
@@ -259,10 +259,10 @@ function renderContent(contentEl, timeFilter, data) {
         <span class="bi-kpi-sub">${GROSS_LABEL} <span class="dc-kpi-sub-num" id="dc-cash-gross">${plainMoney(c.cash_collected_gross)}</span></span>
       </div>
 
-      <div class="bi-kpi bi-kpi-card exec-kpi-card" data-dc-card="open_total">
+      <div class="bi-kpi bi-kpi-card exec-kpi-card" data-dc-card="remaining" title="المتبقي من فواتير الفترة المختارة فقط، بدون ضريبة">
         <span class="bi-kpi-label">إجمالي المتبقي</span>
-        <div class="bi-kpi-value">${plainMoney(c.open_total)}</div>
-        <span class="bi-kpi-sub">${GROSS_LABEL} <span class="dc-kpi-sub-num" id="dc-open-gross">${plainMoney(c.open_total_gross)}</span></span>
+        <div class="bi-kpi-value">${plainMoney(c.remaining)}</div>
+        <span class="bi-kpi-sub">${GROSS_LABEL} <span class="dc-kpi-sub-num" id="dc-remaining-gross">${plainMoney(c.residual_gross)}</span></span>
       </div>
 
       <div class="bi-kpi bi-kpi-card exec-kpi-card" data-dc-card="unlinked" id="dc-unlinked-card" style="background:var(--bg-subtle);">
@@ -316,7 +316,7 @@ function renderContent(contentEl, timeFilter, data) {
     <!-- Explainer: two sentences -->
     <div class="dc-note" id="dc-explainer">
       كل الأرقام ${BASIS}: «النقد المحصَّل في الفترة» هو ما دخل فعلًا خلال الفترة أيًّا كان تاريخ الفاتورة، و«المحصَّل من فواتير الفترة» هو ما سُدِّد من فواتير الفترة نفسها.
-      الدفعات غير المربوطة بفواتير (تحت الحساب) خارج المقارنة، و«إجمالي المتبقي» هو كل ما لم يُسدَّد حتى اليوم على القسم من فواتير أي سنة حتى نهاية الفترة.
+      الدفعات غير المربوطة بفواتير (تحت الحساب) خارج المقارنة، و«إجمالي المتبقي» هو المتبقي من فواتير الفترة المختارة فقط، أما «الرصيد التراكمي — كل السنوات» فهو كل ما لم يُسدَّد حتى اليوم من فواتير كل السنوات حتى نهاية الفترة.
     </div>
 
     <!-- TreeTable -->
@@ -655,7 +655,7 @@ function exportToExcel(data, periodLabel) {
     `النقد المحصَّل في الفترة (${BASIS})`, 'النقد المحصَّل في الفترة (شامل الضريبة)',
     `المحصَّل من فواتير الفترة (${BASIS})`, 'نسبة التحصيل %',
     `المتبقي من فواتير الفترة (${BASIS})`, 'المتبقي من فواتير الفترة (شامل الضريبة)',
-    `إجمالي المتبقي (${BASIS})`, 'إجمالي المتبقي (شامل الضريبة)'
+    `الرصيد التراكمي — كل السنوات (${BASIS})`, 'الرصيد التراكمي — كل السنوات (شامل الضريبة)'
   ];
   const line = (level, dept, cc, co, n) => [
     q(level), q(dept), q(cc), q(co),
