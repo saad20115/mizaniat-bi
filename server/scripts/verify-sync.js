@@ -167,7 +167,10 @@ async function runVerifySync() {
                 AND (id.cost_center_key = ? OR (id.cost_center_key IS NULL AND si.journal_id = ?))
                 AND id.department_id = ?
                 AND si.date >= ? AND si.date <= ?
-            `).get(co.id, j.cost_center_key || j.journal_id, j.journal_id, dept.id, `${yr}-01-01`, `${yr}-12-31`);
+            `).get(co.id, j.cost_center_key || j.journal_id, j.journal_id,
+              // UC1: a cost center without department is shown as its own synthetic group (department_id 0)
+              engine._getSyntheticGroupRegistry().idToMeta.has(dept.id) ? 0 : dept.id,
+              `${yr}-01-01`, `${yr}-12-31`);
 
             if (indep) {
               const invMatch = j.inv_count === indep.inv_count;
@@ -418,6 +421,13 @@ async function runVerifySync() {
       dominantOk && checkedCount > 0,
       `${checkedCount} journals verified`
     );
+
+    // ── TEST 10: CC1 attribution invariants after the re-sync (no implicit department choice,
+    // collections follow their invoice, analytic distribution percentages)
+    console.log('\n── Test 10: CC1 Attribution Invariants');
+    const { runAttributionChecks, runSplitSimulation } = require('./verify-attribution');
+    runAttributionChecks({ db, check });
+    runSplitSimulation({ db, check });
   } finally {
     // ── TEARDOWN / RESTORE: Restore original sales_invoices and sequence
     console.log('\n── Teardown: Restoring original database state...');

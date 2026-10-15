@@ -150,6 +150,37 @@ function initializeSchema(targetDb) {
       UNIQUE(company_id, odoo_journal_id)
     );
 
+    -- CC1: Explicit journal defaults (department and/or default cost center for the journal's
+    -- lines that carry no analytic account). Decided by the user in the settings page; a seeded
+    -- row (decided_by_user = 0) comes only from an unambiguous legacy journal link.
+    CREATE TABLE IF NOT EXISTS journal_department_defaults (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      journal_id INTEGER NOT NULL,
+      group_id INTEGER,
+      analytic_id INTEGER,
+      analytic_account TEXT,
+      decided_by_user INTEGER NOT NULL DEFAULT 0,
+      source TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, journal_id)
+    );
+
+    -- CC1: Odoo analytic_distribution of lines that are NOT a single account at 100%
+    -- (several accounts, or a percentage below 100). Filled by the journal sync.
+    CREATE TABLE IF NOT EXISTS journal_item_analytic_distribution (
+      company_id INTEGER NOT NULL,
+      odoo_line_id INTEGER NOT NULL,
+      analytic_key TEXT NOT NULL,
+      analytic_id INTEGER,
+      analytic_name TEXT,
+      pct REAL NOT NULL,
+      is_combination INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (company_id, odoo_line_id, analytic_key)
+    );
+
     -- Admin users (email + password login)
     CREATE TABLE IF NOT EXISTS admin_users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -884,97 +915,15 @@ function initializeSchema(targetDb) {
     console.error('[DB] Error seeding sister_company_partners:', e.message);
   }
 
-  // S1: Migrate existing journal_name rows in analytic_group_mapping to journal_id
+  // CC1: journal behaviour is no longer derived from analytic mapping rows (the former S1
+  // name-match enrichment and the U1 / M1-R4 fixed-key data patches were removed). Seed the
+  // explicit journal defaults once, only from unambiguous legacy links.
   try {
-    const mappings = db.prepare(`
-      SELECT id, company_id, journal_name 
-      FROM analytic_group_mapping 
-      WHERE (journal_id IS NULL OR journal_id = 0) AND journal_name IS NOT NULL AND journal_name != ''
-    `).all();
-    
-    if (mappings.length > 0) {
-      const updateStmt = db.prepare('UPDATE analytic_group_mapping SET journal_id = ? WHERE id = ?');
-      const findJidStmt = db.prepare(`
-        SELECT DISTINCT invoice_journal_id as journal_id 
-        FROM payment_allocations 
-        WHERE company_id = ? AND (TRIM(invoice_journal_name) = ? OR invoice_journal_name = ?)
-        LIMIT 1
-      `);
-      const findSalesJidStmt = db.prepare(`
-        SELECT DISTINCT si.journal_id
-        FROM sales_invoices si
-        JOIN sales_companies sc ON sc.id = si.company_id
-        JOIN companies c ON c.odoo_company_id = sc.sales_company_id
-        WHERE c.id = ? AND (TRIM(si.journal_name) = ? OR si.journal_name = ?)
-        LIMIT 1
-      `);
-      
-      let count = 0;
-      for (const m of mappings) {
-        const cleanName = (m.journal_name || '').trim();
-        let found = findJidStmt.get(m.company_id, cleanName, m.journal_name);
-        if (!found || !found.journal_id) {
-          found = findSalesJidStmt.get(m.company_id, cleanName, m.journal_name);
-        }
-        if (found && found.journal_id) {
-          updateStmt.run(found.journal_id, m.id);
-          count++;
-        }
-      }
-      if (count > 0) {
-        console.log(`[DB] S1: Migrated ${count} analytic_group_mapping rows with journal_id`);
-      }
-    }
+    const { seedJournalDefaults } = require('../services/attribution');
+    const seeded = seedJournalDefaults(db);
+    if (seeded > 0) console.log(`[DB] CC1: seeded ${seeded} unambiguous journal defaults`);
   } catch (e) {
-    console.warn('[DB] Migration of journal_id in analytic_group_mapping:', e.message);
-  }
-
-  // U1 Migration: Map journal_id=65 'فواتير عملاء قسم الاشراف' to group 4 'قسم الاشراف' in company 2
-  try {
-    const existing = db.prepare(`SELECT id FROM analytic_group_mapping WHERE company_id = 2 AND journal_id = 65`).get();
-    if (!existing) {
-      db.prepare(`
-        INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name, journal_id)
-        VALUES (2, '', 4, 0, 'فواتير عملاء قسم الاشراف', 65)
-      `).run();
-      console.log('[DB] U1: Added analytic_group_mapping for company 2, journal_id 65 -> group 4 (قسم الاشراف)');
-    }
-  } catch (e) {
-    console.warn('[DB] U1 journal 65 mapping error:', e.message);
-  }
-
-  // U1 Migration: Update invoice_departments and fact_daily for journal_id=65 and zero-amount invoices of 'an:مشروع العقد الموحد مكه شركة الكهرباء'
-  try {
-    db.prepare(`
-      UPDATE invoice_departments
-      SET department_id = 4
-      WHERE company_id IN (SELECT id FROM sales_companies WHERE sales_company_id = 2)
-        AND cost_center_key = 'j:65' AND department_id = 0
-    `).run();
-
-    db.prepare(`
-      UPDATE invoice_departments
-      SET department_id = 15
-      WHERE company_id IN (SELECT id FROM sales_companies WHERE sales_company_id = 2)
-        AND cost_center_key = 'an:مشروع العقد الموحد مكه شركة الكهرباء' AND department_id = 0
-    `).run();
-
-    db.prepare(`
-      UPDATE fact_daily
-      SET department_id = 4
-      WHERE company_id = 2 AND journal_id = 65 AND (department_id = 0 OR department_id IS NULL)
-    `).run();
-  } catch (e) {
-    console.warn('[DB] U1 invoice_departments update error:', e.message);
-  }
-
-  // M1-R4: Normalize double spaces in Taif Lab cost center keys across all tables
-  try {
-    db.prepare(`UPDATE invoice_departments SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
-    db.prepare(`UPDATE payment_allocations SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
-    db.prepare(`UPDATE fact_daily SET cost_center_key = 'an:مختبر الطائف', cost_center_name = 'مختبر الطائف' WHERE cost_center_key = 'an:مختبر  الطائف'`).run();
-  } catch (e) {
-    console.warn('[DB] M1-R4 Taif key normalization error:', e.message);
+    console.warn('[DB] CC1 journal defaults seed:', e.message);
   }
 
   console.log('[DB] Schema initialized successfully');

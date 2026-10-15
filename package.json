@@ -13,7 +13,8 @@
     "verify": "node server/scripts/verify-data.js",
     "verify:auth": "node server/scripts/verify-auth.js",
     "verify:ui": "node server/scripts/verify-ui.js",
-    "verify:sync": "node server/scripts/verify-sync.js"
+    "verify:sync": "node server/scripts/verify-sync.js",
+    "verify:odoo": "node server/scripts/verify-odoo.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",

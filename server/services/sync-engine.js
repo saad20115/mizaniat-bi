@@ -313,6 +313,14 @@ class SyncEngine {
         VALUES (?, ?, ?, ?)
       `);
 
+      // CC1: Odoo analytic distribution of lines that are not one account at 100%
+      const { distributionRows } = require('./attribution');
+      const insertDist = this.db.prepare(`
+        INSERT OR REPLACE INTO journal_item_analytic_distribution
+          (company_id, odoo_line_id, analytic_key, analytic_id, analytic_name, pct, is_combination)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
+
       const accountsSet = new Map();
       let totalInserted = 0;
 
@@ -336,11 +344,18 @@ class SyncEngine {
       const replaceAll = this.db.transaction(() => {
         this.db.prepare('DELETE FROM journal_items WHERE company_id = ?').run(companyId);
         this.db.prepare('DELETE FROM company_accounts WHERE company_id = ?').run(companyId);
+        this.db.prepare('DELETE FROM journal_item_analytic_distribution WHERE company_id = ?').run(companyId);
 
         for (const item of items) {
           const normalized = this._normalizeItem(item, companyContext);
           insertItem.run(normalized);
           totalInserted++;
+
+          if (normalized.odoo_line_id && item.analytic_distribution && typeof item.analytic_distribution === 'object') {
+            for (const d of distributionRows(item.analytic_distribution, companyAnalyticMap)) {
+              insertDist.run(companyId, normalized.odoo_line_id, d.analytic_key, d.analytic_id, d.analytic_name, d.pct, d.is_combination);
+            }
+          }
 
           // Track unique accounts
           const accKey = normalized.account_code;
@@ -590,7 +605,10 @@ class SyncEngine {
     if (!analyticAccount && item.analytic_distribution && 
         item.analytic_distribution !== 'False' && item.analytic_distribution !== false) {
       if (typeof item.analytic_distribution === 'object') {
-        // RPC format: {analytic_account_id: percentage} — resolve IDs to names
+        // RPC format: {analytic_account_id: percentage} — resolve IDs to names.
+        // cost_center_id describes a single-account line only; a line with several accounts or a
+        // percentage below 100 is split by journal_item_analytic_distribution (CC1), never given
+        // to its first account.
         const ids = Object.keys(item.analytic_distribution);
         const validId = ids.find(id => analyticMap && analyticMap[id] !== undefined);
         costCenterId = validId ? (parseInt(validId, 10) || null) : null;
@@ -693,6 +711,7 @@ class SyncEngine {
    */
   rebuildFactDaily(companyId) {
     const ConsolidationEngine = require('./consolidation');
+    const { AttributionContext, loadDistribution } = require('./attribution');
     const engine = new ConsolidationEngine(this.db);
 
     const companies = companyId ? [companyId] : this.db.prepare('SELECT id FROM companies').all().map(c => c.id);
@@ -704,6 +723,15 @@ class SyncEngine {
       CREATE TEMP TABLE IF NOT EXISTS _temp_fact_cash (
         move_name TEXT PRIMARY KEY
       );
+      CREATE TEMP TABLE IF NOT EXISTS _temp_line_attr (
+        ji_id INTEGER NOT NULL,
+        cost_center_key TEXT NOT NULL,
+        cost_center_name TEXT NOT NULL,
+        analytic_account TEXT NOT NULL,
+        department_id INTEGER NOT NULL,
+        frac REAL NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS _temp_line_attr_ji ON _temp_line_attr(ji_id);
     `);
 
     for (const cid of companies) {
@@ -711,6 +739,7 @@ class SyncEngine {
       this.db.exec(`
         DELETE FROM _temp_fact_income;
         DELETE FROM _temp_fact_cash;
+        DELETE FROM _temp_line_attr;
       `);
 
       this.db.prepare(`
@@ -731,6 +760,36 @@ class SyncEngine {
           AND ji.move_state = 'posted'
           AND ${engine._cashFilter('ji')}
       `).run(cid);
+
+      // CC1: every posted line is attributed by the single resolver (analytic distribution with
+      // its percentages, explicit analytic -> department mapping, explicit journal defaults).
+      // Nothing is picked as "the first mapping": an ambiguity stays on the journal's own row.
+      const ctx = new AttributionContext(this.db, cid);
+      const dist = loadDistribution(this.db, cid);
+      const insAttr = this.db.prepare(`
+        INSERT INTO _temp_line_attr (ji_id, cost_center_key, cost_center_name, analytic_account, department_id, frac)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+      const lines = this.db.prepare(`
+        SELECT id, odoo_line_id, analytic_account, cost_center_id, journal_id, journal_name
+        FROM journal_items
+        WHERE company_id = ? AND move_state = 'posted'
+      `).all(cid);
+      for (const l of lines) {
+        const lineDist = l.odoo_line_id ? dist.get(l.odoo_line_id) : undefined;
+        const parts = ctx.lineParts(l, lineDist);
+        const keepText = parts.length === 1 && !lineDist;
+        for (const p of parts) {
+          insAttr.run(
+            l.id,
+            p.key,
+            p.name,
+            keepText ? (l.analytic_account || '') : (p.analytic || ''),
+            p.deptId || 0,
+            p.frac
+          );
+        }
+      }
 
       this.db.prepare(`
         INSERT INTO fact_daily (
@@ -764,152 +823,50 @@ class SyncEngine {
           date(ji.date, '-' || strftime('%w', ji.date) || ' days') as week_start,
           ji.account_code,
           ${engine._sectionExpr('ji', 'o')} as section,
-          COALESCE(
-            (SELECT m1.group_id 
-             FROM analytic_group_mapping m1 
-             WHERE m1.company_id = ji.company_id 
-               AND (
-                 (ji.analytic_account IS NOT NULL AND ji.analytic_account != '' AND (m1.analytic_account = ji.analytic_account OR REPLACE(m1.analytic_account, '  ', ' ') = REPLACE(ji.analytic_account, '  ', ' ')))
-                 OR
-                 (ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0 AND EXISTS (
-                   SELECT 1 FROM companies c 
-                   JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id AND oa.odoo_id = ji.cost_center_id
-                   WHERE c.id = ji.company_id AND (oa.name = m1.analytic_account OR REPLACE(oa.name, '  ', ' ') = REPLACE(m1.analytic_account, '  ', ' '))
-                 ))
-               )
-             ORDER BY m1.id ASC
-             LIMIT 1),
-            (SELECT m0.group_id 
-             FROM analytic_group_mapping m0 
-             WHERE m0.company_id = ji.company_id 
-               AND m0.journal_id = ji.journal_id 
-               AND ji.journal_id IS NOT NULL 
-               AND ji.journal_id > 0 
-             ORDER BY m0.id ASC
-             LIMIT 1),
-            (SELECT m2.group_id 
-             FROM analytic_group_mapping m2 
-             WHERE m2.company_id = ji.company_id 
-               AND m2.journal_name = ji.journal_name 
-               AND ji.journal_name IS NOT NULL 
-               AND ji.journal_name != '' 
-             ORDER BY m2.id ASC
-             LIMIT 1),
-            0
-          ) as department_id,
-          COALESCE(ji.analytic_account, '') as analytic_account,
+          la.department_id as department_id,
+          la.analytic_account as analytic_account,
           COALESCE(ji.journal_name, '') as journal_name,
           COALESCE(ji.journal_id, 0) as journal_id,
-          COALESCE(
-            CASE 
-              WHEN ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0
-              THEN 'an:' || (SELECT odoo_instance_id FROM companies WHERE id = ji.company_id) || ':' || ji.cost_center_id
-              WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
-              THEN COALESCE(
-                (SELECT 'an:' || oa.instance_id || ':' || oa.odoo_id
-                 FROM companies c
-                 JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id 
-                   AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
-                   AND (oa.name = TRIM(ji.analytic_account) OR REPLACE(oa.name, '  ', ' ') = REPLACE(TRIM(ji.analytic_account), '  ', ' '))
-                 WHERE c.id = ji.company_id
-                 ORDER BY CASE WHEN oa.company_id = c.odoo_company_id THEN 0 ELSE 1 END, oa.odoo_id ASC
-                 LIMIT 1),
-                'an:' || TRIM(ji.analytic_account)
-              )
-              ELSE (
-                SELECT COALESCE(
-                  (SELECT 'an:' || oa.instance_id || ':' || oa.odoo_id
-                   FROM companies c
-                   JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id 
-                     AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
-                     AND (oa.name = TRIM(m.analytic_account) OR REPLACE(oa.name, '  ', ' ') = REPLACE(TRIM(m.analytic_account), '  ', ' '))
-                   WHERE c.id = ji.company_id
-                   ORDER BY CASE WHEN oa.company_id = c.odoo_company_id THEN 0 ELSE 1 END, oa.odoo_id ASC
-                   LIMIT 1),
-                  'an:' || TRIM(m.analytic_account)
-                )
-                FROM analytic_group_mapping m
-                WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
-                  -- only a journal mapped to exactly one analytic account may lend it to untagged lines
-                  AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
-                       WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
-                         AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') = 1
-                LIMIT 1
-              )
-            END,
-            'j:' || COALESCE(ji.journal_id, 0)
-          ) as cost_center_key,
-          COALESCE(
-            CASE 
-              WHEN ji.cost_center_id IS NOT NULL AND ji.cost_center_id > 0
-              THEN (
-                SELECT oa.name 
-                FROM companies c 
-                JOIN odoo_analytic_accounts oa ON oa.instance_id = c.odoo_instance_id AND oa.odoo_id = ji.cost_center_id
-                WHERE c.id = ji.company_id
-                LIMIT 1
-              )
-              WHEN ji.analytic_account IS NOT NULL AND TRIM(ji.analytic_account) != '' 
-              THEN TRIM(ji.analytic_account)
-              ELSE (
-                SELECT TRIM(m.analytic_account)
-                FROM analytic_group_mapping m
-                WHERE m.company_id = ji.company_id AND m.journal_id = ji.journal_id AND m.analytic_account IS NOT NULL AND m.analytic_account != ''
-                  AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
-                       WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
-                         AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') = 1
-                LIMIT 1
-              )
-            END,
-            CASE
-              WHEN (ji.cost_center_id IS NULL OR ji.cost_center_id <= 0)
-                AND (ji.analytic_account IS NULL OR TRIM(ji.analytic_account) = '')
-                AND NULLIF(TRIM(ji.journal_name), '') IS NOT NULL
-                AND (SELECT COUNT(DISTINCT TRIM(m3.analytic_account)) FROM analytic_group_mapping m3
-                     WHERE m3.company_id = ji.company_id AND m3.journal_id = ji.journal_id
-                       AND m3.analytic_account IS NOT NULL AND TRIM(m3.analytic_account) != '') > 1
-              THEN TRIM(ji.journal_name) || ' — بدون مركز تكلفة'
-              ELSE NULLIF(TRIM(ji.journal_name), '')
-            END,
-            'بدون دفتر'
-          ) as cost_center_name,
-          ROUND(SUM(ji.debit), 2) as debit,
-          ROUND(SUM(ji.credit), 2) as credit,
-          ROUND(SUM(CASE 
-            WHEN ${engine._sectionExpr('ji', 'o')} = 'income' THEN ji.credit - ji.debit 
-            ELSE 0 
+          la.cost_center_key as cost_center_key,
+          la.cost_center_name as cost_center_name,
+          ROUND(SUM(ji.debit * la.frac), 2) as debit,
+          ROUND(SUM(ji.credit * la.frac), 2) as credit,
+          ROUND(SUM(CASE
+            WHEN ${engine._sectionExpr('ji', 'o')} = 'income' THEN (ji.credit - ji.debit) * la.frac
+            ELSE 0
           END), 2) as revenue,
-          ROUND(SUM(CASE 
-            WHEN ${engine._sectionExpr('ji', 'o')} = 'expense' THEN ji.debit - ji.credit 
-            ELSE 0 
+          ROUND(SUM(CASE
+            WHEN ${engine._sectionExpr('ji', 'o')} = 'expense' THEN (ji.debit - ji.credit) * la.frac
+            ELSE 0
           END), 2) as expense,
-          ROUND(SUM(CASE 
-            WHEN ji.account_type = 'asset_receivable' AND im.move_name IS NOT NULL 
-            THEN ji.debit - ji.credit 
-            ELSE 0 
+          ROUND(SUM(CASE
+            WHEN ji.account_type = 'asset_receivable' AND im.move_name IS NOT NULL
+            THEN (ji.debit - ji.credit) * la.frac
+            ELSE 0
           END), 2) as billed,
-          ROUND(SUM(CASE 
-            WHEN ji.account_type = 'asset_receivable' AND cm.move_name IS NOT NULL 
-            THEN ji.credit - ji.debit 
-            ELSE 0 
+          ROUND(SUM(CASE
+            WHEN ji.account_type = 'asset_receivable' AND cm.move_name IS NOT NULL
+            THEN (ji.credit - ji.debit) * la.frac
+            ELSE 0
           END), 2) as collected
         FROM journal_items ji
+        JOIN _temp_line_attr la ON la.ji_id = ji.id
         ${engine._sectionJoin('ji', 'o')}
         LEFT JOIN _temp_fact_income im ON im.move_name = ji.move_name
         LEFT JOIN _temp_fact_cash cm ON cm.move_name = ji.move_name
         WHERE ji.company_id = ?
           AND ji.move_state = 'posted'
-        GROUP BY 
+        GROUP BY
           ji.company_id,
           ji.date,
           ji.account_code,
           section,
-          department_id,
-          COALESCE(ji.analytic_account, ''),
+          la.department_id,
+          la.analytic_account,
           COALESCE(ji.journal_name, ''),
           COALESCE(ji.journal_id, 0),
-          cost_center_key,
-          cost_center_name
+          la.cost_center_key,
+          la.cost_center_name
       `).run(cid);
     }
   }

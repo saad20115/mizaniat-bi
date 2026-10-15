@@ -10,201 +10,53 @@ function getSalesSyncEngine() {
   return salesSyncEngineInstance;
 }
 
-let cachedRefToJournalMap = null;
-let cachedRefToJournalMapTime = 0;
+let cachedAttribution = null;
+let cachedAttributionTime = 0;
 
-let cachedGlobalMappingMap = null;
-let cachedGlobalMappingMapTime = 0;
-let cachedInvoiceCostCenters = null;
-let cachedInvoiceCostCentersTime = 0;
-let cachedSalesToMasterMap = null;
-
+// CC1: the sales views read the one attribution of each invoice (invoice_departments, built from
+// the Odoo analytic distribution and the explicit journal defaults). No name matching, no
+// "first rule" and no preferred department: an invoice without department shows under its own
+// cost-center name.
 function refreshMappingsCache(db) {
   const now = Date.now();
-  if (cachedGlobalMappingMap && now - cachedGlobalMappingMapTime < 60000 &&
-      cachedInvoiceCostCenters && now - cachedInvoiceCostCentersTime < 60000) {
-    return { globalMappingMap: cachedGlobalMappingMap, invoiceCostCenters: cachedInvoiceCostCenters, salesToMasterMap: cachedSalesToMasterMap };
+  if (cachedAttribution && now - cachedAttributionTime < 60000) {
+    return { attribution: cachedAttribution };
   }
-
-  // Group mappings
-  const mappingsDb = db.prepare(`
-    SELECT m.analytic_account as cost_center, m.journal_name, g.name as group_name 
-    FROM analytic_group_mapping m
-    JOIN analytic_groups g ON g.id = m.group_id
-  `).all();
-  
-  const map = {};
-  mappingsDb.forEach(m => {
-    const jName = (m.journal_name || m.cost_center || '').trim();
-    if (jName) {
-      if (!map[jName]) map[jName] = [];
-      map[jName].push({ 
-        group_name: m.group_name || 'بدون مجموعة', 
-        cost_center: m.cost_center || 'بدون مركز',
-        raw_analytic: (m.cost_center || '').trim(),
-        rule_journal: (m.journal_name || '').trim()
-      });
-    }
-  });
-  cachedGlobalMappingMap = map;
-  cachedGlobalMappingMapTime = now;
-
-  // Build COMPANY-AWARE cost center map: key = "move_name::company_id" -> analytic_account
-  // When multiple journal_items exist for the same move_name+company, keep the most specific (non-empty, longest name)
-  const ccMap = {};
-  const allCC = db.prepare(`SELECT move_name, company_id, analytic_account FROM journal_items WHERE move_name IS NOT NULL AND analytic_account IS NOT NULL AND analytic_account != ''`).all();
-  allCC.forEach(row => { 
-    const key = `${row.move_name}::${row.company_id}`;
-    const existing = ccMap[key];
-    // Only overwrite if no existing value, or if new value is longer (more specific)
-    if (!existing || row.analytic_account.length > existing.length) {
-      ccMap[key] = row.analytic_account;
-    }
-  });
-  cachedInvoiceCostCenters = ccMap;
-  cachedInvoiceCostCentersTime = now;
-
-  // Build sales_company_id -> master_company_id mapping
-  // sales_companies.sales_company_id = companies.odoo_company_id
-  const s2m = {};
-  try {
-    const salesCos = db.prepare('SELECT id, sales_company_id FROM sales_companies').all();
-    const masterCos = db.prepare('SELECT id, odoo_company_id FROM companies').all();
-    salesCos.forEach(sc => {
-      const mc = masterCos.find(mc => mc.odoo_company_id === sc.sales_company_id);
-      if (mc) s2m[sc.id] = mc.id;
-    });
-  } catch(e) {}
-  cachedSalesToMasterMap = s2m;
-  
-  return { globalMappingMap: map, invoiceCostCenters: ccMap, salesToMasterMap: s2m };
+  const map = new Map();
+  for (const r of db.prepare(`
+    SELECT idp.sales_invoice_id, idp.share, idp.cost_center_name, g.name AS group_name
+    FROM invoice_departments idp
+    LEFT JOIN analytic_groups g ON g.id = idp.department_id
+    ORDER BY idp.sales_invoice_id, idp.cost_center_key, idp.department_id
+  `).all()) {
+    if (!map.has(r.sales_invoice_id)) map.set(r.sales_invoice_id, []);
+    const cc = (r.cost_center_name || '').trim() || 'بدون مركز تكلفة';
+    map.get(r.sales_invoice_id).push({ groupName: (r.group_name || '').trim() || cc, ccName: cc, share: r.share });
+  }
+  cachedAttribution = map;
+  cachedAttributionTime = now;
+  return { attribution: map };
 }
 
-function determineClassification(inv, globalMappingMap, invoiceCostCenters, refToJournalMap, salesToMasterMap) {
-  let groupName = 'بدون مجموعة';
-  let ccName = 'بدون مركز تكلفة';
-  
+function determineClassification(inv, attribution) {
   const amt = parseFloat(inv.amount_total) || 0;
-  let moveType = '', journalName = '', num = '';
+  let moveType = '', journalName = '';
   try {
     const p = inv.raw_data ? JSON.parse(inv.raw_data) : {};
     moveType = p.move_type || '';
     journalName = (p.journal_name || '').trim();
-    num = (p.name || p.invoice_number || '').trim();
-    
-    if (['Customer Credit Note', 'out_refund'].includes(moveType)) {
-      const pRef = (p.reference || '').trim();
-      if (!journalName && pRef && refToJournalMap[pRef]) {
-        journalName = refToJournalMap[pRef];
-      }
-    }
   } catch(e) {}
-
-  const partner = inv.partner_name || 'غير معروف';
-  const moveName = inv.name || num;
-
-  // Resolve the invoice's sales company_id to the master company_id
-  const salesCompanyId = inv.company_id;
-  const masterCompanyId = (salesToMasterMap || {})[salesCompanyId] || salesCompanyId;
-
-  // PRIORITY 1: Exact analytic account from journal_items — COMPANY-AWARE
-  const companyKey = `${moveName}::${masterCompanyId}`;
-  const exactCC = invoiceCostCenters[companyKey];
-  if (exactCC) {
-    let found = false;
-    let exactMatches = [];
-    for (const key of Object.keys(globalMappingMap)) {
-      const ms = globalMappingMap[key].filter(r => r.raw_analytic === exactCC);
-      exactMatches.push(...ms);
-    }
-    
-    if (exactMatches.length > 0) {
-      // 1. Prefer match where rule_journal matches invoice journalName exactly
-      // 2. Otherwise prefer match where rule_journal is empty (applies to all journals)
-      // 3. Otherwise just pick the first one
-      let match = exactMatches.find(r => r.rule_journal && r.rule_journal === journalName) ||
-                  exactMatches.find(r => !r.rule_journal) ||
-                  exactMatches[0];
-                  
-      groupName = match.group_name;
-      ccName = match.cost_center;
-      found = true;
-    }
-    
-    // Step B: Only if no exact match, try partial (includes) — but prefer shorter matches and matching journals
-    if (!found) {
-      let partialMatches = [];
-      for (const key of Object.keys(globalMappingMap)) {
-        for (const r of globalMappingMap[key]) {
-          if (exactCC.includes(r.raw_analytic) || r.raw_analytic.includes(exactCC)) {
-            partialMatches.push(r);
-          }
-        }
-      }
-      
-      if (partialMatches.length > 0) {
-        // Sort by how close the lengths are (most specific), then by journal match
-        partialMatches.sort((a, b) => {
-          const diffA = Math.abs(a.raw_analytic.length - exactCC.length);
-          const diffB = Math.abs(b.raw_analytic.length - exactCC.length);
-          if (diffA !== diffB) return diffA - diffB; // Smaller diff first
-          // If lengths are equal, prefer matching journal
-          const aJrnMatch = (a.rule_journal === journalName) ? 1 : (!a.rule_journal ? 0 : -1);
-          const bJrnMatch = (b.rule_journal === journalName) ? 1 : (!b.rule_journal ? 0 : -1);
-          return bJrnMatch - aJrnMatch; // Higher match score first
-        });
-        
-        const bestMatch = partialMatches[0];
-        groupName = bestMatch.group_name;
-        ccName = bestMatch.cost_center;
-        found = true;
-      }
-    }
-    if (!found) {
-      ccName = exactCC;
-      if (exactCC.includes('العقد الموحد')) groupName = 'العقد الموحد';
-    }
-    return { groupName, ccName, moveType, amt, journalName };
-  }
-
-  // PRIORITY 2: Journal name fallback
-  let rules = globalMappingMap[journalName];
-  if (!rules) {
-    const partialKey = Object.keys(globalMappingMap).find(k => k && journalName.includes(k));
-    if (partialKey) {
-      rules = globalMappingMap[partialKey];
-    } else if (journalName.includes('العقد الموحد')) {
-      groupName = 'العقد الموحد';
-      if (journalName.includes('مكه') || journalName.includes('ليث') || journalName.includes('خليص')) {
-        ccName = 'مشروع العقد الموحد مكه شركة الكهرباء';
-      } else {
-        ccName = 'مشروع العقد الموحد المدينه شركة الكهرباء';
-      }
-    }
-  }
-
-  if (rules && rules.length > 0) {
-    if (rules.length === 1) {
-      groupName = rules[0].group_name;
-      ccName = rules[0].cost_center;
-    } else {
-      const exactMatch = rules.find(r => partner.includes(r.raw_analytic) || r.raw_analytic.includes(partner));
-      if (exactMatch) {
-        groupName = exactMatch.group_name;
-        ccName = exactMatch.cost_center;
-      } else {
-        const defaultRule = rules.find(r => r.group_name.includes('الحج')) || rules[0];
-        groupName = defaultRule.group_name;
-        ccName = partner;
-      }
-    }
-  }
-  
-  return { groupName, ccName, moveType, amt, journalName };
+  const parts = (attribution && attribution.get(inv.id)) || [{ groupName: 'بدون مجموعة', ccName: 'بدون مركز تكلفة', share: 1 }];
+  return {
+    groupName: parts.map(p => p.groupName).join(' / '),
+    ccName: parts.map(p => p.ccName).join(' / '),
+    parts,
+    moveType,
+    amt,
+    journalName
+  };
 }
 
-
-// ===== COMPANIES =====
 router.get('/companies', (req, res) => {
   const db = getDb();
   const companies = db.prepare(`
@@ -511,7 +363,7 @@ router.get('/invoices', (req, res) => {
         sql += ` AND si.company_id IN (
           SELECT sc.id 
           FROM sales_companies sc
-          JOIN companies c ON (c.odoo_company_id = sc.sales_company_id OR c.name = sc.name)
+          JOIN companies c ON c.odoo_company_id = sc.sales_company_id
           WHERE c.id IN (${ids.map(() => '?').join(',')})
         )`;
         params.push(...ids);
@@ -535,26 +387,23 @@ router.get('/invoices', (req, res) => {
     const allMatchingDateComp = db.prepare(sql).all(...params);
 
     // Apply in-memory costCenter filtering
-    const { globalMappingMap, invoiceCostCenters, salesToMasterMap } = refreshMappingsCache(db);
-    const quickRefMap = {};
-    allMatchingDateComp.forEach(inv => {
-      try { const p = JSON.parse(inv.raw_data || '{}'); if (p.name && p.journal_name) quickRefMap[p.name] = p.journal_name; } catch(e) {}
-    });
+    const { attribution } = refreshMappingsCache(db);
 
     let filteredItems = allMatchingDateComp;
     const ccsArray = costCenters ? costCenters.split(',').map(c => c.trim()).filter(c => c) : [];
-    
+
     // Attach classification to ALL to filter properly
     allMatchingDateComp.forEach(inv => {
-      const cl = determineClassification(inv, globalMappingMap, invoiceCostCenters, quickRefMap, salesToMasterMap);
+      const cl = determineClassification(inv, attribution);
       inv.group_name = cl.groupName;
       inv.cost_center = cl.ccName;
+      inv._cc_parts = cl.parts.map(p => p.ccName);
     });
 
     if (ccsArray.length > 0) {
       filteredItems = allMatchingDateComp.filter(inv => {
-        if (ccsArray.includes(inv.cost_center)) return true;
-        if (ccsArray.includes('بدون مركز') && (!inv.cost_center || inv.cost_center === 'بدون مركز تكلفة')) return true;
+        if (inv._cc_parts.some(cc => ccsArray.includes(cc))) return true;
+        if (ccsArray.includes('بدون مركز') && inv._cc_parts.includes('بدون مركز تكلفة')) return true;
         return false;
       });
     }
@@ -594,7 +443,7 @@ router.get('/customer-hierarchy', (req, res) => {
     
     // Fetch all sales invoices matching filters
     let sql = `
-      SELECT si.company_id, si.name, si.amount_total, si.raw_data, si.partner_name, c.name as company_name 
+      SELECT si.id, si.company_id, si.name, si.amount_total, si.raw_data, si.partner_name, c.name as company_name
       FROM sales_invoices si
       LEFT JOIN sales_companies c ON c.id = si.company_id
       WHERE si.state != 'draft'
@@ -614,7 +463,7 @@ router.get('/customer-hierarchy', (req, res) => {
         sql += ` AND si.company_id IN (
           SELECT sc.id 
           FROM sales_companies sc
-          JOIN companies c ON (c.odoo_company_id = sc.sales_company_id OR c.name = sc.name)
+          JOIN companies c ON c.odoo_company_id = sc.sales_company_id
           WHERE c.id IN (${ids.map(() => '?').join(',')})
         )`;
         params.push(...ids);
@@ -634,24 +483,8 @@ router.get('/customer-hierarchy', (req, res) => {
     }
     
     const invoices = db.prepare(sql).all(...params);
-    
-    const { globalMappingMap, invoiceCostCenters, salesToMasterMap } = refreshMappingsCache(db);
-    
-    // Build ref-to-journal map for credit notes
-    if (!cachedRefToJournalMap || Date.now() - cachedRefToJournalMapTime > 60000) {
-      cachedRefToJournalMap = {};
-      const allRefs = db.prepare(`SELECT raw_data FROM sales_invoices WHERE raw_data LIKE '%journal_name%'`).all();
-      allRefs.forEach(row => {
-         try {
-           const p = row.raw_data ? JSON.parse(row.raw_data) : {};
-           const jn = (p.journal_name || '').trim();
-           const num = (p.invoice_number || p.name || '').trim();
-           if (jn && num) cachedRefToJournalMap[num] = jn;
-         } catch(e) {}
-      });
-      cachedRefToJournalMapTime = Date.now();
-    }
-    const refToJournalMap = cachedRefToJournalMap;
+
+    const { attribution } = refreshMappingsCache(db);
     const ccsArray = costCenters ? costCenters.split(',').map(c => c.trim()).filter(c => c) : [];
 
     const hierarchy = {};
@@ -659,8 +492,8 @@ router.get('/customer-hierarchy', (req, res) => {
     invoices.forEach(inv => {
       // Skip non-sales entries (MISC, BNK, PBNK, TA, CSH entries are NOT sales invoices)
       const invName = (inv.name || '').trim();
-      const isRealSales = invName.startsWith('INV') || invName.startsWith('RINV') || 
-                          invName.startsWith('ELC') || invName.startsWith('RELC') || 
+      const isRealSales = invName.startsWith('INV') || invName.startsWith('RINV') ||
+                          invName.startsWith('ELC') || invName.startsWith('RELC') ||
                           invName.startsWith('sal') || invName.startsWith('old');
       let moveTypeRaw = '';
       const company = (inv.company_name || 'أخرى').trim();
@@ -674,34 +507,39 @@ router.get('/customer-hierarchy', (req, res) => {
       } catch(e) {}
       // Only include actual sales invoices and credit notes
       if (!isRealSales && moveTypeRaw !== 'Customer Invoice' && moveTypeRaw !== 'Customer Credit Note' && moveTypeRaw !== 'out_invoice' && moveTypeRaw !== 'out_refund') return;
-      
-      const cl = determineClassification(inv, globalMappingMap, invoiceCostCenters, refToJournalMap, salesToMasterMap);
-      const { groupName, ccName, moveType, amt } = cl;
-      
-      if (ccsArray.length > 0) {
-        if (!ccsArray.includes(ccName) && !(ccsArray.includes('بدون مركز') && (!ccName || ccName === 'بدون مركز تكلفة'))) return;
-      }
 
-      if (!hierarchy[company]) hierarchy[company] = {};
-      if (!hierarchy[company][groupName]) hierarchy[company][groupName] = {};
-      if (!hierarchy[company][groupName][ccName]) hierarchy[company][groupName][ccName] = {};
-      
-      if (!hierarchy[company][groupName][ccName][partner]) {
-        hierarchy[company][groupName][ccName][partner] = {
-          total: 0, untaxed: 0, tax: 0, refunds: 0, paid: 0, rem: 0
-        };
+      const cl = determineClassification(inv, attribution);
+      const { moveType, amt } = cl;
+
+      // An invoice split over several cost centers contributes its share to each of them
+      for (const part of cl.parts) {
+        const { groupName, ccName } = part;
+        const share = part.share === null || part.share === undefined ? 1 : part.share;
+        if (ccsArray.length > 0) {
+          if (!ccsArray.includes(ccName) && !(ccsArray.includes('بدون مركز') && (!ccName || ccName === 'بدون مركز تكلفة'))) continue;
+        }
+
+        if (!hierarchy[company]) hierarchy[company] = {};
+        if (!hierarchy[company][groupName]) hierarchy[company][groupName] = {};
+        if (!hierarchy[company][groupName][ccName]) hierarchy[company][groupName][ccName] = {};
+
+        if (!hierarchy[company][groupName][ccName][partner]) {
+          hierarchy[company][groupName][ccName][partner] = {
+            total: 0, untaxed: 0, tax: 0, refunds: 0, paid: 0, rem: 0
+          };
+        }
+
+        const stats = hierarchy[company][groupName][ccName][partner];
+        if (moveType === 'Customer Credit Note' || moveType === 'out_refund') {
+          stats.refunds += Math.abs(amt) * share;
+        } else {
+          stats.total += amt * share;
+          stats.untaxed += unt * share;
+          stats.tax += (amt - unt) * share;
+        }
+        stats.paid += paid * share;
+        stats.rem = stats.total - stats.refunds - stats.paid;
       }
-      
-      const stats = hierarchy[company][groupName][ccName][partner];
-      if (moveType === 'Customer Credit Note' || moveType === 'out_refund') {
-        stats.refunds += Math.abs(amt);
-      } else {
-        stats.total += amt;
-        stats.untaxed += unt;
-        stats.tax += (amt - unt);
-      }
-      stats.paid += paid;
-      stats.rem = stats.total - stats.refunds - stats.paid;
     });
 
     res.json({ success: true, hierarchy });

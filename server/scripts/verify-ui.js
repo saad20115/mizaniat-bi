@@ -3690,6 +3690,75 @@ async function runVerifyUI() {
     console.log(`  ✅ UI2-1 Numeric Column Alignment & Space Distribution Invariant passed! (Total evaluated: ${totalUi2ColumnsEvaluated}, Violations: ${totalUi2Violations})\n`);
 
     // ──────────────────────────────────────────
+    // TEST 8.9: CC1 — «تعارضات تحتاج قرارًا» in the settings page (real clicks)
+    // ──────────────────────────────────────────
+    console.log('\n--- 8.9. CC1: Conflicts that need a decision & journal defaults ---');
+    await cdp.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+    await cdp.eval(`
+      localStorage.setItem('mizaniat_admin_token', '${adminToken}');
+      localStorage.removeItem('mizaniat_viewer_mode');
+      localStorage.removeItem('mizaniat_viewer_token');
+      sessionStorage.removeItem('mizaniat_viewer_token');
+    `);
+    const apiConflicts = async () => cdp.eval(`fetch('/api/attribution/conflicts', { headers: { Authorization: 'Bearer ${adminToken}' } }).then(r => r.json())`);
+    const cc1Before = await apiConflicts();
+    await cdp.send('Page.navigate', { url: `http://localhost:${APP_PORT}/index.html?page=analytic-accounts` });
+    let cc1Rows = 0;
+    for (let attempts = 0; attempts < 20; attempts++) {
+      await sleep(500);
+      cc1Rows = await cdp.eval('document.querySelectorAll("#cc-conflicts-journals tbody tr").length');
+      if (cc1Rows > 0) break;
+    }
+    assert(cc1Before && Array.isArray(cc1Before.journals), 'CC1-UI: /api/attribution/conflicts answers for the admin');
+    assert(cc1Rows === (cc1Before.journals || []).length, `CC1-UI: the settings page lists every ambiguous journal (${cc1Rows} rows, API ${(cc1Before.journals || []).length})`);
+    const cc1FirstKey = await cdp.eval('document.querySelector("#cc-conflicts-journals tbody tr td:nth-child(2) div")?.textContent || ""');
+    assert(cc1Rows === 0 || /^j:\d+$/.test(cc1FirstKey.trim()), `CC1-UI: an ambiguous journal stays on its own row until decided (${cc1FirstKey.trim()})`);
+    if (cc1Rows > 0) {
+      const target = cc1Before.journals[cc1Rows - 1];
+      const chosen = (target.candidate_departments[0] || {}).id || '';
+      await cdp.eval(`(() => {
+        const tr = document.querySelectorAll('#cc-conflicts-journals tbody tr')[${cc1Rows - 1}];
+        const sel = tr.querySelector('.cc-group-select');
+        sel.value = '${chosen}';
+        sel.dispatchEvent(new Event('change'));
+      })()`);
+      await cdp.realClick(`#cc-conflicts-journals tbody tr:nth-child(${cc1Rows}) .cc-decide`);
+      let after = null;
+      for (let attempts = 0; attempts < 40; attempts++) {
+        await sleep(500);
+        after = await cdp.eval('document.querySelectorAll("#cc-conflicts-journals tbody tr").length');
+        if (after === cc1Rows - 1) break;
+      }
+      assert(after === cc1Rows - 1, `CC1-UI: deciding a journal removes it from the conflicts list (${cc1Rows} → ${after})`);
+      const decided = await cdp.eval(`fetch('/api/journal-defaults?companyId=${target.company_id}', { headers: { Authorization: 'Bearer ${adminToken}' } }).then(r => r.json())`);
+      const row = (decided.journals || []).find(j => j.journal_id === target.journal_id);
+      assert(row && row.decided_by_user === 1 && String(row.group_id || '') === String(chosen), `CC1-UI: the decision is stored as a user decision (journal ${target.journal_id} → department ${chosen || 'none'})`);
+      const deptAfter = await cdp.eval(`fetch('/api/departments-comparison?years=2026', { headers: { Authorization: 'Bearer ${adminToken}' } }).then(r => r.ok)`);
+      assert(deptAfter === true, 'CC1-UI: presentation APIs answer after the rebuild');
+      await cdp.realClick('#btn-cc-rebuild');
+      let rebuiltRows = -1;
+      for (let attempts = 0; attempts < 40; attempts++) {
+        await sleep(500);
+        const enabled = await cdp.eval('!document.querySelector("#btn-cc-rebuild").disabled');
+        rebuiltRows = await cdp.eval('document.querySelectorAll("#cc-conflicts-journals tbody tr").length');
+        if (enabled && rebuiltRows === cc1Rows - 1) break;
+      }
+      assert(rebuiltRows === cc1Rows - 1, `CC1-UI: «إعادة بناء الإسناد» rebuilds without changing the decisions (${rebuiltRows} rows left)`);
+      // journal defaults table of that company
+      await cdp.eval(`(() => { const s = document.querySelector('#aa-company'); s.value = '${target.company_id}'; s.dispatchEvent(new Event('change')); })()`);
+      await cdp.realClick('#btn-load-accounts');
+      let jdRows = 0;
+      for (let attempts = 0; attempts < 20; attempts++) {
+        await sleep(500);
+        jdRows = await cdp.eval('document.querySelectorAll("#journal-defaults-table tbody tr").length');
+        if (jdRows > 0) break;
+      }
+      assert(jdRows > 0, `CC1-UI: the journal defaults table lists the company's journals (${jdRows})`);
+      const journalColumn = await cdp.eval('document.querySelectorAll(".account-journal-select").length');
+      assert(journalColumn === 0, 'CC1-UI: analytic mapping rows no longer carry a journal (journal defaults are a separate setting)');
+    }
+
+    // ──────────────────────────────────────────
     // TEST 9: Zero Console Errors
     // ──────────────────────────────────────────
     console.log('\n--- 9. Browser Console Error Check ---');

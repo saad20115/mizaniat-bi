@@ -49,7 +49,6 @@ async function runMigration() {
     sisterPartnersInserted: 0,
     analyticGroupsInserted: 0,
     analyticMappingsInserted: 0,
-    analyticMappingsUpdated: 0,
     conflicts: []
   };
 
@@ -178,16 +177,13 @@ async function runMigration() {
   console.log(`  ✓ Analytic groups merged: ${stats.analyticGroupsInserted} new groups.`);
 
   // 8. analytic_group_mapping (Merge: never delete live rows)
-  console.log('\n── Step 7: Analytic Group Mapping (Merge & Journal Enrichment)');
+  // CC1: only analytic account -> department rows are merged. Journal metadata is NOT copied
+  // onto analytic rows any more (that enrichment tied one journal to many analytic accounts and
+  // departments); journal behaviour is the explicit setting journal_department_defaults.
+  console.log('\n── Step 7: Analytic Group Mapping (Merge, analytic -> department only)');
   const insMappingStmt = db.prepare(`
-    INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name, journal_id)
-    VALUES (@company_id, @analytic_account, @group_id, @redistributable, @journal_name, @journal_id)
-  `);
-  const updMappingJournalStmt = db.prepare(`
-    UPDATE analytic_group_mapping
-    SET journal_id = COALESCE(journal_id, @journal_id),
-        journal_name = COALESCE(journal_name, @journal_name)
-    WHERE company_id = @company_id AND analytic_account = @analytic_account
+    INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable)
+    VALUES (@company_id, @analytic_account, @group_id, @redistributable)
   `);
 
   for (const m of manifest.analytic_group_mapping || []) {
@@ -198,11 +194,12 @@ async function runMigration() {
     `).get(m.company_id, m.analytic_account);
 
     if (!cur) {
-      console.log(`  [Mapping Insert] Co ${m.company_id}: "${m.analytic_account}" -> Group ${m.group_id} (jid: ${m.journal_id || 'null'})`);
-      if (!isDryRun) insMappingStmt.run(m);
+      if (!String(m.analytic_account || '').trim()) continue; // journal-only rows are not analytic mappings
+      console.log(`  [Mapping Insert] Co ${m.company_id}: "${m.analytic_account}" -> Group ${m.group_id}`);
+      if (!isDryRun) insMappingStmt.run({ company_id: m.company_id, analytic_account: m.analytic_account, group_id: m.group_id, redistributable: m.redistributable ? 1 : 0 });
       stats.analyticMappingsInserted++;
     } else {
-      // Check for conflict or journal_id enrichment
+      // Report a department conflict; the live row is kept as is
       if (cur.group_id !== m.group_id) {
         stats.conflicts.push({
           company_id: m.company_id,
@@ -212,13 +209,9 @@ async function runMigration() {
           resolution: 'kept target group_id (no override)'
         });
       }
-      if ((!cur.journal_id && m.journal_id) || (!cur.journal_name && m.journal_name)) {
-        if (!isDryRun) updMappingJournalStmt.run(m);
-        stats.analyticMappingsUpdated++;
-      }
     }
   }
-  console.log(`  ✓ Analytic group mappings merged: ${stats.analyticMappingsInserted} inserted, ${stats.analyticMappingsUpdated} enriched with journal metadata.`);
+  console.log(`  ✓ Analytic group mappings merged: ${stats.analyticMappingsInserted} inserted (journal defaults are a separate setting).`);
   if (stats.conflicts.length > 0) {
     console.log(`  ⚠️ Conflicts encountered and preserved: ${stats.conflicts.length}`);
     for (const c of stats.conflicts) {
@@ -237,7 +230,6 @@ async function runMigration() {
   console.log(`• Sister Partners Synced:     ${stats.sisterPartnersInserted}`);
   console.log(`• Analytic Groups Added:      ${stats.analyticGroupsInserted}`);
   console.log(`• Analytic Mappings Added:    ${stats.analyticMappingsInserted}`);
-  console.log(`• Analytic Mappings Enriched: ${stats.analyticMappingsUpdated}`);
   console.log(`• Conflicts Preserved:        ${stats.conflicts.length}`);
   console.log('================================================================\n');
 

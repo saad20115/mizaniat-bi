@@ -356,42 +356,168 @@ router.get('/analytic-group-mappings', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Save group mapping  
+// Save group mapping (analytic account -> department).
+// CC1: only the accounts shown on the page (`accounts`) are replaced, so rows the page does not
+// list are never deleted; legacy journal metadata of a row is kept as is (it no longer drives
+// attribution — journal defaults are a separate setting). Derived tables are rebuilt.
 router.post('/analytic-group-mappings', (req, res) => {
   try {
-    const { companyId, mappings } = req.body;
+    const { companyId, mappings, accounts } = req.body;
     if (!companyId || !mappings) return res.status(400).json({ error: 'Missing data' });
+    const cid = parseInt(companyId);
     const { getDb } = require('../db/connection');
     const db = getDb();
-    
-    const deleteStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ?');
+
+    const existing = new Map(db.prepare('SELECT analytic_account, journal_name, journal_id FROM analytic_group_mapping WHERE company_id = ?')
+      .all(cid).map(r => [r.analytic_account, r]));
+    const scope = Array.isArray(accounts) ? new Set(accounts.map(a => String(a))) : null;
+    for (const m of mappings) if (scope && m.analytic_account) scope.add(String(m.analytic_account));
+
+    const deleteAllStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ?');
+    const deleteOneStmt = db.prepare('DELETE FROM analytic_group_mapping WHERE company_id = ? AND analytic_account = ?');
     const insertStmt = db.prepare('INSERT INTO analytic_group_mapping (company_id, analytic_account, group_id, redistributable, journal_name, journal_id) VALUES (?, ?, ?, ?, ?, ?)');
-    
-    const findJidStmt = db.prepare(`
-      SELECT COALESCE(
-        (SELECT journal_id FROM sales_invoices WHERE company_id = ? AND (TRIM(journal_name) = ? OR journal_name = ?) AND journal_id > 0 LIMIT 1),
-        (SELECT invoice_journal_id FROM payment_allocations WHERE company_id = ? AND (TRIM(invoice_journal_name) = ? OR invoice_journal_name = ?) AND invoice_journal_id > 0 LIMIT 1),
-        (SELECT journal_id FROM journal_items WHERE company_id = ? AND (TRIM(journal_name) = ? OR journal_name = ?) AND journal_id > 0 LIMIT 1)
-      ) as jid
-    `);
 
     db.transaction(() => {
-      deleteStmt.run(parseInt(companyId));
+      if (scope) {
+        for (const a of scope) deleteOneStmt.run(cid, a);
+      } else {
+        deleteAllStmt.run(cid);
+      }
       for (const m of mappings) {
         if (m.analytic_account && m.group_id) {
-          let jid = m.journal_id ? parseInt(m.journal_id) : null;
-          if (!jid && m.journal_name) {
-            const clean = (m.journal_name || '').trim();
-            const r = findJidStmt.get(companyId, clean, m.journal_name, companyId, clean, m.journal_name, companyId, clean, m.journal_name);
-            if (r?.jid) jid = r.jid;
-          }
-          insertStmt.run(parseInt(companyId), m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, m.journal_name || null, jid);
+          const prev = existing.get(m.analytic_account) || {};
+          insertStmt.run(cid, m.analytic_account, parseInt(m.group_id), m.redistributable ? 1 : 0, prev.journal_name || null, prev.journal_id || null);
         }
       }
     })();
-    
+
+    const { rebuildAttribution } = require('../services/attribution');
+    const rebuilt = rebuildAttribution(db, cid);
     CacheService.flush();
-    res.json({ success: true });
+    res.json({ success: true, rebuild: rebuilt });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ===== CC1: JOURNAL DEFAULTS & ATTRIBUTION CONFLICTS (admin) =====
+
+// Ambiguities that need a user decision («تعارضات تحتاج قرارًا»)
+router.get('/attribution/conflicts', (req, res) => {
+  try {
+    const { getDb } = require('../db/connection');
+    const { getAttributionConflicts } = require('../services/attribution');
+    const companyId = req.query.companyId ? parseInt(req.query.companyId) : null;
+    res.json(getAttributionConflicts(getDb(), { companyId }));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Journals of a company with their explicit default department / cost center
+router.get('/journal-defaults', (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId);
+    if (!companyId) return res.status(400).json({ error: 'companyId required' });
+    const { getDb } = require('../db/connection');
+    const { AttributionContext } = require('../services/attribution');
+    const db = getDb();
+    const ctx = new AttributionContext(db, companyId);
+    const sales = db.prepare('SELECT sc.id FROM sales_companies sc JOIN companies c ON c.odoo_company_id = sc.sales_company_id WHERE c.id = ?').get(companyId);
+    const invJournals = new Map(sales
+      ? db.prepare('SELECT journal_id, COUNT(*) AS n, ROUND(SUM(amount_untaxed), 2) AS untaxed FROM sales_invoices WHERE company_id = ? AND journal_id > 0 GROUP BY journal_id').all(sales.id).map(r => [r.journal_id, r])
+      : []);
+    const journals = db.prepare('SELECT odoo_journal_id, name, type FROM odoo_journals WHERE company_id = ? ORDER BY name').all(companyId);
+    const rows = [];
+    for (const j of journals) {
+      const d = ctx.journalDefault(j.odoo_journal_id);
+      const legacy = ctx.legacy.get(j.odoo_journal_id);
+      const inv = invJournals.get(j.odoo_journal_id);
+      if (!d && !legacy && !inv) continue;
+      rows.push({
+        journal_id: j.odoo_journal_id,
+        journal_name: j.name,
+        journal_type: j.type,
+        group_id: d ? d.group_id : null,
+        analytic_id: d ? d.analytic_id : null,
+        decided_by_user: d ? d.decided_by_user : 0,
+        source: d ? d.source : null,
+        flagged: ctx.isFlaggedJournal(j.odoo_journal_id),
+        candidate_analytics: legacy ? [...legacy.analytics] : [],
+        candidate_groups: legacy ? [...legacy.groups] : [],
+        invoices: inv ? inv.n : 0,
+        invoices_untaxed: inv ? inv.untaxed : 0
+      });
+    }
+    const analytics = db.prepare(`
+      SELECT oa.odoo_id AS id, oa.name FROM odoo_analytic_accounts oa
+      JOIN companies c ON c.odoo_instance_id = oa.instance_id
+      WHERE c.id = ? AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
+      ORDER BY oa.name
+    `).all(companyId);
+    res.json({ journals: rows, analytics });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Record the user's decision for a journal, then rebuild the derived tables of that company
+router.put('/journal-defaults', (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId);
+    const journalId = parseInt(req.body.journalId);
+    if (!companyId || !journalId) return res.status(400).json({ error: 'companyId and journalId required' });
+    const groupId = req.body.groupId === null || req.body.groupId === undefined || req.body.groupId === '' ? null : parseInt(req.body.groupId);
+    const analyticId = req.body.analyticId === null || req.body.analyticId === undefined || req.body.analyticId === '' ? null : parseInt(req.body.analyticId);
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    const journal = db.prepare('SELECT 1 FROM odoo_journals WHERE company_id = ? AND odoo_journal_id = ?').get(companyId, journalId);
+    if (!journal) return res.status(400).json({ error: 'الدفتر غير موجود لهذه الشركة' });
+    if (groupId !== null && !db.prepare('SELECT 1 FROM analytic_groups WHERE id = ?').get(groupId)) {
+      return res.status(400).json({ error: 'القسم غير موجود' });
+    }
+    let analyticName = null;
+    if (analyticId !== null) {
+      const a = db.prepare(`
+        SELECT oa.name FROM odoo_analytic_accounts oa JOIN companies c ON c.odoo_instance_id = oa.instance_id
+        WHERE c.id = ? AND oa.odoo_id = ? AND (oa.company_id IS NULL OR oa.company_id = 0 OR oa.company_id = c.odoo_company_id)
+      `).get(companyId, analyticId);
+      if (!a) return res.status(400).json({ error: 'مركز التكلفة غير موجود لهذه الشركة' });
+      analyticName = a.name;
+    }
+    db.prepare(`
+      INSERT INTO journal_department_defaults (company_id, journal_id, group_id, analytic_id, analytic_account, decided_by_user, source, updated_at)
+      VALUES (?, ?, ?, ?, ?, 1, 'user', datetime('now'))
+      ON CONFLICT(company_id, journal_id) DO UPDATE SET
+        group_id = excluded.group_id,
+        analytic_id = excluded.analytic_id,
+        analytic_account = excluded.analytic_account,
+        decided_by_user = 1,
+        source = 'user',
+        updated_at = datetime('now')
+    `).run(companyId, journalId, groupId, analyticId, analyticName);
+    const { rebuildAttribution } = require('../services/attribution');
+    const rebuilt = rebuildAttribution(db, companyId);
+    res.json({ success: true, rebuild: rebuilt });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Withdraw a decision: the journal goes back to "no default" (its own row, no department)
+router.delete('/journal-defaults', (req, res) => {
+  try {
+    const companyId = parseInt(req.query.companyId);
+    const journalId = parseInt(req.query.journalId);
+    if (!companyId || !journalId) return res.status(400).json({ error: 'companyId and journalId required' });
+    const { getDb } = require('../db/connection');
+    const db = getDb();
+    db.prepare('DELETE FROM journal_department_defaults WHERE company_id = ? AND journal_id = ?').run(companyId, journalId);
+    const { rebuildAttribution } = require('../services/attribution');
+    const rebuilt = rebuildAttribution(db, companyId);
+    res.json({ success: true, rebuild: rebuilt });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Rebuild fact_daily, invoice_departments and payment_allocations attribution from settings
+router.post('/attribution/rebuild', (req, res) => {
+  try {
+    const { getDb } = require('../db/connection');
+    const { rebuildAttribution } = require('../services/attribution');
+    const companyId = req.body && req.body.companyId ? parseInt(req.body.companyId) : null;
+    res.json({ success: true, rebuild: rebuildAttribution(getDb(), companyId) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

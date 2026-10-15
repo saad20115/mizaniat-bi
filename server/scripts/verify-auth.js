@@ -270,6 +270,17 @@ async function run() {
   await test('Viewer POST /api/sales/sync/all (trigger sales sync)', '/api/sales/sync/all', 'POST', { 'x-viewer-token': viewerToken }, {}, [401, 403]);
   await test('Viewer PUT /api/companies/1/vat-period (edit vat period -> forbidden)', '/api/companies/1/vat-period', 'PUT', { 'x-viewer-token': viewerToken }, { vat_period: 'monthly' }, [401, 403]);
 
+  console.log('\n── CC1: Attribution settings are admin-only');
+  await test('Viewer GET /api/attribution/conflicts (admin-only)', '/api/attribution/conflicts', 'GET', { 'x-viewer-token': viewerToken }, undefined, [401, 403]);
+  await test('Viewer GET /api/journal-defaults (admin-only)', '/api/journal-defaults?companyId=1', 'GET', { 'x-viewer-token': viewerToken }, undefined, [401, 403]);
+  await test('Viewer PUT /api/journal-defaults (decide journal -> forbidden)', '/api/journal-defaults', 'PUT', { 'x-viewer-token': viewerToken }, { companyId: 1, journalId: 1, groupId: 1 }, [401, 403]);
+  await test('Viewer DELETE /api/journal-defaults (withdraw decision -> forbidden)', '/api/journal-defaults?companyId=1&journalId=1', 'DELETE', { 'x-viewer-token': viewerToken }, null, [401, 403]);
+  await test('Viewer POST /api/attribution/rebuild (rebuild -> forbidden)', '/api/attribution/rebuild', 'POST', { 'x-viewer-token': viewerToken }, {}, [401, 403]);
+  await test('No token GET /api/attribution/conflicts', '/api/attribution/conflicts', 'GET', {}, undefined, 401);
+  await test('Admin GET /api/attribution/conflicts', '/api/attribution/conflicts', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('Admin GET /api/journal-defaults', '/api/journal-defaults?companyId=1', 'GET', { 'Authorization': `Bearer ${adminToken}` }, undefined, 200);
+  await test('Admin PUT /api/journal-defaults with an unknown journal is rejected', '/api/journal-defaults', 'PUT', { 'Authorization': `Bearer ${adminToken}` }, { companyId: 1, journalId: 999999999, groupId: null }, 400);
+
   console.log('\n── S2 (SEC1): Viewer Allowed Read-Only Operations (Must be 200)');
   await test('Viewer GET /api/executive (executive summary)', '/api/executive?year=2026', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
   await test('Viewer GET /api/filters (filter options read-only)', '/api/filters', 'GET', { 'x-viewer-token': viewerToken }, undefined, 200);
@@ -456,6 +467,8 @@ async function run() {
   await test('Scoped Viewer GET /api/matrix (blocked tab -> 403)', '/api/matrix', 'GET', scopedHeaders, undefined, 403);
   await test('Scoped Viewer GET /api/reports/income-statement (blocked tab -> 403)', '/api/reports/income-statement', 'GET', scopedHeaders, undefined, 403);
   await test('Scoped Viewer GET /api/presentation/scoped-shares (admin only -> 401/403)', '/api/presentation/scoped-shares', 'GET', scopedHeaders, undefined, [401, 403]);
+  await test('Scoped Viewer GET /api/attribution/conflicts (admin only -> 401/403)', '/api/attribution/conflicts', 'GET', scopedHeaders, undefined, [401, 403]);
+  await test('Scoped Viewer GET /api/journal-defaults (admin only -> 401/403)', '/api/journal-defaults?companyId=1', 'GET', scopedHeaders, undefined, [401, 403]);
   await test('Scoped Viewer POST /api/companies (mutation forbidden -> 403)', '/api/companies', 'POST', { ...scopedHeaders, 'Content-Type': 'application/json' }, { name: 'Fake' }, 403);
   await test('Scoped Viewer GET /api/departments-profitability?distributeAdmin=1 -> 403', '/api/departments-profitability?distributeAdmin=1', 'GET', scopedHeaders, undefined, 403);
   await test('Scoped Viewer GET /api/departments-profitability?redistributeAdmin=true -> 403', '/api/departments-profitability?redistributeAdmin=true', 'GET', scopedHeaders, undefined, 403);

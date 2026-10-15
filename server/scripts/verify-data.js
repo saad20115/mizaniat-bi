@@ -319,9 +319,9 @@ for (const c of companies) {
       const sampleInv = engine.db.prepare(`
         SELECT id, company_id, journal_id, journal_name 
         FROM sales_invoices 
-        WHERE company_id = ? AND journal_id IS NOT NULL AND journal_id IN (SELECT journal_id FROM analytic_group_mapping WHERE journal_id IS NOT NULL)
+        WHERE company_id = ? AND journal_id IS NOT NULL AND journal_id IN (SELECT journal_id FROM journal_department_defaults WHERE group_id IS NOT NULL AND company_id = ?)
         LIMIT 1
-      `).get(sc.id);
+      `).get(sc.id, c.id);
       
       if (sampleInv) {
         if (process.argv.includes('--readonly')) {
@@ -833,7 +833,10 @@ for (const yr of ['2026', '2025', '2024']) {
             AND id.department_id = ?
             AND c.id = ?
             AND c.is_active = 1
-        `).get(j.cost_center_key || j.journal_id, j.journal_id, yr, dept.id, co.id);
+        `).get(j.cost_center_key || j.journal_id, j.journal_id, yr,
+          // UC1: a cost center without department is shown as its own synthetic group (department_id 0)
+          engine._getSyntheticGroupRegistry().idToMeta.has(dept.id) ? 0 : dept.id,
+          co.id);
         if (indep && indep.inv_count > 0) {
           const invMatch = Math.abs(indep.inv_count - j.inv_count) === 0;
           const netMatch = Math.abs(Math.round(indep.net || 0) - Math.round(j.net || 0)) <= 1;
@@ -1805,6 +1808,10 @@ check('HF1 Invariant 27c: 0 other_adjustment allocations with bank or cash journ
 
 // DC1: Departments comparison tab invariants
 require('./verify-departments-comparison').runDepartmentsComparisonChecks({ engine, db, check });
+
+// CC1: attribution invariants (no implicit department / cost-center choice, collections follow
+// their invoice, ledger by cost center = Odoo distribution percentages)
+require('./verify-attribution').runAttributionChecks({ db, check });
 
 console.log(`\n${failures === 0 ? 'ALL CHECKS PASSED' : failures + ' CHECK(S) FAILED'}`);
 process.exit(failures === 0 ? 0 : 1);

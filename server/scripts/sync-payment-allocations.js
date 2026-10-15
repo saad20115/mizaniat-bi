@@ -1,6 +1,7 @@
 const { getDb } = require('../db/connection');
 const OdooConnector = require('../services/odoo-connector');
 const CacheService = require('../services/cache');
+const { splitAmount, AttributionContext } = require('../services/attribution');
 
 async function syncAllPaymentAllocations() {
   const db = getDb();
@@ -160,6 +161,7 @@ async function syncAllPaymentAllocations() {
     `);
 
     let coInserted = 0;
+    const attrCtx = new AttributionContext(db, co.ledger_cid);
 
     const syncTransaction = db.transaction(() => {
       db.prepare('DELETE FROM payment_allocations WHERE company_id = ?').run(co.ledger_cid);
@@ -185,11 +187,13 @@ async function syncAllPaymentAllocations() {
           depts = findDeptsByOdooStmt.all(co.sales_cid, dItem.odoo_invoice_id);
         }
         if (!depts || depts.length === 0) {
+          // No attributed invoice: the invoice journal's explicit default, else its own row
+          const t = attrCtx.untaggedTarget(dItem.invoice_journal_id || 0, dItem.invoice_journal_name || '');
           depts = [{
-            department_id: 0,
+            department_id: t.deptId || 0,
             share: 1.0,
-            cost_center_key: 'j:' + (dItem.invoice_journal_id || 0),
-            cost_center_name: dItem.invoice_journal_name || 'بدون دفتر'
+            cost_center_key: t.key,
+            cost_center_name: t.name
           }];
         }
 
@@ -322,14 +326,18 @@ async function syncAllPaymentAllocations() {
           }];
         }
 
-        // Insert allocation row for each department and counterpart combination
-        for (const dept of depts) {
-          const deptShare = dept.share || 1.0;
-          const deptName = deptNames.get(dept.department_id) || 'غير مصنف';
+        // Insert allocation row for each department and counterpart combination.
+        // CC1: each counterpart amount is split over the invoice's attribution with exact cents,
+        // so the department pieces always add up to the counterpart amount.
+        for (const cp of counterpartRows) {
+          const cpShare = cp.share || 1.0;
+          const cpAmount = Math.round((r.amount || 0) * cpShare * 100) / 100;
+          const deptAmounts = splitAmount(cpAmount, depts.map(d => (d.share === null || d.share === undefined) ? 1.0 : d.share));
 
-          for (const cp of counterpartRows) {
-            const cpShare = cp.share || 1.0;
-            const allocAmount = Math.round((r.amount || 0) * deptShare * cpShare * 100) / 100;
+          for (let di = 0; di < depts.length; di++) {
+            const dept = depts[di];
+            const deptName = deptNames.get(dept.department_id) || 'غير مصنف';
+            const allocAmount = deptAmounts[di];
 
             insertStmt.run({
               company_id: co.ledger_cid,

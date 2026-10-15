@@ -2390,10 +2390,7 @@ class ConsolidationEngine {
   }
 
   /**
-   * Resolve and rebuild invoice departments according to unified rule (R2):
-   * 1. Analytic account of income lines for that move in journal_items -> group_id (proportional by line amount)
-   * 2. If no income lines or none mapped to an analytic group -> journal_name via analytic_group_mapping.journal_name
-   * 3. Otherwise unclassified (0)
+   * Ledger / sales company identifiers of a company (joined by id, never by name).
    */
   _getCompanyInfo(companyId, isSalesCompany = false) {
     if (!companyId) return null;
@@ -2465,172 +2462,96 @@ class ConsolidationEngine {
   }
 
   /**
-   * M1: Unified Cost Center Resolver
-   * Priority: Analytic Account on revenue lines -> fallback to Journal ID / Journal Name
-   * Produces stable cost_center_key = an:<instance>:<analytic_id> when matched
+   * M1 / CC1: Unified Cost Center Resolver (one line, no distribution).
+   * Delegates to the single attribution resolver (server/services/attribution.js):
+   * analytic account on the line -> an:<instance>:<analytic_id>; no analytic -> the journal's
+   * explicit default cost center (journal_department_defaults), else the journal's own row
+   * j:<journal_id>. Journal behaviour is never derived from analytic mapping rows.
    */
+  _attributionContext(ledgerCompanyId) {
+    const { AttributionContext } = require('./attribution');
+    if (!this._attrCtxCache) this._attrCtxCache = new Map();
+    if (!this._attrCtxCache.has(ledgerCompanyId)) {
+      this._attrCtxCache.set(ledgerCompanyId, new AttributionContext(this.db, ledgerCompanyId));
+    }
+    return this._attrCtxCache.get(ledgerCompanyId);
+  }
+
   resolveCostCenter({ companyId, analyticAccount, journalId, journalName, costCenterId }) {
     const compInfo = this._getCompanyInfo(companyId);
     const instanceId = compInfo ? compInfo.instance_id : null;
-    const odooCompanyId = compInfo ? compInfo.odoo_company_id : null;
-    let cleanAnalytic = (analyticAccount || '').replace(/\s+/g, ' ').trim();
-    let cleanCostCenterId = costCenterId || null;
-
-    let ambiguousJournal = false;
-    if (!cleanAnalytic && !cleanCostCenterId && journalId && companyId) {
-      try {
-        // Fall back to the journal's analytic account only when the journal maps to exactly ONE analytic account.
-        // A journal mapped to several (e.g. a company-wide sales journal) must not hand its first mapping to untagged lines.
-        const mapped = this.db.prepare(`
-          SELECT DISTINCT TRIM(analytic_account) as analytic_account
-          FROM analytic_group_mapping 
-          WHERE company_id = ? AND journal_id = ? AND analytic_account IS NOT NULL AND TRIM(analytic_account) != ''
-          LIMIT 2
-        `).all(companyId, journalId);
-        if (mapped.length === 1 && mapped[0].analytic_account) {
-          cleanAnalytic = mapped[0].analytic_account.replace(/\s+/g, ' ').trim();
-        } else if (mapped.length > 1) {
-          ambiguousJournal = true;
-        }
-      } catch (e) {}
-    }
-
-    // Try resolving to stable odoo_analytic_accounts record
-    if (instanceId) {
-      let accRow = null;
-      if (cleanCostCenterId) {
-        accRow = this.db.prepare(`
-          SELECT odoo_id, name 
-          FROM odoo_analytic_accounts 
-          WHERE instance_id = ? AND odoo_id = ?
-        `).get(instanceId, cleanCostCenterId);
-      }
-      if (!accRow && cleanAnalytic) {
-        accRow = this.db.prepare(`
-          SELECT odoo_id, name 
-          FROM odoo_analytic_accounts 
-          WHERE instance_id = ? 
-            AND (company_id IS NULL OR company_id = 0 OR company_id = ?)
-            AND (name = ? OR REPLACE(name, '  ', ' ') = ?)
-          ORDER BY CASE WHEN company_id = ? THEN 0 ELSE 1 END, odoo_id ASC
-          LIMIT 1
-        `).get(instanceId, odooCompanyId, cleanAnalytic, cleanAnalytic.replace(/\s+/g, ' '), odooCompanyId);
-      }
-
-      if (accRow) {
-        return {
-          key: `an:${instanceId}:${accRow.odoo_id}`,
-          name: accRow.name,
-          type: 'analytic',
-          analytic_account: accRow.name,
-          cost_center_id: accRow.odoo_id,
-          instance_id: instanceId,
-          journal_id: journalId || 0,
-          journal_name: (journalName || '').trim()
-        };
-      }
-    }
-
-    if (cleanAnalytic) {
-      return {
-        key: instanceId ? `an:${instanceId}:${cleanAnalytic}` : `an:${cleanAnalytic}`,
-        name: cleanAnalytic,
-        type: 'analytic',
-        analytic_account: cleanAnalytic,
-        cost_center_id: cleanCostCenterId,
-        instance_id: instanceId,
-        journal_id: journalId || 0,
-        journal_name: (journalName || '').trim()
-      };
-    }
-
-    const cleanJName = (journalName || '').trim();
-    const jId = journalId || 0;
-    const baseName = cleanJName || (jId ? `دفتر ${jId}` : 'بدون دفتر');
+    const ctx = this._attributionContext(compInfo ? compInfo.ledger_cid : companyId);
+    const [p] = ctx.lineParts({
+      analytic_account: analyticAccount || '',
+      cost_center_id: costCenterId || null,
+      journal_id: journalId || 0,
+      journal_name: journalName || ''
+    });
+    const isAnalytic = p.key.startsWith('an:');
+    const idMatch = /^an:\d+:(\d+)$/.exec(p.key);
     return {
-      key: 'j:' + jId,
-      name: ambiguousJournal ? `${baseName} — بدون مركز تكلفة` : baseName,
-      type: 'journal',
-      analytic_account: null,
-      cost_center_id: null,
+      key: p.key,
+      name: p.name,
+      type: isAnalytic ? 'analytic' : 'journal',
+      analytic_account: isAnalytic ? p.name : null,
+      cost_center_id: idMatch ? Number(idMatch[1]) : null,
       instance_id: instanceId,
-      journal_id: jId,
-      journal_name: baseName
+      journal_id: journalId || 0,
+      journal_name: (journalName || '').trim(),
+      department_id: p.deptId || 0
     };
   }
 
   /**
-   * Resolve department attribution for all sales invoices based on rules:
-   * 1. Analytic account of income lines for that move in journal_items -> group_id (proportional by line amount)
-   * 2. If no income lines or none mapped to an analytic group -> journal_name via analytic_group_mapping.journal_name
-   * 3. Otherwise unclassified (0)
+   * Resolve department / cost-center attribution of all sales invoices (CC1):
+   * every income line of the invoice is split by its Odoo analytic distribution (percentages
+   * included); each part goes to its analytic account and that account's department, or — for
+   * amounts without an analytic account — to the journal's explicit default, else to the
+   * journal's own row with no department. Shares are proportional to the line amounts.
+   * An invoice without income lines takes its journal's explicit default (or own row).
+   * Collections (payment_allocations) are re-derived from the result in the same step.
    */
   resolveInvoiceDepartments(companyId) {
-    const targetCompanies = companyId 
-      ? [companyId] 
+    const { loadDistribution, rederivePaymentAllocations } = require('./attribution');
+    this._attrCtxCache = new Map();
+    const targetCompanies = companyId
+      ? [companyId]
       : this.db.prepare('SELECT id FROM sales_companies WHERE is_active = 1').all().map(c => c.id);
 
     let totalAllocations = 0;
 
     for (const scId of targetCompanies) {
       const coRow = this.db.prepare(`
-        SELECT c.id as ledger_company_id 
-        FROM companies c 
-        JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id 
+        SELECT c.id as ledger_company_id
+        FROM companies c
+        JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
         WHERE sc.id = ?
       `).get(scId);
       const ledgerCid = coRow ? coRow.ledger_company_id : scId;
-
-      // Build mappings with ORDER BY id ASC for deterministic resolution matching fact_daily
-      // S1: Map by journal_id first, fallback to journal_name
-      const journalMap = {};
-      this.db.prepare(`
-        SELECT journal_id, journal_name, group_id 
-        FROM analytic_group_mapping 
-        WHERE company_id = ? AND ((journal_id IS NOT NULL AND journal_id > 0) OR (journal_name IS NOT NULL AND journal_name != ''))
-        ORDER BY id ASC
-      `).all(ledgerCid).forEach(r => {
-        if (r.journal_id && journalMap['id:' + r.journal_id] === undefined) {
-          journalMap['id:' + r.journal_id] = r.group_id;
-        }
-        const k = (r.journal_name || '').trim();
-        if (k && journalMap[k] === undefined) journalMap[k] = r.group_id;
-      });
-
-      const analyticMap = {};
-      this.db.prepare(`
-        SELECT analytic_account, group_id 
-        FROM analytic_group_mapping 
-        WHERE company_id = ? AND analytic_account IS NOT NULL AND analytic_account != ''
-        ORDER BY id ASC
-      `).all(ledgerCid).forEach(r => {
-        const k = (r.analytic_account || '').trim();
-        if (analyticMap[k] === undefined) analyticMap[k] = r.group_id;
-      });
+      const ctx = this._attributionContext(ledgerCid);
+      const dist = loadDistribution(this.db, ledgerCid);
 
       // Preload income lines for this ledger company
       const incomeLines = this.db.prepare(`
-        SELECT ji.move_name, ji.analytic_account, ji.cost_center_id, ABS(ji.credit - ji.debit) as amt
+        SELECT ji.odoo_line_id, ji.move_name, ji.analytic_account, ji.cost_center_id,
+               ji.journal_id, ji.journal_name, ABS(ji.credit - ji.debit) as amt
         FROM journal_items ji
         ${this._sectionJoin('ji', 'o')}
         WHERE ji.company_id = ?
           AND ji.move_state = 'posted'
           AND ${this._sectionExpr('ji', 'o')} = 'income'
+        ORDER BY ji.id
       `).all(ledgerCid);
 
       const incomeByMove = {};
       for (const l of incomeLines) {
         if (!incomeByMove[l.move_name]) incomeByMove[l.move_name] = [];
-        incomeByMove[l.move_name].push({
-          analytic: (l.analytic_account || '').trim(),
-          costCenterId: l.cost_center_id || null,
-          amt: l.amt || 0
-        });
+        incomeByMove[l.move_name].push(l);
       }
 
       // Delete existing allocations
       this.db.prepare(`
-        DELETE FROM invoice_departments 
+        DELETE FROM invoice_departments
         WHERE sales_invoice_id IN (SELECT id FROM sales_invoices WHERE company_id = ?)
       `).run(scId);
 
@@ -2643,93 +2564,26 @@ class ConsolidationEngine {
 
       const insertAll = this.db.transaction(() => {
         for (const inv of invoices) {
-          let deptShares = [];
-
-          // Rule 1: Analytic account from income lines (proportional)
-          const lines = incomeByMove[inv.name];
-          if (lines && lines.length > 0) {
-            const groupAmounts = {};
-            let totalMappedAmt = 0;
-            for (const line of lines) {
-              const cleanAnalytic = (line.analytic || '').trim();
-              if (cleanAnalytic && analyticMap[cleanAnalytic] !== undefined) {
-                const cc = this.resolveCostCenter({
-                  companyId: ledgerCid,
-                  analyticAccount: cleanAnalytic,
-                  costCenterId: line.costCenterId,
-                  journalId: inv.journal_id,
-                  journalName: inv.journal_name
-                });
-                const gid = analyticMap[cleanAnalytic];
-                const compKey = `${gid}:::${cc.key}:::${cc.name}`;
-                groupAmounts[compKey] = (groupAmounts[compKey] || 0) + line.amt;
-                totalMappedAmt += line.amt;
-              }
-            }
-
-            if (totalMappedAmt > 0) {
-              deptShares = Object.entries(groupAmounts).map(([compKey, amt]) => {
-                const [gidStr, ccKey, ccName] = compKey.split(':::');
-                return {
-                  deptId: parseInt(gidStr, 10) || 0,
-                  costCenterKey: ccKey,
-                  costCenterName: ccName,
-                  share: Math.round((amt / totalMappedAmt) * 10000) / 10000
-                };
-              });
-              const sSum = deptShares.reduce((s, d) => s + d.share, 0);
-              if (deptShares.length > 0 && Math.abs(sSum - 1.0) > 0.00001) {
-                deptShares[0].share = Math.round((deptShares[0].share + (1.0 - sSum)) * 10000) / 10000;
-              }
-            } else if (Object.keys(groupAmounts).length > 0) {
-              const entries = Object.keys(groupAmounts);
-              const equalShare = Math.round((1.0 / entries.length) * 10000) / 10000;
-              deptShares = entries.map((compKey, idx) => {
-                const [gidStr, ccKey, ccName] = compKey.split(':::');
-                return {
-                  deptId: parseInt(gidStr, 10) || 0,
-                  costCenterKey: ccKey,
-                  costCenterName: ccName,
-                  share: idx === 0 ? Math.round((1.0 - equalShare * (entries.length - 1)) * 10000) / 10000 : equalShare
-                };
-              });
+          const journal = { journalId: inv.journal_id || 0, journalName: inv.journal_name || '' };
+          const agg = new Map();
+          for (const line of incomeByMove[inv.name] || []) {
+            const parts = ctx.lineParts(line, line.odoo_line_id ? dist.get(line.odoo_line_id) : undefined, journal);
+            for (const p of parts) {
+              const k = `${p.deptId || 0}\u0001${p.key}\u0001${p.name}`;
+              if (!agg.has(k)) agg.set(k, { deptId: p.deptId || 0, key: p.key, name: p.name, amt: 0 });
+              agg.get(k).amt += (line.amt || 0) * p.frac;
             }
           }
 
-          // Rule 2: Journal ID first, then journal name fallback
+          let deptShares = [...agg.values()];
           if (deptShares.length === 0) {
-            let matchedGid = undefined;
-            if (inv.journal_id && journalMap['id:' + inv.journal_id] !== undefined) {
-              matchedGid = journalMap['id:' + inv.journal_id];
-            } else {
-              const jname = (inv.journal_name || '').trim();
-              if (jname && journalMap[jname] !== undefined) {
-                matchedGid = journalMap[jname];
-              }
-            }
-            const cc = this.resolveCostCenter({
-              companyId: ledgerCid,
-              analyticAccount: lines && lines[0] && lines[0].analytic ? lines[0].analytic : null,
-              costCenterId: lines && lines[0] && lines[0].costCenterId ? lines[0].costCenterId : null,
-              journalId: inv.journal_id,
-              journalName: inv.journal_name
-            });
-            if (matchedGid === undefined && cc.key && cc.key.startsWith('an:')) {
-              const cleanAnalytic = (cc.name || '').trim();
-              if (cleanAnalytic && analyticMap[cleanAnalytic] !== undefined) {
-                matchedGid = analyticMap[cleanAnalytic];
-              }
-            }
-            deptShares = [{
-              deptId: matchedGid !== undefined ? matchedGid : 0,
-              costCenterKey: cc.key,
-              costCenterName: cc.name,
-              share: 1.0
-            }];
+            const t = ctx.untaggedTarget(journal.journalId, journal.journalName);
+            deptShares = [{ deptId: t.deptId || 0, key: t.key, name: t.name, amt: 1 }];
           }
-
+          const total = deptShares.reduce((s, d) => s + d.amt, 0);
           for (const ds of deptShares) {
-            insertDept.run(inv.id, ds.deptId, ds.share, inv.invoice_id || 0, scId, ds.costCenterKey, ds.costCenterName);
+            const share = total > 0 ? ds.amt / total : 1 / deptShares.length;
+            insertDept.run(inv.id, ds.deptId, share, inv.invoice_id || 0, scId, ds.key, ds.name);
             totalAllocations++;
           }
         }
@@ -2737,86 +2591,47 @@ class ConsolidationEngine {
 
       insertAll();
 
-      // Rule 3: Post-allocation reconciliation - ensure cost centers inherit their dominant department
-      // if any invoice ended up with department_id = 0 while the cost center has mapped department > 0
-      this.db.prepare(`
-        UPDATE invoice_departments
-        SET department_id = (
-          SELECT MAX(id2.department_id)
-          FROM invoice_departments id2
-          WHERE id2.company_id = invoice_departments.company_id
-            AND (id2.cost_center_key = invoice_departments.cost_center_key OR id2.cost_center_name = invoice_departments.cost_center_name)
-            AND id2.department_id > 0
-        )
-        WHERE company_id = ?
-          AND department_id = 0
-          AND (
-            cost_center_key IN (
-              SELECT cost_center_key
-              FROM invoice_departments
-              WHERE company_id = ? AND department_id > 0
-            )
-            OR cost_center_name IN (
-              SELECT cost_center_name
-              FROM invoice_departments
-              WHERE company_id = ? AND department_id > 0
-            )
-          )
-      `).run(scId, scId, scId);
+      // Collections follow their invoice (same rebuild step)
+      rederivePaymentAllocations(this.db, scId);
     }
 
     return totalAllocations;
   }
 
   /**
-   * Get list of invoices where analytic department differs from journal department (R2 conflict monitor)
+   * Invoices whose analytic department differs from their journal's EXPLICIT default department
+   * (R2 conflict monitor). Companies are joined by id (companies.odoo_company_id =
+   * sales_companies.sales_company_id), never by name. Ambiguous journals without a decision are
+   * reported separately in `decisions` («تعارضات تحتاج قرارًا»).
    */
   getDepartmentConflicts(options = {}) {
     const { companyId } = options;
+    const { loadDistribution, getAttributionConflicts } = require('./attribution');
+    this._attrCtxCache = new Map();
     const compRows = this.db.prepare(`
       SELECT c.id as ledger_cid, sc.id as sales_cid, c.name as company_name
       FROM companies c
-      JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id AND sc.name = c.name
+      JOIN sales_companies sc ON sc.sales_company_id = c.odoo_company_id
       WHERE c.is_active = 1 ${companyId ? 'AND c.id = ?' : ''}
+      ORDER BY c.id
     `).all(...(companyId ? [companyId] : []));
+    const groupNames = new Map(this.db.prepare('SELECT id, name FROM analytic_groups').all().map(g => [g.id, g.name]));
 
     const conflicts = [];
 
     for (const c of compRows) {
-      const journalMap = {};
-      this.db.prepare(`
-        SELECT journal_id, journal_name, group_id, ag.name as group_name
-        FROM analytic_group_mapping agm
-        JOIN analytic_groups ag ON ag.id = agm.group_id
-        WHERE company_id = ? AND ((journal_id IS NOT NULL AND journal_id > 0) OR (journal_name IS NOT NULL AND journal_name != ''))
-        ORDER BY agm.id ASC
-      `).all(c.ledger_cid).forEach(r => {
-        if (r.journal_id && journalMap['id:' + r.journal_id] === undefined) {
-          journalMap['id:' + r.journal_id] = { id: r.group_id, name: r.group_name };
-        }
-        const k = (r.journal_name || '').trim();
-        if (k && journalMap[k] === undefined) journalMap[k] = { id: r.group_id, name: r.group_name };
-      });
-
-      const analyticMap = {};
-      this.db.prepare(`
-        SELECT analytic_account, group_id, ag.name as group_name
-        FROM analytic_group_mapping agm
-        JOIN analytic_groups ag ON ag.id = agm.group_id
-        WHERE company_id = ? AND analytic_account IS NOT NULL AND analytic_account != ''
-        ORDER BY agm.id ASC
-      `).all(c.ledger_cid).forEach(r => {
-        const k = (r.analytic_account || '').trim();
-        if (analyticMap[k] === undefined) analyticMap[k] = { id: r.group_id, name: r.group_name };
-      });
+      const ctx = this._attributionContext(c.ledger_cid);
+      const dist = loadDistribution(this.db, c.ledger_cid);
 
       const incomeLines = this.db.prepare(`
-        SELECT ji.move_name, ji.analytic_account, ABS(ji.credit - ji.debit) as amt
+        SELECT ji.odoo_line_id, ji.move_name, ji.analytic_account, ji.cost_center_id,
+               ji.journal_id, ji.journal_name, ABS(ji.credit - ji.debit) as amt
         FROM journal_items ji
         ${this._sectionJoin('ji', 'o')}
         WHERE ji.company_id = ?
           AND ji.move_state = 'posted'
           AND ${this._sectionExpr('ji', 'o')} = 'income'
+        ORDER BY ji.id
       `).all(c.ledger_cid);
 
       const incomeByMove = {};
@@ -2833,50 +2648,44 @@ class ConsolidationEngine {
 
       for (const inv of invoices) {
         const jname = (inv.journal_name || '').trim();
-        let journalDept = null;
-        if (inv.journal_id && journalMap['id:' + inv.journal_id]) {
-          journalDept = journalMap['id:' + inv.journal_id];
-        } else if (jname && journalMap[jname]) {
-          journalDept = journalMap[jname];
-        }
+        const def = ctx.journalDefault(inv.journal_id);
+        if (!def || !def.group_id) continue;
+        const journalDept = { id: def.group_id, name: groupNames.get(def.group_id) || `#${def.group_id}` };
 
-        const lines = incomeByMove[inv.name] || [];
-        let analyticDepts = [];
-        for (const l of lines) {
-          const aname = (l.analytic_account || '').trim();
-          if (aname && analyticMap[aname]) {
-            analyticDepts.push({
-              deptId: analyticMap[aname].id,
-              deptName: analyticMap[aname].name,
-              analytic: aname,
-              amt: l.amt
-            });
+        const analyticDepts = new Map();
+        const analyticNames = new Set();
+        for (const l of incomeByMove[inv.name] || []) {
+          const parts = ctx.lineParts(l, l.odoo_line_id ? dist.get(l.odoo_line_id) : undefined, { journalId: inv.journal_id, journalName: inv.journal_name });
+          for (const p of parts) {
+            if (!p.key.startsWith('an:') || !p.analytic) continue;
+            const dep = ctx.analyticDepartment([p.analytic]);
+            if (dep.state !== 'ok') continue;
+            analyticNames.add(p.analytic);
+            analyticDepts.set(dep.deptId, groupNames.get(dep.deptId) || `#${dep.deptId}`);
           }
         }
 
-        if (journalDept && analyticDepts.length > 0) {
-          const diffDept = analyticDepts.some(d => d.deptId !== journalDept.id);
-          if (diffDept) {
-            conflicts.push({
-              companyId: c.ledger_cid,
-              companyName: c.company_name,
-              invoiceId: inv.id,
-              invoiceName: inv.name,
-              date: inv.date,
-              partnerName: inv.partner_name,
-              amountTotal: inv.amount_total,
-              amountUntaxed: inv.amount_untaxed,
-              amountResidual: inv.amount_residual_signed,
-              journalName: jname,
-              journalDeptId: journalDept.id,
-              journalDeptName: journalDept.name,
-              analyticAccounts: analyticDepts.map(d => d.analytic).join(', '),
-              analyticDeptId: analyticDepts[0].deptId,
-              analyticDeptName: analyticDepts[0].deptName,
-              resolvedDepartmentName: analyticDepts[0].deptName,
-              resolutionRule: 'الحساب التحليلي لأسطر الإيراد (الأولوية الأولى الموحدة)'
-            });
-          }
+        if (analyticDepts.size > 0 && [...analyticDepts.keys()].some(id => id !== journalDept.id)) {
+          const deptList = [...analyticDepts.entries()];
+          conflicts.push({
+            companyId: c.ledger_cid,
+            companyName: c.company_name,
+            invoiceId: inv.id,
+            invoiceName: inv.name,
+            date: inv.date,
+            partnerName: inv.partner_name,
+            amountTotal: inv.amount_total,
+            amountUntaxed: inv.amount_untaxed,
+            amountResidual: inv.amount_residual_signed,
+            journalName: jname,
+            journalDeptId: journalDept.id,
+            journalDeptName: journalDept.name,
+            analyticAccounts: [...analyticNames].join(', '),
+            analyticDeptId: deptList.length === 1 ? deptList[0][0] : null,
+            analyticDeptName: deptList.map(d => d[1]).join(' / '),
+            resolvedDepartmentName: deptList.map(d => d[1]).join(' / '),
+            resolutionRule: 'الحساب التحليلي لأسطر الإيراد بنسب التوزيع التحليلي في أودو'
+          });
         }
       }
     }
@@ -2884,7 +2693,8 @@ class ConsolidationEngine {
     return {
       totalConflicts: conflicts.length,
       totalUntaxedAmount: Math.round(conflicts.reduce((s, c) => s + (c.amountUntaxed || 0), 0) * 100) / 100,
-      conflicts
+      conflicts,
+      decisions: getAttributionConflicts(this.db, { companyId })
     };
   }
 
@@ -7189,7 +6999,8 @@ class ConsolidationEngine {
         pa.company_id,
         c.name as company_name,
         pa.department_id,
-        COALESCE(NULLIF(TRIM(pa.department_name), ''), NULLIF(TRIM(pa.cost_center_name), ''), 'غير مصنّف') as department_name,
+        -- UC1 / CC1: an allocation without department shows under its own cost-center name
+        COALESCE(NULLIF(TRIM(CASE WHEN pa.department_id > 0 THEN pa.department_name END), ''), NULLIF(TRIM(pa.cost_center_name), ''), 'غير مصنّف') as department_name,
         pa.cost_center_key,
         pa.cost_center_name,
         pa.invoice_journal_id,
@@ -7976,7 +7787,7 @@ class ConsolidationEngine {
         si.name as invoice_name,
         c.id as company_id,
         c.name as company_name,
-        COALESCE(id.department_id, agm.group_id, 0) as department_id,
+        COALESCE(id.department_id, jdd.group_id, 0) as department_id,
         ${this._groupNameSql('ag', 'id.cost_center_name')} as group_name,
         id.cost_center_key,
         id.cost_center_name,
@@ -7990,8 +7801,8 @@ class ConsolidationEngine {
       JOIN sales_companies sc ON sc.id = si.company_id
       JOIN companies c ON c.odoo_company_id = sc.sales_company_id
       ${idJoin}
-      LEFT JOIN analytic_group_mapping agm ON agm.company_id = c.id AND (agm.journal_id = si.journal_id OR TRIM(agm.journal_name) = TRIM(si.journal_name))
-      LEFT JOIN analytic_groups ag ON ag.id = COALESCE(id.department_id, agm.group_id)
+      LEFT JOIN journal_department_defaults jdd ON jdd.company_id = c.id AND jdd.journal_id = si.journal_id
+      LEFT JOIN analytic_groups ag ON ag.id = COALESCE(id.department_id, jdd.group_id)
       ${invWhere}
       ORDER BY si.date DESC
       LIMIT ${limit}
