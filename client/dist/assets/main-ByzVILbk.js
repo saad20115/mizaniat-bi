@@ -1,10 +1,10 @@
 const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/special-expenses-P9N5less.js","assets/presentation-CwYm_Zwm.js","assets/presentation-DNGxwLeA.css","assets/viewers-management-DpahoSB4.js"])))=>i.map(i=>d[i]);
-import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as Ke,r as zt,e as qt}from"./presentation-CwYm_Zwm.js";import{renderFilters as he,loadFilterOptions as Lt}from"./filters-B2gUj9PT.js";const Qe=[{id:"dashboard",icon:"📊",label:"لوحة التحكم",section:"رئيسي"},{id:"income-statement",icon:"📈",label:"قائمة الدخل",section:"التقارير المالية"},{id:"balance-sheet",icon:"⚖️",label:"الميزانية العمومية",section:"التقارير المالية"},{id:"cash-flow",icon:"💰",label:"التدفقات النقدية",section:"التقارير المالية"},{id:"special-expenses",icon:"💸",label:"مصروفات مخصصة",section:"التقارير المالية"},{id:"trial-balance",icon:"📝",label:"ميزان المراجعة",section:"التقارير المالية"},{id:"detailed-trial-balance",icon:"🔍",label:"ميزان تفصيلي",section:"التقارير المالية"},{id:"account-statement",icon:"📄",label:"كشف حساب",section:"التقارير المالية"},{id:"guarantees",icon:"🏦",label:"الضمانات البنكية",section:"التقارير المالية"},{id:"hajj-budget",icon:"🕋",label:"موازنات المشاريع",section:"التقارير المالية",url:"https://budget.jalbait.com"},{id:"pivot",icon:"🔄",label:"الجداول المحورية",section:"التحليل"},{id:"presentation",icon:"🎬",label:"عرض تقديمي",section:"التحليل"},{id:"tax-builder",icon:"🧾",label:"مصمم التقرير الضريبي",section:"التحليل"},{id:"journal-items",icon:"📋",label:"القيود المحاسبية",section:"التحليل"},{id:"data-preview",icon:"🗂️",label:"معاينة بيانات API",section:"التحليل"},{id:"sales-data-preview",icon:"🛒",label:"معاينة المبيعات API",section:"التحليل"},{id:"analytic-accounts",icon:"📂",label:"الحسابات التحليلية",section:"الإعدادات"},{id:"mapping",icon:"🔗",label:"توحيد الحسابات",section:"الإعدادات"},{id:"journal-mapping",icon:"🎯",label:"توحيد اليوميات",section:"الإعدادات"},{id:"viewers-management",icon:"👥",label:"إدارة المشاهدين",section:"الإعدادات"},{id:"settings",icon:"⚙️",label:"إعدادات النظام",section:"الإعدادات"},{id:"sales-settings",icon:"🛍️",label:"إعدادات نظام المبيعات",section:"الإعدادات"},{id:"api-manager",icon:"🔌",label:"إدارة الـ APIs",section:"الإعدادات"}];function dt(){const e=document.getElementById("sidebar-nav"),t=document.getElementById("sidebar"),a=document.getElementById("main-content"),s=document.getElementById("sidebar-toggle"),r=S.get("currentPage"),n=window.isViewerMode&&window.isViewerMode();S.get("sidebarCollapsed")?(t.classList.add("collapsed"),a.classList.add("sidebar-collapsed"),s&&(s.querySelector("span").textContent="►")):(t.classList.remove("collapsed"),a.classList.remove("sidebar-collapsed"),s&&(s.querySelector("span").textContent="◄"));const o=n?Qe.filter(y=>y.id==="presentation"||y.id==="hajj-budget"):Qe;let i="",p="";for(const y of o)y.section!==p&&(p=y.section,i+=`<div class="nav-section-title">${p}</div>`),i+=`
-      <div class="nav-item ${r===y.id?"active":""}" data-page="${y.id}">
-        <span class="nav-item-icon">${y.icon}</span>
-        <span class="nav-item-label">${y.label}</span>
+import{s as S,a as y,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as Ke,r as zt,e as qt}from"./presentation-CwYm_Zwm.js";import{renderFilters as he,loadFilterOptions as Lt}from"./filters-B2gUj9PT.js";const Qe=[{id:"dashboard",icon:"📊",label:"لوحة التحكم",section:"رئيسي"},{id:"income-statement",icon:"📈",label:"قائمة الدخل",section:"التقارير المالية"},{id:"balance-sheet",icon:"⚖️",label:"الميزانية العمومية",section:"التقارير المالية"},{id:"cash-flow",icon:"💰",label:"التدفقات النقدية",section:"التقارير المالية"},{id:"special-expenses",icon:"💸",label:"مصروفات مخصصة",section:"التقارير المالية"},{id:"trial-balance",icon:"📝",label:"ميزان المراجعة",section:"التقارير المالية"},{id:"detailed-trial-balance",icon:"🔍",label:"ميزان تفصيلي",section:"التقارير المالية"},{id:"account-statement",icon:"📄",label:"كشف حساب",section:"التقارير المالية"},{id:"guarantees",icon:"🏦",label:"الضمانات البنكية",section:"التقارير المالية"},{id:"hajj-budget",icon:"🕋",label:"موازنات المشاريع",section:"التقارير المالية",url:"https://budget.jalbait.com"},{id:"pivot",icon:"🔄",label:"الجداول المحورية",section:"التحليل"},{id:"presentation",icon:"🎬",label:"عرض تقديمي",section:"التحليل"},{id:"tax-builder",icon:"🧾",label:"مصمم التقرير الضريبي",section:"التحليل"},{id:"journal-items",icon:"📋",label:"القيود المحاسبية",section:"التحليل"},{id:"data-preview",icon:"🗂️",label:"معاينة بيانات API",section:"التحليل"},{id:"sales-data-preview",icon:"🛒",label:"معاينة المبيعات API",section:"التحليل"},{id:"analytic-accounts",icon:"📂",label:"الحسابات التحليلية",section:"الإعدادات"},{id:"mapping",icon:"🔗",label:"توحيد الحسابات",section:"الإعدادات"},{id:"journal-mapping",icon:"🎯",label:"توحيد اليوميات",section:"الإعدادات"},{id:"viewers-management",icon:"👥",label:"إدارة المشاهدين",section:"الإعدادات"},{id:"settings",icon:"⚙️",label:"إعدادات النظام",section:"الإعدادات"},{id:"sales-settings",icon:"🛍️",label:"إعدادات نظام المبيعات",section:"الإعدادات"},{id:"api-manager",icon:"🔌",label:"إدارة الـ APIs",section:"الإعدادات"}];function dt(){const e=document.getElementById("sidebar-nav"),t=document.getElementById("sidebar"),a=document.getElementById("main-content"),s=document.getElementById("sidebar-toggle"),r=S.get("currentPage"),o=window.isViewerMode&&window.isViewerMode();S.get("sidebarCollapsed")?(t.classList.add("collapsed"),a.classList.add("sidebar-collapsed"),s&&(s.querySelector("span").textContent="►")):(t.classList.remove("collapsed"),a.classList.remove("sidebar-collapsed"),s&&(s.querySelector("span").textContent="◄"));const n=o?Qe.filter(b=>b.id==="presentation"||b.id==="hajj-budget"):Qe;let i="",p="";for(const b of n)b.section!==p&&(p=b.section,i+=`<div class="nav-section-title">${p}</div>`),i+=`
+      <div class="nav-item ${r===b.id?"active":""}" data-page="${b.id}">
+        <span class="nav-item-icon">${b.icon}</span>
+        <span class="nav-item-label">${b.label}</span>
       </div>
-    `;const c=JSON.parse(localStorage.getItem("mizaniat_admin_info")||"{}"),l=JSON.parse(localStorage.getItem("mizaniat_viewer_info")||"{}"),u=n?"👁️ "+(l.name||c.name||"مشاهد"):c.name||c.email||"مدير";i+=`
+    `;const c=JSON.parse(localStorage.getItem("mizaniat_admin_info")||"{}"),l=JSON.parse(localStorage.getItem("mizaniat_viewer_info")||"{}"),u=o?"👁️ "+(l.name||c.name||"مشاهد"):c.name||c.email||"مدير";i+=`
     <div style="border-top:1px solid rgba(255,255,255,0.08); margin-top:16px; padding-top:12px;">
       <div style="padding:8px 16px; font-size:0.8rem; color:rgba(255,255,255,0.4); display:flex; align-items:center; gap:8px;">
         <span>👤</span>
@@ -15,7 +15,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <span class="nav-item-label">تسجيل الخروج</span>
       </div>
     </div>
-  `,e.innerHTML=i,e.querySelectorAll(".nav-item[data-page]").forEach(y=>{y.addEventListener("click",()=>{const x=y.dataset.page,E=o.find(w=>w.id===x);E&&E.url?window.open(E.url,"_blank"):S.set("currentPage",x)})});const d=document.getElementById("logout-btn");d&&d.addEventListener("click",()=>{confirm("هل تريد تسجيل الخروج؟")&&window.mizaniatLogout()}),s&&(s.onclick=()=>{t.classList.toggle("collapsed"),a.classList.toggle("sidebar-collapsed"),S.set("sidebarCollapsed",t.classList.contains("collapsed")),s.querySelector("span").textContent=t.classList.contains("collapsed")?"►":"◄"});const g=document.getElementById("mobile-menu-btn"),f=document.getElementById("sidebar-backdrop");g&&(g.onclick=()=>{const y=t.classList.toggle("mobile-open");f&&f.classList.toggle("active",y)}),f&&(f.onclick=()=>{t.classList.remove("mobile-open"),f.classList.remove("active")}),e.querySelectorAll(".nav-item").forEach(y=>{y.addEventListener("click",()=>{t.classList.remove("mobile-open"),f&&f.classList.remove("active")})})}async function Et(e){e.innerHTML=`
+  `,e.innerHTML=i,e.querySelectorAll(".nav-item[data-page]").forEach(b=>{b.addEventListener("click",()=>{const x=b.dataset.page,z=n.find(w=>w.id===x);z&&z.url?window.open(z.url,"_blank"):S.set("currentPage",x)})});const d=document.getElementById("logout-btn");d&&d.addEventListener("click",()=>{confirm("هل تريد تسجيل الخروج؟")&&window.mizaniatLogout()}),s&&(s.onclick=()=>{t.classList.toggle("collapsed"),a.classList.toggle("sidebar-collapsed"),S.set("sidebarCollapsed",t.classList.contains("collapsed")),s.querySelector("span").textContent=t.classList.contains("collapsed")?"►":"◄"});const g=document.getElementById("mobile-menu-btn"),f=document.getElementById("sidebar-backdrop");g&&(g.onclick=()=>{const b=t.classList.toggle("mobile-open");f&&f.classList.toggle("active",b)}),f&&(f.onclick=()=>{t.classList.remove("mobile-open"),f.classList.remove("active")}),e.querySelectorAll(".nav-item").forEach(b=>{b.addEventListener("click",()=>{t.classList.remove("mobile-open"),f&&f.classList.remove("active")})})}async function Et(e){e.innerHTML=`
     <style>
       /* Dashboard-specific enhanced styles */
       .dash-donuts-row {
@@ -230,7 +230,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       </div>
     </div>
-  `;const t=e.querySelector("#dashboard-filters");he(t,()=>Ie(e)),await Ie(e),e.querySelector("#btn-sync").addEventListener("click",async()=>{try{b("جاري مزامنة البيانات...","info");const a=await h.syncAll();b("تمت المزامنة بنجاح","success"),await Ie(e)}catch(a){b("فشلت المزامنة: "+a.message,"error")}})}async function Ie(e){try{const t=S.getFilterParams(),a=await h.getDashboard(t);It(e.querySelector("#kpi-grid"),a),jt(e.querySelector("#dash-charts"),a)}catch(t){console.error("Dashboard error:",t),b("خطأ في تحميل البيانات","error")}}function It(e,t){const a=t.totalRevenue>0?(t.netProfit/t.totalRevenue*100).toFixed(1):"0.0";e.innerHTML=`
+  `;const t=e.querySelector("#dashboard-filters");he(t,()=>Ie(e)),await Ie(e),e.querySelector("#btn-sync").addEventListener("click",async()=>{try{y("جاري مزامنة البيانات...","info");const a=await h.syncAll();y("تمت المزامنة بنجاح","success"),await Ie(e)}catch(a){y("فشلت المزامنة: "+a.message,"error")}})}async function Ie(e){try{const t=S.getFilterParams(),a=await h.getDashboard(t);It(e.querySelector("#kpi-grid"),a),jt(e.querySelector("#dash-charts"),a)}catch(t){console.error("Dashboard error:",t),y("خطأ في تحميل البيانات","error")}}function It(e,t){const a=t.totalRevenue>0?(t.netProfit/t.totalRevenue*100).toFixed(1):"0.0";e.innerHTML=`
     <div class="kpi-card blue fade-in">
       <div class="kpi-icon blue">📈</div>
       <div class="kpi-label">إجمالي الإيرادات</div>
@@ -281,7 +281,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <div class="kpi-value" style="font-size:clamp(1rem, 2vw, 1.4rem); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${v(t.guarantees||0,0)}</div>
       <div class="kpi-change" style="color:var(--text-muted);">أصول محتجزة</div>
     </div>
-  `}function jt(e,t){const a=t.revenueByPeriod||[],s=t.expensesByPeriod||[],r=t.revenueByCompany||[],n=t.expensesByCompany||[],o=[...new Set([...a.map(m=>m.period),...s.map(m=>m.period)])].sort(),p=[...new Set(o.map(m=>m?m.split("-")[0]:""))].sort().pop()||"",c=p?a.filter(m=>m.period&&m.period.startsWith(p)):a,l=p?s.filter(m=>m.period&&m.period.startsWith(p)):s,u=Math.max(...c.map(m=>m.total),1),d=Math.max(...l.map(m=>m.total),1),g=["#3b82f6","#10b981","#06b6d4","#8b5cf6","#ec4899","#14b8a6"],f=["#ef4444","#f59e0b","#ec4899","#f97316","#e11d48","#dc2626"],y=r.reduce((m,$)=>m+$.total,0),x=n.reduce((m,$)=>m+$.total,0),E=c.reduce((m,$)=>m+$.total,0),w=l.reduce((m,$)=>m+$.total,0);e.innerHTML=`
+  `}function jt(e,t){const a=t.revenueByPeriod||[],s=t.expensesByPeriod||[],r=t.revenueByCompany||[],o=t.expensesByCompany||[],n=[...new Set([...a.map(m=>m.period),...s.map(m=>m.period)])].sort(),p=[...new Set(n.map(m=>m?m.split("-")[0]:""))].sort().pop()||"",c=p?a.filter(m=>m.period&&m.period.startsWith(p)):a,l=p?s.filter(m=>m.period&&m.period.startsWith(p)):s,u=Math.max(...c.map(m=>m.total),1),d=Math.max(...l.map(m=>m.total),1),g=["#3b82f6","#10b981","#06b6d4","#8b5cf6","#ec4899","#14b8a6"],f=["#ef4444","#f59e0b","#ec4899","#f97316","#e11d48","#dc2626"],b=r.reduce((m,$)=>m+$.total,0),x=o.reduce((m,$)=>m+$.total,0),z=c.reduce((m,$)=>m+$.total,0),w=l.reduce((m,$)=>m+$.total,0);e.innerHTML=`
     <!-- Donut Charts Row -->
     <div class="dash-donuts-row">
       <!-- Expenses Donut -->
@@ -289,14 +289,14 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div class="dash-donut-title">🍩 المصروفات حسب الشركة</div>
         <div class="dash-donut-content">
           <div class="dash-donut-ring">
-            <svg viewBox="0 0 200 200">${et(n,f,200)}</svg>
+            <svg viewBox="0 0 200 200">${et(o,f,200)}</svg>
             <div class="dash-donut-center">
               <div class="dash-donut-center-label">الإجمالي</div>
               <div class="dash-donut-center-value" style="color:#ef4444;">${W(x)}</div>
             </div>
           </div>
           <div class="dash-legend">
-            ${n.map((m,$)=>{const _=x>0?(m.total/x*100).toFixed(1):"0.0";return`
+            ${o.map((m,$)=>{const _=x>0?(m.total/x*100).toFixed(1):"0.0";return`
               <div class="dash-legend-item">
                 <span class="dash-legend-dot" style="background:${f[$%f.length]}"></span>
                 <span class="dash-legend-name">${m.company_name}</span>
@@ -315,11 +315,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
             <svg viewBox="0 0 200 200">${et(r,g,200)}</svg>
             <div class="dash-donut-center">
               <div class="dash-donut-center-label">الإجمالي</div>
-              <div class="dash-donut-center-value" style="color:#10b981;">${W(y)}</div>
+              <div class="dash-donut-center-value" style="color:#10b981;">${W(b)}</div>
             </div>
           </div>
           <div class="dash-legend">
-            ${r.map((m,$)=>{const _=y>0?(m.total/y*100).toFixed(1):"0.0";return`
+            ${r.map((m,$)=>{const _=b>0?(m.total/b*100).toFixed(1):"0.0";return`
               <div class="dash-legend-item">
                 <span class="dash-legend-dot" style="background:${m.color||g[$%g.length]}"></span>
                 <span class="dash-legend-name">${m.company_name}</span>
@@ -338,7 +338,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div class="dash-bar-title">
           📈 الإيرادات الشهرية
           ${p?`<span style="font-size:0.8rem;color:rgba(255,255,255,0.3);font-family:var(--font-en);">${p}</span>`:""}
-          <span class="dash-bar-total" style="color:#10b981;">${W(E)}</span>
+          <span class="dash-bar-total" style="color:#10b981;">${W(z)}</span>
         </div>
         <div class="dash-bars">
           ${c.map(m=>{const $=m.total/u*100,_=m.period?m.period.split("-")[1]:"";return`
@@ -367,12 +367,12 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       </div>
     </div>
-  `}function et(e,t,a){const s=e.reduce((l,u)=>l+Math.abs(u.total),0),r=a/2,n=a/2,o=a*.35,i=a*.12;if(s===0)return`<circle cx="${r}" cy="${n}" r="${o}" fill="none" stroke="rgba(99,130,255,0.08)" stroke-width="${i}"/>`;let p=0;const c=2*Math.PI*o;return e.map((l,u)=>{const d=Math.abs(l.total)/s,g=d*c,f=e.length>1?2:0,y=-p*c;return p+=d,`<circle cx="${r}" cy="${n}" r="${o}" fill="none" 
+  `}function et(e,t,a){const s=e.reduce((l,u)=>l+Math.abs(u.total),0),r=a/2,o=a/2,n=a*.35,i=a*.12;if(s===0)return`<circle cx="${r}" cy="${o}" r="${n}" fill="none" stroke="rgba(99,130,255,0.08)" stroke-width="${i}"/>`;let p=0;const c=2*Math.PI*n;return e.map((l,u)=>{const d=Math.abs(l.total)/s,g=d*c,f=e.length>1?2:0,b=-p*c;return p+=d,`<circle cx="${r}" cy="${o}" r="${n}" fill="none" 
       stroke="${t[u%t.length]}" 
       stroke-width="${i}" 
       stroke-dasharray="${Math.max(g-f,0)} ${c-Math.max(g-f,0)}" 
-      stroke-dashoffset="${y}"
-      transform="rotate(-90 ${r} ${n})"
+      stroke-dashoffset="${b}"
+      transform="rotate(-90 ${r} ${o})"
       stroke-linecap="round"
       style="transition: stroke-dasharray 0.6s ease;"/>`}).join("")}function W(e){const t=Math.abs(e);return t>=1e6?(e/1e6).toFixed(1)+"M":t>=1e3?(e/1e3).toFixed(0)+"K":v(e,0)}async function Tt(e){e.innerHTML=`
     <div class="page-header">
@@ -389,46 +389,46 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     
     <div class="filters-bar" id="is-filters"></div>
     <div id="is-content"><div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div></div>
-  `;const t=e.querySelector("#is-filters");he(t,()=>je(e)),e.querySelector("#chk-eliminations").addEventListener("change",()=>je(e)),await je(e)}async function je(e){try{const t=S.getFilterParams();t.useEliminations=e.querySelector("#chk-eliminations").checked;const a=await h.getIncomeStatement(t);Mt(e.querySelector("#is-content"),a)}catch{b("خطأ في تحميل قائمة الدخل","error")}}function Mt(e,t){const a=S.get("companies"),s=S.get("selectedCompanyIds"),r=s.length>0?a.filter(o=>s.includes(o.id)):a,n=r.length>1;e.innerHTML=`
+  `;const t=e.querySelector("#is-filters");he(t,()=>je(e)),e.querySelector("#chk-eliminations").addEventListener("change",()=>je(e)),await je(e)}async function je(e){try{const t=S.getFilterParams();t.useEliminations=e.querySelector("#chk-eliminations").checked;const a=await h.getIncomeStatement(t);Mt(e.querySelector("#is-content"),a)}catch{y("خطأ في تحميل قائمة الدخل","error")}}function Mt(e,t){const a=S.get("companies"),s=S.get("selectedCompanyIds"),r=s.length>0?a.filter(n=>s.includes(n.id)):a,o=r.length>1;e.innerHTML=`
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
         <thead>
           <tr>
             <th style="min-width:200px;">الحساب</th>
             <th>الكود</th>
-            ${n?r.map(o=>`<th class="number">${o.name}</th>`).join(""):""}
+            ${o?r.map(n=>`<th class="number">${n.name}</th>`).join(""):""}
             <th class="number">المجمع</th>
           </tr>
         </thead>
         <tbody>
           <!-- Revenue Section -->
-          <tr class="group-header"><td colspan="${n?r.length+3:3}">الإيرادات</td></tr>
-          ${t.revenue.map(o=>tt(o,r,n)).join("")}
+          <tr class="group-header"><td colspan="${o?r.length+3:3}">الإيرادات</td></tr>
+          ${t.revenue.map(n=>tt(n,r,o)).join("")}
           <tr class="total-row">
             <td>إجمالي الإيرادات</td>
             <td></td>
-            ${n?r.map(o=>{const i=t.revenue.reduce((p,c)=>{var l;return p+(((l=c.companies[o.id])==null?void 0:l.amount)||0)},0);return`<td class="number">${v(i,2)}</td>`}).join(""):""}
+            ${o?r.map(n=>{const i=t.revenue.reduce((p,c)=>{var l;return p+(((l=c.companies[n.id])==null?void 0:l.amount)||0)},0);return`<td class="number">${v(i,2)}</td>`}).join(""):""}
             <td class="number positive">${v(t.summary.totalRevenue,2)}</td>
           </tr>
           
           <!-- Expenses Section -->
-          <tr class="group-header"><td colspan="${n?r.length+3:3}">المصروفات</td></tr>
-          ${t.expenses.map(o=>tt(o,r,n,!0)).join("")}
+          <tr class="group-header"><td colspan="${o?r.length+3:3}">المصروفات</td></tr>
+          ${t.expenses.map(n=>tt(n,r,o,!0)).join("")}
           <tr class="total-row">
             <td>إجمالي المصروفات</td>
             <td></td>
-            ${n?r.map(o=>{const i=t.expenses.reduce((p,c)=>{var l;return p+(((l=c.companies[o.id])==null?void 0:l.amount)||0)},0);return`<td class="number negative">(${v(i,2)})</td>`}).join(""):""}
+            ${o?r.map(n=>{const i=t.expenses.reduce((p,c)=>{var l;return p+(((l=c.companies[n.id])==null?void 0:l.amount)||0)},0);return`<td class="number negative">(${v(i,2)})</td>`}).join(""):""}
             <td class="number negative">(${v(t.summary.totalExpenses,2)})</td>
           </tr>
 
           ${t.eliminations&&t.eliminations.length>0?`
-            <tr class="group-header"><td colspan="${n?r.length+3:3}">تعديلات الاستبعاد</td></tr>
-            ${t.eliminations.map(o=>`
+            <tr class="group-header"><td colspan="${o?r.length+3:3}">تعديلات الاستبعاد</td></tr>
+            ${t.eliminations.map(n=>`
               <tr>
-                <td>${o.rule_name}</td>
+                <td>${n.rule_name}</td>
                 <td></td>
-                ${n?r.map(()=>"<td></td>").join(""):""}
-                <td class="number negative">(${v(o.debit-o.credit,2)})</td>
+                ${o?r.map(()=>"<td></td>").join(""):""}
+                <td class="number negative">(${v(n.debit-n.credit,2)})</td>
               </tr>
             `).join("")}
           `:""}
@@ -437,7 +437,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <tr class="total-row" style="font-size:1.1em;">
             <td>صافي الربح / (الخسارة)</td>
             <td></td>
-            ${n?r.map(()=>"<td></td>").join(""):""}
+            ${o?r.map(()=>"<td></td>").join(""):""}
             <td class="number ${t.summary.netProfit>=0?"positive":"negative"}" style="font-size:1.1em;">
               ${t.summary.netProfit>=0?"":"("}${v(Math.abs(t.summary.netProfit),2)}${t.summary.netProfit>=0?"":")"}
             </td>
@@ -449,7 +449,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     <tr class="indent-1">
       <td>${e.account_name}</td>
       <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.8em;">${e.account_code}</td>
-      ${a?t.map(r=>{var o;const n=((o=e.companies[r.id])==null?void 0:o.amount)||0;return`<td class="number">${s&&n>0?"(":""}${v(Math.abs(n),2)}${s&&n>0?")":""}</td>`}).join(""):""}
+      ${a?t.map(r=>{var n;const o=((n=e.companies[r.id])==null?void 0:n.amount)||0;return`<td class="number">${s&&o>0?"(":""}${v(Math.abs(o),2)}${s&&o>0?")":""}</td>`}).join(""):""}
       <td class="number ${s?"negative":"positive"}">
         ${s&&e.total>0?"(":""}${v(Math.abs(e.total),2)}${s&&e.total>0?")":""}
       </td>
@@ -469,55 +469,55 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     
     <div class="filters-bar" id="bs-filters"></div>
     <div id="bs-content"><div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div></div>
-  `;const t=e.querySelector("#bs-filters");he(t,()=>Te(e)),e.querySelector("#chk-bs-eliminations").addEventListener("change",()=>Te(e)),await Te(e)}async function Te(e){try{const t=S.getFilterParams();t.asOfDate=t.dateTo||new Date().toISOString().split("T")[0],t.useEliminations=e.querySelector("#chk-bs-eliminations").checked;const a=await h.getBalanceSheet(t);At(e.querySelector("#bs-content"),a)}catch{b("خطأ في تحميل الميزانية العمومية","error")}}function At(e,t){const a=S.get("companies"),s=S.get("selectedCompanyIds"),r=s.length>0?a.filter(c=>s.includes(c.id)):a,n=r.length>1,o=n?r.length+3:3,i=t.assets.filter(c=>!c.is_guarantee),p=t.assets.filter(c=>c.is_guarantee);e.innerHTML=`
+  `;const t=e.querySelector("#bs-filters");he(t,()=>Te(e)),e.querySelector("#chk-bs-eliminations").addEventListener("change",()=>Te(e)),await Te(e)}async function Te(e){try{const t=S.getFilterParams();t.asOfDate=t.dateTo||new Date().toISOString().split("T")[0],t.useEliminations=e.querySelector("#chk-bs-eliminations").checked;const a=await h.getBalanceSheet(t);At(e.querySelector("#bs-content"),a)}catch{y("خطأ في تحميل الميزانية العمومية","error")}}function At(e,t){const a=S.get("companies"),s=S.get("selectedCompanyIds"),r=s.length>0?a.filter(c=>s.includes(c.id)):a,o=r.length>1,n=o?r.length+3:3,i=t.assets.filter(c=>!c.is_guarantee),p=t.assets.filter(c=>c.is_guarantee);e.innerHTML=`
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
         <thead>
           <tr>
             <th style="min-width:200px;">الحساب</th>
             <th>الكود</th>
-            ${n?r.map(c=>`<th class="number">${c.name}</th>`).join(""):""}
+            ${o?r.map(c=>`<th class="number">${c.name}</th>`).join(""):""}
             <th class="number">المجمع</th>
           </tr>
         </thead>
         <tbody>
           <!-- Assets -->
-          <tr class="group-header"><td colspan="${o}">الأصول</td></tr>
-          ${i.map(c=>xe(c,r,n)).join("")}
+          <tr class="group-header"><td colspan="${n}">الأصول</td></tr>
+          ${i.map(c=>xe(c,r,o)).join("")}
           ${p.length>0?`
             <tr class="group-header" style="background: rgba(6, 182, 212, 0.08); color: #0891b2; font-size: 0.92em; padding-right: 20px;">
-              <td colspan="${o}">🏦 الضمانات البنكية (أصول محتجزة)</td>
+              <td colspan="${n}">🏦 الضمانات البنكية (أصول محتجزة)</td>
             </tr>
-            ${p.map(c=>xe(c,r,n)).join("")}
+            ${p.map(c=>xe(c,r,o)).join("")}
           `:""}
           <tr class="total-row">
             <td>إجمالي الأصول</td><td></td>
-            ${n?r.map(c=>{const l=t.assets.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
+            ${o?r.map(c=>{const l=t.assets.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
             <td class="number positive">${v(t.summary.totalAssets,2)}</td>
           </tr>
           
           <!-- Liabilities -->
-          <tr class="group-header"><td colspan="${o}">الالتزامات</td></tr>
-          ${t.liabilities.map(c=>xe(c,r,n)).join("")}
+          <tr class="group-header"><td colspan="${n}">الالتزامات</td></tr>
+          ${t.liabilities.map(c=>xe(c,r,o)).join("")}
           <tr class="total-row">
             <td>إجمالي الالتزامات</td><td></td>
-            ${n?r.map(c=>{const l=t.liabilities.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
+            ${o?r.map(c=>{const l=t.liabilities.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
             <td class="number">${v(t.summary.totalLiabilities,2)}</td>
           </tr>
           
           <!-- Equity -->
-          <tr class="group-header"><td colspan="${o}">حقوق الملكية</td></tr>
-          ${t.equity.map(c=>xe(c,r,n)).join("")}
+          <tr class="group-header"><td colspan="${n}">حقوق الملكية</td></tr>
+          ${t.equity.map(c=>xe(c,r,o)).join("")}
           <tr class="total-row">
             <td>إجمالي حقوق الملكية</td><td></td>
-            ${n?r.map(c=>{const l=t.equity.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
+            ${o?r.map(c=>{const l=t.equity.reduce((u,d)=>{var g;return u+(((g=d.companies[c.id])==null?void 0:g.amount)||0)},0);return`<td class="number">${v(l,2)}</td>`}).join(""):""}
             <td class="number">${v(t.summary.totalEquity,2)}</td>
           </tr>
 
           <!-- Total L+E -->
           <tr class="total-row" style="font-size:1.1em;">
             <td>إجمالي الالتزامات + حقوق الملكية</td><td></td>
-            ${n?r.map(()=>"<td></td>").join(""):""}
+            ${o?r.map(()=>"<td></td>").join(""):""}
             <td class="number positive" style="font-size:1.1em;">
               ${v(t.summary.totalLiabilities+t.summary.totalEquity,2)}
             </td>
@@ -525,9 +525,9 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </tbody>
       </table>
     </div>
-  `}function xe(e,t,a){const s=e.account_code==="RE-CALC"||e.account_code==="CYE",r=!!e.is_guarantee,n=s?"font-style: italic; background: rgba(59, 130, 246, 0.05);":r?"background: rgba(6, 182, 212, 0.03);":"";let o="";return s?o=' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>':r&&(o=' <span style="font-size:0.75em; background:rgba(6,182,212,0.1); color:#0891b2; border:1px solid rgba(6,182,212,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">ضمان</span>'),`
-    <tr class="indent-1" style="${n}">
-      <td>${e.account_name}${o}</td>
+  `}function xe(e,t,a){const s=e.account_code==="RE-CALC"||e.account_code==="CYE",r=!!e.is_guarantee,o=s?"font-style: italic; background: rgba(59, 130, 246, 0.05);":r?"background: rgba(6, 182, 212, 0.03);":"";let n="";return s?n=' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>':r&&(n=' <span style="font-size:0.75em; background:rgba(6,182,212,0.1); color:#0891b2; border:1px solid rgba(6,182,212,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">ضمان</span>'),`
+    <tr class="indent-1" style="${o}">
+      <td>${e.account_name}${n}</td>
       <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.8em;">${e.account_code}</td>
       ${a?t.map(i=>{var c;const p=((c=e.companies[i.id])==null?void 0:c.amount)||0;return`<td class="number">${v(p,2)}</td>`}).join(""):""}
       <td class="number">${v(e.total,2)}</td>
@@ -542,7 +542,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     
     <div class="filters-bar" id="cf-filters"></div>
     <div id="cf-content"><div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div></div>
-  `,he(e.querySelector("#cf-filters"),()=>at(e)),await at(e)}async function at(e){try{const t=S.getFilterParams(),a=await h.getCashFlow(t);Bt(e.querySelector("#cf-content"),a)}catch{b("خطأ في تحميل التدفقات النقدية","error")}}const Me={income:"إيرادات",income_other:"إيرادات أخرى",expense:"مصروفات تشغيلية",expense_direct_cost:"تكلفة مبيعات",expense_depreciation:"استهلاك",revenue:"إيرادات",cost_of_revenue:"تكلفة إيرادات",asset_receivable:"تغير في الذمم المدينة",liability_payable:"تغير في الذمم الدائنة",asset_current:"تغير في الأصول المتداولة",liability_current:"تغير في الالتزامات المتداولة",asset_non_current:"أصول غير متداولة",asset_fixed:"أصول ثابتة",equity:"حقوق ملكية",equity_unaffected:"أرباح مبقاة",liability_non_current:"التزامات طويلة الأجل",bank_guarantees:"ضمانات بنكية"};function Bt(e,t){const a=t.operating.reduce((o,i)=>o+i.amount,0),s=t.investing.reduce((o,i)=>o+i.amount,0),r=t.financing.reduce((o,i)=>o+i.amount,0),n=a+s+r;e.innerHTML=`
+  `,he(e.querySelector("#cf-filters"),()=>at(e)),await at(e)}async function at(e){try{const t=S.getFilterParams(),a=await h.getCashFlow(t);Bt(e.querySelector("#cf-content"),a)}catch{y("خطأ في تحميل التدفقات النقدية","error")}}const Me={income:"إيرادات",income_other:"إيرادات أخرى",expense:"مصروفات تشغيلية",expense_direct_cost:"تكلفة مبيعات",expense_depreciation:"استهلاك",revenue:"إيرادات",cost_of_revenue:"تكلفة إيرادات",asset_receivable:"تغير في الذمم المدينة",liability_payable:"تغير في الذمم الدائنة",asset_current:"تغير في الأصول المتداولة",liability_current:"تغير في الالتزامات المتداولة",asset_non_current:"أصول غير متداولة",asset_fixed:"أصول ثابتة",equity:"حقوق ملكية",equity_unaffected:"أرباح مبقاة",liability_non_current:"التزامات طويلة الأجل",bank_guarantees:"ضمانات بنكية"};function Bt(e,t){const a=t.operating.reduce((n,i)=>n+i.amount,0),s=t.investing.reduce((n,i)=>n+i.amount,0),r=t.financing.reduce((n,i)=>n+i.amount,0),o=a+s+r;e.innerHTML=`
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
         <thead>
@@ -553,11 +553,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </thead>
         <tbody>
           <tr class="group-header"><td colspan="2">الأنشطة التشغيلية</td></tr>
-          ${t.operating.map(o=>`
+          ${t.operating.map(n=>`
             <tr class="indent-1">
-              <td>${Me[o.account_type]||o.account_type}</td>
-              <td class="number ${o.amount>=0?"":"negative"}">
-                ${o.amount<0?"(":""}${v(Math.abs(o.amount),2)}${o.amount<0?")":""}
+              <td>${Me[n.account_type]||n.account_type}</td>
+              <td class="number ${n.amount>=0?"":"negative"}">
+                ${n.amount<0?"(":""}${v(Math.abs(n.amount),2)}${n.amount<0?")":""}
               </td>
             </tr>
           `).join("")}
@@ -569,11 +569,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           </tr>
 
           <tr class="group-header"><td colspan="2">الأنشطة الاستثمارية</td></tr>
-          ${t.investing.map(o=>`
+          ${t.investing.map(n=>`
             <tr class="indent-1">
-              <td>${Me[o.account_type]||o.account_type}</td>
-              <td class="number ${o.amount>=0?"":"negative"}">
-                ${o.amount<0?"(":""}${v(Math.abs(o.amount),2)}${o.amount<0?")":""}
+              <td>${Me[n.account_type]||n.account_type}</td>
+              <td class="number ${n.amount>=0?"":"negative"}">
+                ${n.amount<0?"(":""}${v(Math.abs(n.amount),2)}${n.amount<0?")":""}
               </td>
             </tr>
           `).join("")}
@@ -585,11 +585,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           </tr>
 
           <tr class="group-header"><td colspan="2">الأنشطة التمويلية</td></tr>
-          ${t.financing.map(o=>`
+          ${t.financing.map(n=>`
             <tr class="indent-1">
-              <td>${Me[o.account_type]||o.account_type}</td>
-              <td class="number ${o.amount>=0?"":"negative"}">
-                ${o.amount<0?"(":""}${v(Math.abs(o.amount),2)}${o.amount<0?")":""}
+              <td>${Me[n.account_type]||n.account_type}</td>
+              <td class="number ${n.amount>=0?"":"negative"}">
+                ${n.amount<0?"(":""}${v(Math.abs(n.amount),2)}${n.amount<0?")":""}
               </td>
             </tr>
           `).join("")}
@@ -602,8 +602,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
 
           <tr class="total-row" style="font-size:1.05em; border-top:2px solid var(--border-color);">
             <td>صافي التغير في النقد خلال الفترة</td>
-            <td class="number ${n>=0?"positive":"negative"}" style="font-size:1.05em;">
-              ${n<0?"(":""}${v(Math.abs(n),2)}${n<0?")":""}
+            <td class="number ${o>=0?"positive":"negative"}" style="font-size:1.05em;">
+              ${o<0?"(":""}${v(Math.abs(o),2)}${o<0?")":""}
             </td>
           </tr>
           ${t.summary?`
@@ -655,28 +655,28 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     <span class="pivot-chip ${Y.includes(r.id)?"active":""}" data-dim="${r.id}">${r.label}</span>
   `).join(""),s.innerHTML=Rt.map(r=>`
     <span class="pivot-chip ${He===r.id?"active":""}" data-measure="${r.id}">${r.label}</span>
-  `).join(""),t.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{const n=r.dataset.dim;G.includes(n)?G=G.filter(o=>o!==n):G.push(n),G.length===0&&(G=["account"]),we(e),ye(e)})}),a.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{const n=r.dataset.dim;Y.includes(n)?Y=Y.filter(o=>o!==n):Y.push(n),Y.length===0&&(Y=["period"]),we(e),ye(e)})}),s.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{He=r.dataset.measure,we(e),ye(e)})})}async function ye(e){try{const t={...S.getFilterParams(),rows:G.join(","),columns:Y.join(","),measure:He},a=await h.getPivotData(t);Dt(e.querySelector("#pivot-content"),a)}catch(t){b("خطأ في تحميل الجدول المحوري","error"),console.error(t)}}function Dt(e,t){var u;if(!t||t.length===0){e.innerHTML='<div class="card" style="text-align:center;padding:60px;color:var(--text-muted);">لا توجد بيانات للعرض</div>';return}const a={company:"c.name",account:"ji.account_code",account_name:"ji.account_name",account_type:"ji.account_type",period:"ji.period",fiscal_year:"ji.fiscal_year",journal:"ji.journal_name",partner:"ji.partner_name",cost_center:"ji.analytic_account"},s=Y[0],r=a[s]||s,n=r.includes(".")?r.split(".")[1]:r,o=[...new Set(t.map(d=>d[n]||d[Object.keys(d).find(g=>g.includes(n.replace("ji.","").replace("c.","")))]||""))].filter(d=>d).sort(),i=G[0],p=a[i]||i,c=p.includes(".")?p.split(".")[1]:p,l={};for(const d of t){const g=d[c]||d[Object.keys(d).find(y=>y.includes(c.replace("ji.","").replace("c.","")))]||"غير محدد",f=d[n]||d[Object.keys(d).find(y=>y.includes(n.replace("ji.","").replace("c.","")))]||"";l[g]||(l[g]={}),l[g][f]=(l[g][f]||0)+(d.value||0)}e.innerHTML=`
+  `).join(""),t.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{const o=r.dataset.dim;G.includes(o)?G=G.filter(n=>n!==o):G.push(o),G.length===0&&(G=["account"]),we(e),ye(e)})}),a.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{const o=r.dataset.dim;Y.includes(o)?Y=Y.filter(n=>n!==o):Y.push(o),Y.length===0&&(Y=["period"]),we(e),ye(e)})}),s.querySelectorAll(".pivot-chip").forEach(r=>{r.addEventListener("click",()=>{He=r.dataset.measure,we(e),ye(e)})})}async function ye(e){try{const t={...S.getFilterParams(),rows:G.join(","),columns:Y.join(","),measure:He},a=await h.getPivotData(t);Dt(e.querySelector("#pivot-content"),a)}catch(t){y("خطأ في تحميل الجدول المحوري","error"),console.error(t)}}function Dt(e,t){var u;if(!t||t.length===0){e.innerHTML='<div class="card" style="text-align:center;padding:60px;color:var(--text-muted);">لا توجد بيانات للعرض</div>';return}const a={company:"c.name",account:"ji.account_code",account_name:"ji.account_name",account_type:"ji.account_type",period:"ji.period",fiscal_year:"ji.fiscal_year",journal:"ji.journal_name",partner:"ji.partner_name",cost_center:"ji.analytic_account"},s=Y[0],r=a[s]||s,o=r.includes(".")?r.split(".")[1]:r,n=[...new Set(t.map(d=>d[o]||d[Object.keys(d).find(g=>g.includes(o.replace("ji.","").replace("c.","")))]||""))].filter(d=>d).sort(),i=G[0],p=a[i]||i,c=p.includes(".")?p.split(".")[1]:p,l={};for(const d of t){const g=d[c]||d[Object.keys(d).find(b=>b.includes(c.replace("ji.","").replace("c.","")))]||"غير محدد",f=d[o]||d[Object.keys(d).find(b=>b.includes(o.replace("ji.","").replace("c.","")))]||"";l[g]||(l[g]={}),l[g][f]=(l[g][f]||0)+(d.value||0)}e.innerHTML=`
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
         <thead>
           <tr>
             <th>${((u=Be.find(d=>d.id===i))==null?void 0:u.label)||i}</th>
-            ${o.map(d=>`<th class="number">${d}</th>`).join("")}
+            ${n.map(d=>`<th class="number">${d}</th>`).join("")}
             <th class="number">المجموع</th>
           </tr>
         </thead>
         <tbody>
-          ${Object.entries(l).map(([d,g])=>{const f=Object.values(g).reduce((y,x)=>y+x,0);return`
+          ${Object.entries(l).map(([d,g])=>{const f=Object.values(g).reduce((b,x)=>b+x,0);return`
               <tr>
                 <td>${d}</td>
-                ${o.map(y=>{const x=g[y]||0;return`<td class="number ${x<0?"negative":""}">${v(x,2)}</td>`}).join("")}
+                ${n.map(b=>{const x=g[b]||0;return`<td class="number ${x<0?"negative":""}">${v(x,2)}</td>`}).join("")}
                 <td class="number" style="font-weight:600;">${v(f,2)}</td>
               </tr>
             `}).join("")}
           <tr class="total-row">
             <td>المجموع</td>
-            ${o.map(d=>{const g=Object.values(l).reduce((f,y)=>f+(y[d]||0),0);return`<td class="number">${v(g,2)}</td>`}).join("")}
-            <td class="number">${v(Object.values(l).reduce((d,g)=>d+Object.values(g).reduce((f,y)=>f+y,0),0),2)}</td>
+            ${n.map(d=>{const g=Object.values(l).reduce((f,b)=>f+(b[d]||0),0);return`<td class="number">${v(g,2)}</td>`}).join("")}
+            <td class="number">${v(Object.values(l).reduce((d,g)=>d+Object.values(g).reduce((f,b)=>f+b,0),0),2)}</td>
           </tr>
         </tbody>
       </table>
@@ -716,9 +716,9 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     
     <div id="ji-content"><div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div></div>
     <div id="ji-pagination" style="display:flex;justify-content:center;gap:8px;margin-top:var(--space-lg);"></div>
-  `,e.querySelector("#btn-ji-search").addEventListener("click",()=>{K=0,Se(e)}),await Se(e)}async function Se(e){try{const t=e.querySelector("#ji-company").value,a={limit:Pe,offset:K*Pe,dateFrom:e.querySelector("#ji-date-from").value,dateTo:e.querySelector("#ji-date-to").value,accountCode:e.querySelector("#ji-account").value};t&&(a.companyIds=[parseInt(t)]);const s=await h.getJournalItems(a);Ot(e,s)}catch{b("خطأ في تحميل القيود","error")}}function Ot(e,t){var i,p;const a=e.querySelector("#ji-content"),{items:s,total:r}=t,n=Math.ceil(r/Pe);a.innerHTML=`
+  `,e.querySelector("#btn-ji-search").addEventListener("click",()=>{K=0,Se(e)}),await Se(e)}async function Se(e){try{const t=e.querySelector("#ji-company").value,a={limit:Pe,offset:K*Pe,dateFrom:e.querySelector("#ji-date-from").value,dateTo:e.querySelector("#ji-date-to").value,accountCode:e.querySelector("#ji-account").value};t&&(a.companyIds=[parseInt(t)]);const s=await h.getJournalItems(a);Ot(e,s)}catch{y("خطأ في تحميل القيود","error")}}function Ot(e,t){var i,p;const a=e.querySelector("#ji-content"),{items:s,total:r}=t,o=Math.ceil(r/Pe);a.innerHTML=`
     <div style="margin-bottom:var(--space-md);font-size:0.8rem;color:var(--text-muted);">
-      إجمالي النتائج: ${v(r)} | الصفحة ${K+1} من ${n||1}
+      إجمالي النتائج: ${v(r)} | الصفحة ${K+1} من ${o||1}
     </div>
     <div class="data-table-wrapper fade-in">
       <table class="data-table">
@@ -755,13 +755,13 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </tbody>
       </table>
     </div>
-  `;const o=e.querySelector("#ji-pagination");n>1?(o.innerHTML=`
+  `;const n=e.querySelector("#ji-pagination");o>1?(n.innerHTML=`
       <button class="btn btn-sm btn-secondary" ${K===0?"disabled":""} id="btn-prev">السابق</button>
       <span style="display:flex;align-items:center;font-size:0.85rem;color:var(--text-secondary);">
-        ${K+1} / ${n}
+        ${K+1} / ${o}
       </span>
-      <button class="btn btn-sm btn-secondary" ${K>=n-1?"disabled":""} id="btn-next">التالي</button>
-    `,(i=o.querySelector("#btn-prev"))==null||i.addEventListener("click",()=>{K--,Se(e)}),(p=o.querySelector("#btn-next"))==null||p.addEventListener("click",()=>{K++,Se(e)})):o.innerHTML=""}async function Nt(e){e.innerHTML=`
+      <button class="btn btn-sm btn-secondary" ${K>=o-1?"disabled":""} id="btn-next">التالي</button>
+    `,(i=n.querySelector("#btn-prev"))==null||i.addEventListener("click",()=>{K--,Se(e)}),(p=n.querySelector("#btn-next"))==null||p.addEventListener("click",()=>{K++,Se(e)})):n.innerHTML=""}async function Nt(e){e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">توحيد شجرة الحسابات</h1>
@@ -797,7 +797,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <h3 style="margin-bottom:var(--space-md);color:var(--text-secondary);font-size:0.9rem;">حالة التوحيد</h3>
       <div id="mapping-stats" class="card"></div>
     </div>
-  `,e.querySelector("#mapping-company").addEventListener("change",()=>st(e)),e.querySelector("#btn-add-unified").addEventListener("click",()=>Xt()),await st(e)}async function st(e){try{const t=e.querySelector("#mapping-company").value,[a,s]=await Promise.all([h.getCompanyAccounts(t),h.getUnifiedAccounts()]);Vt(e.querySelector("#company-accounts-list"),a,s,t),Jt(e.querySelector("#unified-accounts-list"),s),Ut(e.querySelector("#mapping-stats"),a)}catch{b("خطأ في تحميل بيانات التوحيد","error")}}function Vt(e,t,a,s){e.innerHTML=t.map(r=>`
+  `,e.querySelector("#mapping-company").addEventListener("change",()=>st(e)),e.querySelector("#btn-add-unified").addEventListener("click",()=>Xt()),await st(e)}async function st(e){try{const t=e.querySelector("#mapping-company").value,[a,s]=await Promise.all([h.getCompanyAccounts(t),h.getUnifiedAccounts()]);Vt(e.querySelector("#company-accounts-list"),a,s,t),Jt(e.querySelector("#unified-accounts-list"),s),Ut(e.querySelector("#mapping-stats"),a)}catch{y("خطأ في تحميل بيانات التوحيد","error")}}function Vt(e,t,a,s){e.innerHTML=t.map(r=>`
     <div class="mapping-item ${r.is_mapped?"mapped":"unmapped"}">
       <div>
         <div style="font-family:var(--font-en);font-size:0.8em;color:var(--text-muted);">${r.code}</div>
@@ -807,15 +807,15 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <div>
         <select class="filter-select" style="min-width:160px;font-size:0.78rem;" data-account-id="${r.id}" data-company-id="${s}">
           <option value="">-- غير معين --</option>
-          ${a.map(n=>`
-            <option value="${n.id}" ${r.unified_account_id===n.id?"selected":""}>
-              ${n.code} - ${n.name_ar}
+          ${a.map(o=>`
+            <option value="${o.id}" ${r.unified_account_id===o.id?"selected":""}>
+              ${o.code} - ${o.name_ar}
             </option>
           `).join("")}
         </select>
       </div>
     </div>
-  `).join("")||'<div style="padding:20px;text-align:center;color:var(--text-muted);">لا توجد حسابات - قم بمزامنة البيانات أولاً</div>',e.querySelectorAll("select").forEach(r=>{r.addEventListener("change",async()=>{const n=parseInt(r.value),o=parseInt(r.dataset.accountId);if(n)try{await h.createMapping({company_account_id:o,unified_account_id:n}),b("تم ربط الحساب بنجاح","success");const i=r.dataset.companyId,p=e.closest("#main-content")||document.getElementById("main-content"),c=r.closest(".mapping-item");c.classList.remove("unmapped"),c.classList.add("mapped")}catch{b("خطأ في ربط الحساب","error")}})})}function Jt(e,t){e.innerHTML=t.map(a=>`
+  `).join("")||'<div style="padding:20px;text-align:center;color:var(--text-muted);">لا توجد حسابات - قم بمزامنة البيانات أولاً</div>',e.querySelectorAll("select").forEach(r=>{r.addEventListener("change",async()=>{const o=parseInt(r.value),n=parseInt(r.dataset.accountId);if(o)try{await h.createMapping({company_account_id:n,unified_account_id:o}),y("تم ربط الحساب بنجاح","success");const i=r.dataset.companyId,p=e.closest("#main-content")||document.getElementById("main-content"),c=r.closest(".mapping-item");c.classList.remove("unmapped"),c.classList.add("mapped")}catch{y("خطأ في ربط الحساب","error")}})})}function Jt(e,t){e.innerHTML=t.map(a=>`
     <div class="mapping-item" style="border-right:3px solid var(--accent-blue);">
       <div>
         <div style="font-family:var(--font-en);font-size:0.8em;color:var(--text-muted);">${a.code}</div>
@@ -824,7 +824,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       </div>
       <span class="badge ${a.is_group?"badge-info":"badge-success"}">${a.is_group?"مجموعة":"حساب"}</span>
     </div>
-  `).join("")||'<div style="padding:20px;text-align:center;color:var(--text-muted);">لا توجد حسابات موحدة</div>'}function Ut(e,t){const a=t.length,s=t.filter(n=>n.is_mapped).length,r=a>0?(s/a*100).toFixed(0):0;e.innerHTML=`
+  `).join("")||'<div style="padding:20px;text-align:center;color:var(--text-muted);">لا توجد حسابات موحدة</div>'}function Ut(e,t){const a=t.length,s=t.filter(o=>o.is_mapped).length,r=a>0?(s/a*100).toFixed(0):0;e.innerHTML=`
     <div style="display:flex;align-items:center;gap:var(--space-lg);">
       <div style="flex:1;">
         <div style="display:flex;justify-content:space-between;margin-bottom:var(--space-sm);">
@@ -881,7 +881,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <button class="btn btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">إلغاء</button>
       <button class="btn btn-primary" id="btn-save-unified">حفظ</button>
     </div>
-  `),document.getElementById("btn-save-unified").addEventListener("click",async()=>{try{await h.createUnifiedAccount({code:document.getElementById("ua-code").value,name_ar:document.getElementById("ua-name-ar").value,name_en:document.getElementById("ua-name-en").value,account_type:document.getElementById("ua-type").value}),fe(),b("تم إضافة الحساب الموحد","success")}catch(e){b("خطأ: "+e.message,"error")}})}let ce={};async function Gt(e){e.innerHTML=`
+  `),document.getElementById("btn-save-unified").addEventListener("click",async()=>{try{await h.createUnifiedAccount({code:document.getElementById("ua-code").value,name_ar:document.getElementById("ua-name-ar").value,name_en:document.getElementById("ua-name-en").value,account_type:document.getElementById("ua-type").value}),fe(),y("تم إضافة الحساب الموحد","success")}catch(e){y("خطأ: "+e.message,"error")}})}let ce={};async function Gt(e){e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">⚙️ إعدادات النظام</h1>
@@ -1037,12 +1037,12 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div style="padding:12px;border-radius:8px;background:rgba(239,68,68,0.15);color:var(--accent-red);font-size:0.85rem;">
           ❌ خطأ: ${u.message}
         </div>
-      `}t.disabled=!1,t.textContent="🔌 اختبار الاتصال"}),a.addEventListener("click",async()=>{const i=e.querySelector("#conn-url").value.trim(),p=e.querySelector("#conn-user").value.trim(),c=e.querySelector("#conn-pass").value.trim();a.disabled=!0,a.textContent="جاري الحفظ...";try{let l=i;try{l=new URL(i).hostname}catch{l=i.replace(/https?:\/\//,"").split("/")[0]}await h.createInstance({name:"أودو - "+l,url:i,username:p,api_key:c,db_name:e.querySelector("#conn-db").value.trim()}),b("تم حفظ الاتصال بنجاح ✅ — اربط الشركات به من قسم الشركات","success"),e.querySelector("#conn-url").value="",e.querySelector("#conn-user").value="",e.querySelector("#conn-pass").value="",e.querySelector("#conn-db").value="",e.querySelector("#conn-result").innerHTML="",a.disabled=!0,await re(e)}catch(l){b("خطأ في الحفظ: "+l.message,"error")}a.disabled=!1,a.textContent="💾 حفظ الاتصال"}),e.querySelector("#btn-add-company").addEventListener("click",()=>sa(e)),e.querySelector("#btn-add-rule").addEventListener("click",()=>na(e)),e.querySelector("#btn-sync-all").addEventListener("click",async()=>{try{await h.syncAll(),b("بدأت مزامنة جميع الشركات","info"),Qt(e)}catch(i){b("خطأ: "+i.message,"error")}});const s=e.querySelector("#sync-enabled"),r=e.querySelector("#sync-toggle-track"),n=e.querySelector("#sync-toggle-dot");function o(i){i?(r.style.background="#06b6d4",n.style.right="2px"):(r.style.background="rgba(255,255,255,0.1)",n.style.right="22px")}r.addEventListener("click",()=>{s.checked=!s.checked,o(s.checked)}),n.addEventListener("click",()=>{s.checked=!s.checked,o(s.checked)}),e.querySelector("#btn-save-schedule").addEventListener("click",async()=>{const i=e.querySelector("#btn-save-schedule");i.disabled=!0,i.textContent="⏳ جاري الحفظ...";try{const p=await h.updateSchedule({enabled:s.checked,intervalHours:parseInt(e.querySelector("#sync-interval").value)});b(p.running?`تم تفعيل المزامنة التلقائية — ${p.schedule}`:"تم إيقاف المزامنة التلقائية","success"),ct(e,p)}catch(p){b("خطأ: "+p.message,"error")}i.disabled=!1,i.textContent="💾 حفظ الإعدادات"}),e.querySelector("#btn-clear-notifs").addEventListener("click",async()=>{try{await h.clearNotifications(),e.querySelector("#sync-notifications-list").innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>',b("تم مسح الإشعارات","info")}catch(i){b("خطأ: "+i.message,"error")}}),await re(e)}function ct(e,t){const a=e.querySelector("#schedule-status");a&&(t.running?a.innerHTML=`<span style="color:#10b981;">● نشطة</span> — <span style="font-family:var(--font-en);font-size:0.72rem;">${t.schedule}</span>`:a.innerHTML='<span style="color:var(--text-muted);">○ متوقفة</span>')}function Yt(e,t){if(!e)return;if(!t||t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>';return}const a={success:"background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.2)",warning:"background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.2)",error:"background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.2)"},s={success:"✅",warning:"⚠️",error:"❌"};e.innerHTML=`<div style="display:grid;gap:6px;">
-    ${t.map(r=>{const n=a[r.type]||a.success,o=s[r.type]||"✅",i=r.created_at?new Date(r.created_at+"Z").toLocaleString("ar-SA",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}):"";return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;border:1px solid;${n};font-size:0.8rem;">
-        <span>${o} ${r.message}</span>
+      `}t.disabled=!1,t.textContent="🔌 اختبار الاتصال"}),a.addEventListener("click",async()=>{const i=e.querySelector("#conn-url").value.trim(),p=e.querySelector("#conn-user").value.trim(),c=e.querySelector("#conn-pass").value.trim();a.disabled=!0,a.textContent="جاري الحفظ...";try{let l=i;try{l=new URL(i).hostname}catch{l=i.replace(/https?:\/\//,"").split("/")[0]}await h.createInstance({name:"أودو - "+l,url:i,username:p,api_key:c,db_name:e.querySelector("#conn-db").value.trim()}),y("تم حفظ الاتصال بنجاح ✅ — اربط الشركات به من قسم الشركات","success"),e.querySelector("#conn-url").value="",e.querySelector("#conn-user").value="",e.querySelector("#conn-pass").value="",e.querySelector("#conn-db").value="",e.querySelector("#conn-result").innerHTML="",a.disabled=!0,await re(e)}catch(l){y("خطأ في الحفظ: "+l.message,"error")}a.disabled=!1,a.textContent="💾 حفظ الاتصال"}),e.querySelector("#btn-add-company").addEventListener("click",()=>sa(e)),e.querySelector("#btn-add-rule").addEventListener("click",()=>oa(e)),e.querySelector("#btn-sync-all").addEventListener("click",async()=>{try{await h.syncAll(),y("بدأت مزامنة جميع الشركات","info"),Qt(e)}catch(i){y("خطأ: "+i.message,"error")}});const s=e.querySelector("#sync-enabled"),r=e.querySelector("#sync-toggle-track"),o=e.querySelector("#sync-toggle-dot");function n(i){i?(r.style.background="#06b6d4",o.style.right="2px"):(r.style.background="rgba(255,255,255,0.1)",o.style.right="22px")}r.addEventListener("click",()=>{s.checked=!s.checked,n(s.checked)}),o.addEventListener("click",()=>{s.checked=!s.checked,n(s.checked)}),e.querySelector("#btn-save-schedule").addEventListener("click",async()=>{const i=e.querySelector("#btn-save-schedule");i.disabled=!0,i.textContent="⏳ جاري الحفظ...";try{const p=await h.updateSchedule({enabled:s.checked,intervalHours:parseInt(e.querySelector("#sync-interval").value)});y(p.running?`تم تفعيل المزامنة التلقائية — ${p.schedule}`:"تم إيقاف المزامنة التلقائية","success"),ct(e,p)}catch(p){y("خطأ: "+p.message,"error")}i.disabled=!1,i.textContent="💾 حفظ الإعدادات"}),e.querySelector("#btn-clear-notifs").addEventListener("click",async()=>{try{await h.clearNotifications(),e.querySelector("#sync-notifications-list").innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>',y("تم مسح الإشعارات","info")}catch(i){y("خطأ: "+i.message,"error")}}),await re(e)}function ct(e,t){const a=e.querySelector("#schedule-status");a&&(t.running?a.innerHTML=`<span style="color:#10b981;">● نشطة</span> — <span style="font-family:var(--font-en);font-size:0.72rem;">${t.schedule}</span>`:a.innerHTML='<span style="color:var(--text-muted);">○ متوقفة</span>')}function Yt(e,t){if(!e)return;if(!t||t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>';return}const a={success:"background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.2)",warning:"background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.2)",error:"background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.2)"},s={success:"✅",warning:"⚠️",error:"❌"};e.innerHTML=`<div style="display:grid;gap:6px;">
+    ${t.map(r=>{const o=a[r.type]||a.success,n=s[r.type]||"✅",i=r.created_at?new Date(r.created_at+"Z").toLocaleString("ar-SA",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}):"";return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;border:1px solid;${o};font-size:0.8rem;">
+        <span>${n} ${r.message}</span>
         <span style="font-family:var(--font-en);font-size:0.7rem;opacity:0.7;">${i}</span>
       </div>`}).join("")}
-  </div>`}async function re(e){try{const[t,a,s,r,n,o]=await Promise.all([h.getInstances(),h.getCompanies(),h.getEliminationRules(),h.getSyncStatus(),h.getSchedule().catch(()=>({enabled:!1,intervalHours:2,running:!1})),h.getNotifications().catch(()=>[])]);Wt(e.querySelector("#instances-list"),t,e),Zt(e.querySelector("#companies-list"),a,t,e),Kt(e.querySelector("#import-panel"),a),ta(e.querySelector("#rules-list"),s),aa(e.querySelector("#sync-log"),r);const i=e.querySelector("#sync-enabled");if(i){i.checked=n.enabled;const c=e.querySelector("#sync-toggle-track"),l=e.querySelector("#sync-toggle-dot");n.enabled?(c.style.background="#06b6d4",l.style.right="2px"):(c.style.background="rgba(255,255,255,0.1)",l.style.right="22px")}const p=e.querySelector("#sync-interval");p&&(p.value=String(n.intervalHours)),ct(e,n),Yt(e.querySelector("#sync-notifications-list"),o)}catch{b("خطأ في تحميل الإعدادات","error")}}function Wt(e,t,a){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد اتصالات محفوظة — أضف اتصال من الخطوة 1</div>';return}e.innerHTML=`
+  </div>`}async function re(e){try{const[t,a,s,r,o,n]=await Promise.all([h.getInstances(),h.getCompanies(),h.getEliminationRules(),h.getSyncStatus(),h.getSchedule().catch(()=>({enabled:!1,intervalHours:2,running:!1})),h.getNotifications().catch(()=>[])]);Wt(e.querySelector("#instances-list"),t,e),Zt(e.querySelector("#companies-list"),a,t,e),Kt(e.querySelector("#import-panel"),a),ta(e.querySelector("#rules-list"),s),aa(e.querySelector("#sync-log"),r);const i=e.querySelector("#sync-enabled");if(i){i.checked=o.enabled;const c=e.querySelector("#sync-toggle-track"),l=e.querySelector("#sync-toggle-dot");o.enabled?(c.style.background="#06b6d4",l.style.right="2px"):(c.style.background="rgba(255,255,255,0.1)",l.style.right="22px")}const p=e.querySelector("#sync-interval");p&&(p.value=String(o.intervalHours)),ct(e,o),Yt(e.querySelector("#sync-notifications-list"),n)}catch{y("خطأ في تحميل الإعدادات","error")}}function Wt(e,t,a){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد اتصالات محفوظة — أضف اتصال من الخطوة 1</div>';return}e.innerHTML=`
     <div style="display:grid;gap:var(--space-sm);">
       ${t.map(s=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(139,92,246,0.06);border-radius:var(--radius-md);border:1px solid rgba(139,92,246,0.15);">
@@ -1058,33 +1058,33 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       `).join("")}
     </div>
-  `,e.querySelectorAll(".btn-delete-instance").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.id;if(confirm("هل تريد حذف هذا الاتصال؟"))try{await h.deleteInstance(r),b("تم حذف الاتصال","success"),await re(a)}catch(n){b("خطأ: "+n.message,"error")}})})}function Zt(e,t,a,s){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">لا توجد شركات — أضف شركة جديدة</div>';return}const r={};for(const n of a)r[n.id]=n;e.innerHTML=`
+  `,e.querySelectorAll(".btn-delete-instance").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.id;if(confirm("هل تريد حذف هذا الاتصال؟"))try{await h.deleteInstance(r),y("تم حذف الاتصال","success"),await re(a)}catch(o){y("خطأ: "+o.message,"error")}})})}function Zt(e,t,a,s){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">لا توجد شركات — أضف شركة جديدة</div>';return}const r={};for(const o of a)r[o.id]=o;e.innerHTML=`
     <div class="data-table-wrapper">
       <table class="data-table">
         <thead><tr><th>الشركة</th><th>الخادم المربوط</th><th>Odoo ID</th><th>عدد القيود</th><th>آخر قيد</th><th>الحالة</th></tr></thead>
         <tbody>
-          ${t.map(n=>{const o=r[n.odoo_instance_id],i=a.map(p=>`<option value="${p.id}" ${p.id===n.odoo_instance_id?"selected":""}>${p.name}</option>`).join("");return`
+          ${t.map(o=>{const n=r[o.odoo_instance_id],i=a.map(p=>`<option value="${p.id}" ${p.id===o.odoo_instance_id?"selected":""}>${p.name}</option>`).join("");return`
             <tr>
               <td>
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${n.color||"#3b82f6"};margin-left:8px;"></span>
-                ${n.name}
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${o.color||"#3b82f6"};margin-left:8px;"></span>
+                ${o.name}
               </td>
               <td>
-                <select class="filter-select company-instance-select" data-company-id="${n.id}" style="font-size:0.78rem;padding:4px 8px;min-width:180px;">
+                <select class="filter-select company-instance-select" data-company-id="${o.id}" style="font-size:0.78rem;padding:4px 8px;min-width:180px;">
                   ${i}
                 </select>
-                ${o?`<div style="font-family:var(--font-en);font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${o.url} — ${o.username}</div>`:""}
+                ${n?`<div style="font-family:var(--font-en);font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${n.url} — ${n.username}</div>`:""}
               </td>
-              <td style="font-family:var(--font-en);">${n.odoo_company_id}</td>
-              <td style="font-family:var(--font-en);font-weight:600;">${v(n.item_count||0)}</td>
-              <td style="font-family:var(--font-en);font-size:0.8em;">${n.last_entry_date||"--"}</td>
-              <td><span class="badge ${n.is_active?"badge-success":"badge-danger"}">${n.is_active?"نشط":"معطل"}</span></td>
+              <td style="font-family:var(--font-en);">${o.odoo_company_id}</td>
+              <td style="font-family:var(--font-en);font-weight:600;">${v(o.item_count||0)}</td>
+              <td style="font-family:var(--font-en);font-size:0.8em;">${o.last_entry_date||"--"}</td>
+              <td><span class="badge ${o.is_active?"badge-success":"badge-danger"}">${o.is_active?"نشط":"معطل"}</span></td>
             </tr>
           `}).join("")}
         </tbody>
       </table>
     </div>
-  `,e.querySelectorAll(".company-instance-select").forEach(n=>{n.addEventListener("change",async()=>{const o=n.dataset.companyId,i=parseInt(n.value);try{await h.updateCompany(o,{odoo_instance_id:i}),b("تم تحديث الخادم المربوط ✅","success"),await re(s)}catch(p){b("خطأ: "+p.message,"error")}})})}function Kt(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">أضف شركات أولاً ثم ابدأ الاستيراد</div>';return}e.innerHTML=t.map(a=>`
+  `,e.querySelectorAll(".company-instance-select").forEach(o=>{o.addEventListener("change",async()=>{const n=o.dataset.companyId,i=parseInt(o.value);try{await h.updateCompany(n,{odoo_instance_id:i}),y("تم تحديث الخادم المربوط ✅","success"),await re(s)}catch(p){y("خطأ: "+p.message,"error")}})})}function Kt(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">أضف شركات أولاً ثم ابدأ الاستيراد</div>';return}e.innerHTML=t.map(a=>`
     <div class="card" style="margin-bottom:var(--space-md);border:1px solid rgba(255,255,255,0.05);padding:var(--space-md);" id="import-card-${a.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
@@ -1105,7 +1105,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       </div>
     </div>
-  `).join(""),e.querySelectorAll(".btn-import").forEach(a=>{a.addEventListener("click",async()=>{const s=parseInt(a.dataset.companyId);a.disabled=!0,a.textContent="⏳ جاري...";try{await h.syncCompany(s),b("بدأت عملية الاستيراد","info"),pt(s)}catch(r){b("خطأ: "+r.message,"error"),a.disabled=!1,a.textContent="📥 استيراد"}})})}function pt(e){const t=document.getElementById(`progress-${e}`);t&&(t.style.display="block"),ce[e]&&clearInterval(ce[e]),ce[e]=setInterval(async()=>{try{const a=await h.getSyncProgress(e);if(ea(e,a),a.status==="completed"||a.status==="failed"){clearInterval(ce[e]),delete ce[e];const s=document.querySelector(`[data-company-id="${e}"]`);if(s&&(s.disabled=!1,s.textContent=a.status==="completed"?"✅ تم":"📥 إعادة الاستيراد"),a.status==="completed"){b(`تم استيراد ${v(a.inserted)} سجل بنجاح ✅`,"success");const r=await h.getCompanies();S.set("companies",r)}else b(`فشل الاستيراد: ${a.phase}`,"error")}}catch(a){console.error("Progress poll error:",a)}},1500)}function Qt(e){const t=S.get("companies");for(const a of t)pt(a.id)}function ea(e,t){const a=document.getElementById(`progress-text-${e}`),s=document.getElementById(`progress-pct-${e}`),r=document.getElementById(`progress-bar-${e}`),n=document.getElementById(`progress-${e}`);if(!(!a||!s||!r)){if(n.style.display="block",a.textContent=t.phase||"",t.total>0){const o=Math.round(t.inserted/t.total*100);s.textContent=`${o}%`,r.style.width=`${o}%`}t.status==="completed"?(r.style.background="var(--accent-emerald)",r.style.width="100%",s.textContent="100%"):t.status==="failed"&&(r.style.background="var(--accent-red)")}}function ta(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد قواعد استبعاد</div>';return}e.innerHTML=`
+  `).join(""),e.querySelectorAll(".btn-import").forEach(a=>{a.addEventListener("click",async()=>{const s=parseInt(a.dataset.companyId);a.disabled=!0,a.textContent="⏳ جاري...";try{await h.syncCompany(s),y("بدأت عملية الاستيراد","info"),pt(s)}catch(r){y("خطأ: "+r.message,"error"),a.disabled=!1,a.textContent="📥 استيراد"}})})}function pt(e){const t=document.getElementById(`progress-${e}`);t&&(t.style.display="block"),ce[e]&&clearInterval(ce[e]),ce[e]=setInterval(async()=>{try{const a=await h.getSyncProgress(e);if(ea(e,a),a.status==="completed"||a.status==="failed"){clearInterval(ce[e]),delete ce[e];const s=document.querySelector(`[data-company-id="${e}"]`);if(s&&(s.disabled=!1,s.textContent=a.status==="completed"?"✅ تم":"📥 إعادة الاستيراد"),a.status==="completed"){y(`تم استيراد ${v(a.inserted)} سجل بنجاح ✅`,"success");const r=await h.getCompanies();S.set("companies",r)}else y(`فشل الاستيراد: ${a.phase}`,"error")}}catch(a){console.error("Progress poll error:",a)}},1500)}function Qt(e){const t=S.get("companies");for(const a of t)pt(a.id)}function ea(e,t){const a=document.getElementById(`progress-text-${e}`),s=document.getElementById(`progress-pct-${e}`),r=document.getElementById(`progress-bar-${e}`),o=document.getElementById(`progress-${e}`);if(!(!a||!s||!r)){if(o.style.display="block",a.textContent=t.phase||"",t.total>0){const n=Math.round(t.inserted/t.total*100);s.textContent=`${n}%`,r.style.width=`${n}%`}t.status==="completed"?(r.style.background="var(--accent-emerald)",r.style.width="100%",s.textContent="100%"):t.status==="failed"&&(r.style.background="var(--accent-red)")}}function ta(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد قواعد استبعاد</div>';return}e.innerHTML=`
     <div class="data-table-wrapper">
       <table class="data-table">
         <thead><tr><th>القاعدة</th><th>الشركة المصدر</th><th>الشركة الهدف</th><th>حساب المصدر</th><th>حساب الهدف</th></tr></thead>
@@ -1170,7 +1170,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <button class="btn btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">إلغاء</button>
       <button class="btn btn-primary" id="btn-save-company">حفظ</button>
     </div>
-  `),h.getInstances().then(t=>{const a=document.getElementById("comp-instance");t.length===0?a.innerHTML="<option disabled>⚠️ أضف اتصال أودو أولاً</option>":a.innerHTML=t.map(s=>`<option value="${s.id}">${s.name} (${s.url})</option>`).join("")}),document.getElementById("btn-save-company").addEventListener("click",async()=>{const t=document.getElementById("comp-name").value,a=parseInt(document.getElementById("comp-odoo-id").value),s=parseInt(document.getElementById("comp-instance").value);if(!t||!a){b("يرجى تعبئة الاسم ومعرف الشركة","warning");return}try{await h.createCompany({name:t,odoo_company_id:a,odoo_instance_id:s,currency:document.getElementById("comp-currency").value||"SAR",color:document.getElementById("comp-color").value}),fe(),b("تم إضافة الشركة بنجاح ✅","success");const r=await h.getCompanies();S.set("companies",r),await re(e)}catch(r){b("خطأ: "+r.message,"error")}})}function na(e){const t=S.get("companies");ve("إضافة قاعدة استبعاد",`
+  `),h.getInstances().then(t=>{const a=document.getElementById("comp-instance");t.length===0?a.innerHTML="<option disabled>⚠️ أضف اتصال أودو أولاً</option>":a.innerHTML=t.map(s=>`<option value="${s.id}">${s.name} (${s.url})</option>`).join("")}),document.getElementById("btn-save-company").addEventListener("click",async()=>{const t=document.getElementById("comp-name").value,a=parseInt(document.getElementById("comp-odoo-id").value),s=parseInt(document.getElementById("comp-instance").value);if(!t||!a){y("يرجى تعبئة الاسم ومعرف الشركة","warning");return}try{await h.createCompany({name:t,odoo_company_id:a,odoo_instance_id:s,currency:document.getElementById("comp-currency").value||"SAR",color:document.getElementById("comp-color").value}),fe(),y("تم إضافة الشركة بنجاح ✅","success");const r=await h.getCompanies();S.set("companies",r),await re(e)}catch(r){y("خطأ: "+r.message,"error")}})}function oa(e){const t=S.get("companies");ve("إضافة قاعدة استبعاد",`
     <div class="form-group">
       <label class="form-label">اسم القاعدة</label>
       <input type="text" class="form-input" id="rule-name" dir="rtl" placeholder="مثل: استبعاد إيرادات المقاولات بين الشركات" />
@@ -1199,7 +1199,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <button class="btn btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">إلغاء</button>
       <button class="btn btn-primary" id="btn-save-rule">حفظ</button>
     </div>
-  `),document.getElementById("btn-save-rule").addEventListener("click",async()=>{try{await h.createEliminationRule({name:document.getElementById("rule-name").value,source_company_id:parseInt(document.getElementById("rule-source").value),target_company_id:parseInt(document.getElementById("rule-target").value),source_account_code:document.getElementById("rule-src-acc").value,target_account_code:document.getElementById("rule-tgt-acc").value}),fe(),b("تم إضافة القاعدة بنجاح ✅","success"),await re(e)}catch(a){b("خطأ: "+a.message,"error")}})}let F=0;const ke=50;async function oa(e){const t=S.get("companies");e.innerHTML=`
+  `),document.getElementById("btn-save-rule").addEventListener("click",async()=>{try{await h.createEliminationRule({name:document.getElementById("rule-name").value,source_company_id:parseInt(document.getElementById("rule-source").value),target_company_id:parseInt(document.getElementById("rule-target").value),source_account_code:document.getElementById("rule-src-acc").value,target_account_code:document.getElementById("rule-tgt-acc").value}),fe(),y("تم إضافة القاعدة بنجاح ✅","success"),await re(e)}catch(a){y("خطأ: "+a.message,"error")}})}let F=0;const ke=50;async function na(e){const t=S.get("companies");e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">📋 معاينة بيانات الـ API</h1>
@@ -1267,7 +1267,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       </div>
       <div id="dp-page-info" style="color:var(--text-muted);font-size:0.8rem;font-family:var(--font-en);"></div>
     </div>
-  `,e.querySelector("#dp-apply").addEventListener("click",()=>{F=0,ne(e)}),e.querySelector("#dp-reset").addEventListener("click",()=>{e.querySelector("#dp-search").value="",e.querySelector("#dp-company").value="",e.querySelector("#dp-acctype").value="",e.querySelector("#dp-analytic").value="",e.querySelector("#dp-datefrom").value="",e.querySelector("#dp-dateto").value="",F=0,ne(e)}),e.querySelector("#dp-prev").addEventListener("click",()=>{F>0&&(F--,ne(e))}),e.querySelector("#dp-next").addEventListener("click",()=>{F++,ne(e)}),e.querySelector("#dp-search").addEventListener("keydown",a=>{a.key==="Enter"&&(F=0,ne(e))}),F=0,await ne(e)}async function ne(e){const t=e.querySelector("#dp-search").value.trim(),a=e.querySelector("#dp-company").value,s=e.querySelector("#dp-acctype").value,r=e.querySelector("#dp-analytic").value,n=e.querySelector("#dp-datefrom").value,o=e.querySelector("#dp-dateto").value,i={limit:ke,offset:F*ke};t&&(i.search=t),a&&(i.companyIds=a),s&&(i.accountType=s),r&&(i.analyticAccount=r),n&&(i.dateFrom=n),o&&(i.dateTo=o);try{const p=await h.getJournalItems(i);if(p.accountTypes&&p.accountTypes.length>0){const l=e.querySelector("#dp-acctype"),u=l.value;l.options.length<=1&&(p.accountTypes.forEach(d=>{const g=document.createElement("option");g.value=d,g.textContent=d,l.appendChild(g)}),u&&(l.value=u))}if(p.analyticAccounts&&p.analyticAccounts.length>0){const l=e.querySelector("#dp-analytic"),u=l.value;l.options.length<=1&&(p.analyticAccounts.forEach(d=>{const g=document.createElement("option");g.value=d,g.textContent=d,l.appendChild(g)}),u&&(l.value=u))}e.querySelector("#total-badge").textContent=`إجمالي: ${v(p.total)} سجل`;const c=Math.ceil(p.total/ke);e.querySelector("#dp-prev").disabled=F===0,e.querySelector("#dp-next").disabled=F+1>=c,e.querySelector("#dp-page-info").textContent=`صفحة ${F+1} من ${c||1}`,ra(e.querySelector("#dp-table-wrapper"),p.items)}catch(p){e.querySelector("#dp-table-wrapper").innerHTML=`<div style="padding:20px;color:var(--accent-red);">خطأ: ${p.message}</div>`}}function ra(e,t){if(!t||t.length===0){e.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">لا توجد بيانات</div>';return}const a=[{key:"company_name",label:"الشركة",type:"text"},{key:"date",label:"التاريخ",type:"date"},{key:"account_code",label:"كود الحساب",type:"code"},{key:"account_name",label:"اسم الحساب",type:"text"},{key:"account_type",label:"نوع الحساب",type:"badge"},{key:"debit",label:"مدين",type:"money"},{key:"credit",label:"دائن",type:"money"},{key:"balance",label:"الرصيد",type:"money"},{key:"partner_name",label:"الشريك",type:"text"},{key:"analytic_account",label:"حساب تحليلي",type:"text"},{key:"label",label:"البيان",type:"text"},{key:"journal_name",label:"اليومية",type:"text"},{key:"move_name",label:"رقم القيد",type:"code"},{key:"move_ref",label:"المرجع",type:"text"},{key:"currency",label:"العملة",type:"code"},{key:"fiscal_year",label:"السنة",type:"code"},{key:"period",label:"الفترة",type:"code"}];e.innerHTML=`
+  `,e.querySelector("#dp-apply").addEventListener("click",()=>{F=0,oe(e)}),e.querySelector("#dp-reset").addEventListener("click",()=>{e.querySelector("#dp-search").value="",e.querySelector("#dp-company").value="",e.querySelector("#dp-acctype").value="",e.querySelector("#dp-analytic").value="",e.querySelector("#dp-datefrom").value="",e.querySelector("#dp-dateto").value="",F=0,oe(e)}),e.querySelector("#dp-prev").addEventListener("click",()=>{F>0&&(F--,oe(e))}),e.querySelector("#dp-next").addEventListener("click",()=>{F++,oe(e)}),e.querySelector("#dp-search").addEventListener("keydown",a=>{a.key==="Enter"&&(F=0,oe(e))}),F=0,await oe(e)}async function oe(e){const t=e.querySelector("#dp-search").value.trim(),a=e.querySelector("#dp-company").value,s=e.querySelector("#dp-acctype").value,r=e.querySelector("#dp-analytic").value,o=e.querySelector("#dp-datefrom").value,n=e.querySelector("#dp-dateto").value,i={limit:ke,offset:F*ke};t&&(i.search=t),a&&(i.companyIds=a),s&&(i.accountType=s),r&&(i.analyticAccount=r),o&&(i.dateFrom=o),n&&(i.dateTo=n);try{const p=await h.getJournalItems(i);if(p.accountTypes&&p.accountTypes.length>0){const l=e.querySelector("#dp-acctype"),u=l.value;l.options.length<=1&&(p.accountTypes.forEach(d=>{const g=document.createElement("option");g.value=d,g.textContent=d,l.appendChild(g)}),u&&(l.value=u))}if(p.analyticAccounts&&p.analyticAccounts.length>0){const l=e.querySelector("#dp-analytic"),u=l.value;l.options.length<=1&&(p.analyticAccounts.forEach(d=>{const g=document.createElement("option");g.value=d,g.textContent=d,l.appendChild(g)}),u&&(l.value=u))}e.querySelector("#total-badge").textContent=`إجمالي: ${v(p.total)} سجل`;const c=Math.ceil(p.total/ke);e.querySelector("#dp-prev").disabled=F===0,e.querySelector("#dp-next").disabled=F+1>=c,e.querySelector("#dp-page-info").textContent=`صفحة ${F+1} من ${c||1}`,ra(e.querySelector("#dp-table-wrapper"),p.items)}catch(p){e.querySelector("#dp-table-wrapper").innerHTML=`<div style="padding:20px;color:var(--accent-red);">خطأ: ${p.message}</div>`}}function ra(e,t){if(!t||t.length===0){e.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-muted);">لا توجد بيانات</div>';return}const a=[{key:"company_name",label:"الشركة",type:"text"},{key:"date",label:"التاريخ",type:"date"},{key:"account_code",label:"كود الحساب",type:"code"},{key:"account_name",label:"اسم الحساب",type:"text"},{key:"account_type",label:"نوع الحساب",type:"badge"},{key:"debit",label:"مدين",type:"money"},{key:"credit",label:"دائن",type:"money"},{key:"balance",label:"الرصيد",type:"money"},{key:"partner_name",label:"الشريك",type:"text"},{key:"analytic_account",label:"حساب تحليلي",type:"text"},{key:"label",label:"البيان",type:"text"},{key:"journal_name",label:"اليومية",type:"text"},{key:"move_name",label:"رقم القيد",type:"code"},{key:"move_ref",label:"المرجع",type:"text"},{key:"currency",label:"العملة",type:"code"},{key:"fiscal_year",label:"السنة",type:"code"},{key:"period",label:"الفترة",type:"code"}];e.innerHTML=`
     <table class="data-table" style="font-size:0.78rem;min-width:1800px;">
       <thead>
         <tr>
@@ -1281,12 +1281,12 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         ${t.map((s,r)=>`
           <tr>
             <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.7rem;">${F*ke+r+1}</td>
-            ${a.map(n=>ia(s,n)).join("")}
+            ${a.map(o=>ia(s,o)).join("")}
           </tr>
         `).join("")}
       </tbody>
     </table>
-  `}function ia(e,t){const a=e[t.key];switch(t.type){case"money":return!a||a===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${a<0?"var(--accent-red)":"var(--text-primary)"};">${v(a,2)}</td>`;case"date":return`<td style="font-family:var(--font-en);font-size:0.75rem;white-space:nowrap;">${a||""}</td>`;case"code":return`<td style="font-family:var(--font-en);font-size:0.75rem;color:var(--accent-blue);">${a||""}</td>`;case"badge":return a?`<td><span style="background:rgba(99,102,241,0.15);color:var(--accent-indigo);padding:2px 6px;border-radius:4px;font-size:0.68rem;white-space:nowrap;">${a}</span></td>`:"<td></td>";default:return`<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(a||"").toString().replace(/"/g,"&quot;")}">${a||""}</td>`}}async function la(e){const t=S.get("companies")||[],a=S.get("fiscalYear")||"",s=S.get("dateFrom")||"",r=S.get("dateTo")||"",n=S.get("filterOptions")||{};e.innerHTML=`
+  `}function ia(e,t){const a=e[t.key];switch(t.type){case"money":return!a||a===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${a<0?"var(--accent-red)":"var(--text-primary)"};">${v(a,2)}</td>`;case"date":return`<td style="font-family:var(--font-en);font-size:0.75rem;white-space:nowrap;">${a||""}</td>`;case"code":return`<td style="font-family:var(--font-en);font-size:0.75rem;color:var(--accent-blue);">${a||""}</td>`;case"badge":return a?`<td><span style="background:rgba(99,102,241,0.15);color:var(--accent-indigo);padding:2px 6px;border-radius:4px;font-size:0.68rem;white-space:nowrap;">${a}</span></td>`:"<td></td>";default:return`<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(a||"").toString().replace(/"/g,"&quot;")}">${a||""}</td>`}}async function la(e){const t=S.get("companies")||[],a=S.get("fiscalYear")||"",s=S.get("dateFrom")||"",r=S.get("dateTo")||"",o=S.get("filterOptions")||{};e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">ميزان المراجعة</h1>
@@ -1311,8 +1311,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div class="filter-group">
           <span class="filter-label">الشركة</span>
           <select class="filter-select" id="tb-company" style="min-width:220px;">
-            ${t.map(o=>`
-              <option value="${o.id}">${o.name}</option>
+            ${t.map(n=>`
+              <option value="${n.id}">${n.name}</option>
             `).join("")}
           </select>
         </div>
@@ -1321,8 +1321,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <span class="filter-label">السنة المالية</span>
           <select class="filter-select" id="tb-fiscal-year">
             <option value="">-- اختر --</option>
-            ${(n.fiscalYears||[]).map(o=>`
-              <option value="${o}" ${a===o?"selected":""}>${o}</option>
+            ${(o.fiscalYears||[]).map(n=>`
+              <option value="${n}" ${a===n?"selected":""}>${n}</option>
             `).join("")}
           </select>
         </div>
@@ -1341,8 +1341,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <span class="filter-label">مركز التكلفة</span>
           <select class="filter-select" id="tb-cost-center">
             <option value="">الكل</option>
-            ${(n.costCenters||[]).map(o=>`
-              <option value="${o}">${o}</option>
+            ${(o.costCenters||[]).map(n=>`
+              <option value="${n}">${n}</option>
             `).join("")}
           </select>
         </div>
@@ -1360,11 +1360,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     </div>
 
     <div id="tb-content"><p style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">اختر الشركة والفترة ثم اضغط "عرض الميزان"</p></div>
-  `,e.querySelector("#tb-fiscal-year").addEventListener("change",o=>{const i=o.target.value;i&&(e.querySelector("#tb-date-from").value=`${i}-01-01`,e.querySelector("#tb-date-to").value=`${i}-12-31`)}),e.querySelector("#btn-tb-load").addEventListener("click",()=>nt(e)),e.querySelector("#chk-tb-zero").addEventListener("change",()=>{ie&&ut(e)}),e.querySelector("#btn-export-pdf").addEventListener("click",()=>ca(e)),e.querySelector("#btn-export-excel").addEventListener("click",()=>da(e)),e.querySelector("#btn-sync-data").addEventListener("click",async()=>{var c;const o=e.querySelector("#tb-company").value;if(!o){b("اختر شركة أولاً","error");return}const i=e.querySelector("#btn-sync-data"),p=e.querySelector("#sync-icon");i.disabled=!0,p.style.animation="spin 1s linear infinite",(c=i.querySelector("span:last-child"))==null||c.remove(),i.insertAdjacentHTML("beforeend","<span> جاري المزامنة...</span>");try{if((await(await fetch(`/api/sync/company/${o}`,{method:"POST"})).json()).started){let d=!1;for(;!d;){await new Promise(E=>setTimeout(E,3e3));const x=await(await fetch(`/api/sync/status/${o}`)).json();(x.status==="done"||x.status==="idle"||x.status==="error")&&(d=!0,x.status==="error"?b("خطأ في المزامنة","error"):b(`✅ تم تحديث البيانات — ${x.inserted||""} سجل`,"success"))}const g=e.querySelector("#tb-date-from").value,f=e.querySelector("#tb-date-to").value;g&&f&&nt(e)}}catch{b("خطأ في الاتصال","error")}finally{i.disabled=!1,p.style.animation="";const l=i.querySelector("span:last-child");l&&(l.textContent=" تحديث البيانات")}}),a&&(e.querySelector("#tb-date-from").value=`${a}-01-01`,e.querySelector("#tb-date-to").value=`${a}-12-31`)}let ie=null;async function nt(e){const t=e.querySelector("#tb-company").value,a=e.querySelector("#tb-date-from").value,s=e.querySelector("#tb-date-to").value,r=e.querySelector("#tb-cost-center").value;if(!a||!s){b("يجب اختيار الفترة (من تاريخ - إلى تاريخ)","error");return}const n=e.querySelector("#tb-content");n.innerHTML='<div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div>';try{ie=await h.getTrialBalance({companyId:t,dateFrom:a,dateTo:s,costCenter:r}),ut(e),e.querySelector("#btn-export-pdf").disabled=!1,e.querySelector("#btn-export-excel").disabled=!1}catch(o){console.error("Trial balance error:",o),b("خطأ في تحميل ميزان المراجعة","error"),n.innerHTML='<p style="text-align:center;color:var(--accent-red);padding:var(--space-xl);">خطأ في التحميل</p>'}}function ut(e){var l,u;const t=e.querySelector("#tb-content");if(!ie)return;const a=((l=e.querySelector("#chk-tb-zero"))==null?void 0:l.checked)||!1,s=e.querySelector("#tb-company"),r=((u=s.options[s.selectedIndex])==null?void 0:u.text)||"",n=e.querySelector("#tb-date-from").value,o=e.querySelector("#tb-date-to").value;let i=ie.accounts||[];a&&(i=i.filter(d=>Math.abs(d.open_debit)>.001||Math.abs(d.open_credit)>.001||Math.abs(d.period_debit)>.001||Math.abs(d.period_credit)>.001||Math.abs(d.close_debit)>.001||Math.abs(d.close_credit)>.001));const p=i.reduce((d,g)=>({open_debit:d.open_debit+g.open_debit,open_credit:d.open_credit+g.open_credit,period_debit:d.period_debit+g.period_debit,period_credit:d.period_credit+g.period_credit,close_debit:d.close_debit+g.close_debit,close_credit:d.close_credit+g.close_credit}),{open_debit:0,open_credit:0,period_debit:0,period_credit:0,close_debit:0,close_credit:0});Math.abs(p.open_debit-p.open_credit);const c=Math.abs(p.close_debit-p.close_credit);t.innerHTML=`
+  `,e.querySelector("#tb-fiscal-year").addEventListener("change",n=>{const i=n.target.value;i&&(e.querySelector("#tb-date-from").value=`${i}-01-01`,e.querySelector("#tb-date-to").value=`${i}-12-31`)}),e.querySelector("#btn-tb-load").addEventListener("click",()=>ot(e)),e.querySelector("#chk-tb-zero").addEventListener("change",()=>{ie&&ut(e)}),e.querySelector("#btn-export-pdf").addEventListener("click",()=>ca(e)),e.querySelector("#btn-export-excel").addEventListener("click",()=>da(e)),e.querySelector("#btn-sync-data").addEventListener("click",async()=>{var c;const n=e.querySelector("#tb-company").value;if(!n){y("اختر شركة أولاً","error");return}const i=e.querySelector("#btn-sync-data"),p=e.querySelector("#sync-icon");i.disabled=!0,p.style.animation="spin 1s linear infinite",(c=i.querySelector("span:last-child"))==null||c.remove(),i.insertAdjacentHTML("beforeend","<span> جاري المزامنة...</span>");try{if((await(await fetch(`/api/sync/company/${n}`,{method:"POST"})).json()).started){let d=!1;for(;!d;){await new Promise(z=>setTimeout(z,3e3));const x=await(await fetch(`/api/sync/status/${n}`)).json();(x.status==="done"||x.status==="idle"||x.status==="error")&&(d=!0,x.status==="error"?y("خطأ في المزامنة","error"):y(`✅ تم تحديث البيانات — ${x.inserted||""} سجل`,"success"))}const g=e.querySelector("#tb-date-from").value,f=e.querySelector("#tb-date-to").value;g&&f&&ot(e)}}catch{y("خطأ في الاتصال","error")}finally{i.disabled=!1,p.style.animation="";const l=i.querySelector("span:last-child");l&&(l.textContent=" تحديث البيانات")}}),a&&(e.querySelector("#tb-date-from").value=`${a}-01-01`,e.querySelector("#tb-date-to").value=`${a}-12-31`)}let ie=null;async function ot(e){const t=e.querySelector("#tb-company").value,a=e.querySelector("#tb-date-from").value,s=e.querySelector("#tb-date-to").value,r=e.querySelector("#tb-cost-center").value;if(!a||!s){y("يجب اختيار الفترة (من تاريخ - إلى تاريخ)","error");return}const o=e.querySelector("#tb-content");o.innerHTML='<div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div>';try{ie=await h.getTrialBalance({companyId:t,dateFrom:a,dateTo:s,costCenter:r}),ut(e),e.querySelector("#btn-export-pdf").disabled=!1,e.querySelector("#btn-export-excel").disabled=!1}catch(n){console.error("Trial balance error:",n),y("خطأ في تحميل ميزان المراجعة","error"),o.innerHTML='<p style="text-align:center;color:var(--accent-red);padding:var(--space-xl);">خطأ في التحميل</p>'}}function ut(e){var l,u;const t=e.querySelector("#tb-content");if(!ie)return;const a=((l=e.querySelector("#chk-tb-zero"))==null?void 0:l.checked)||!1,s=e.querySelector("#tb-company"),r=((u=s.options[s.selectedIndex])==null?void 0:u.text)||"",o=e.querySelector("#tb-date-from").value,n=e.querySelector("#tb-date-to").value;let i=ie.accounts||[];a&&(i=i.filter(d=>Math.abs(d.open_debit)>.001||Math.abs(d.open_credit)>.001||Math.abs(d.period_debit)>.001||Math.abs(d.period_credit)>.001||Math.abs(d.close_debit)>.001||Math.abs(d.close_credit)>.001));const p=i.reduce((d,g)=>({open_debit:d.open_debit+g.open_debit,open_credit:d.open_credit+g.open_credit,period_debit:d.period_debit+g.period_debit,period_credit:d.period_credit+g.period_credit,close_debit:d.close_debit+g.close_debit,close_credit:d.close_credit+g.close_credit}),{open_debit:0,open_credit:0,period_debit:0,period_credit:0,close_debit:0,close_credit:0});Math.abs(p.open_debit-p.open_credit);const c=Math.abs(p.close_debit-p.close_credit);t.innerHTML=`
     <div style="margin-bottom:var(--space-md);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-sm);">
       <div style="display:flex;gap:var(--space-md);align-items:center;">
         <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary);">🏢 ${r}</span>
-        <span style="font-size:0.75rem;color:var(--text-muted);">الفترة: ${n} إلى ${o}</span>
+        <span style="font-size:0.75rem;color:var(--text-muted);">الفترة: ${o} إلى ${n}</span>
         <span style="font-size:0.75rem;color:var(--text-muted);">عدد الحسابات: ${i.length}</span>
       </div>
       <div style="display:flex;gap:var(--space-md);">
@@ -1394,10 +1394,10 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           </tr>
         </thead>
         <tbody>
-          ${i.map(d=>{const g=d.account_code==="RE-CALC",f=g?"font-style: italic; background: rgba(59, 130, 246, 0.05);":"",y=g?' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>':"";return`
+          ${i.map(d=>{const g=d.account_code==="RE-CALC",f=g?"font-style: italic; background: rgba(59, 130, 246, 0.05);":"",b=g?' <span style="font-size:0.75em; background:var(--primary-subtle, rgba(59,130,246,0.1)); color:var(--primary, #3b82f6); border:1px solid rgba(59,130,246,0.25); border-radius:4px; padding:1px 6px; font-style:normal; margin-right:4px;">محسوب</span>':"";return`
             <tr style="${f}">
               <td style="font-family:var(--font-en);font-size:0.75em;color:var(--accent-blue);">${d.account_code}</td>
-              <td>${d.account_name}${y}</td>
+              <td>${d.account_name}${b}</td>
               <td class="number">${d.open_debit?v(d.open_debit,2):"-"}</td>
               <td class="number">${d.open_credit?v(d.open_credit,2):"-"}</td>
               <td class="number">${d.period_debit?v(d.period_debit,2):"-"}</td>
@@ -1418,11 +1418,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </tbody>
       </table>
     </div>
-  `}function mt(e){var i,p;if(!ie)return null;const t=((i=e.querySelector("#chk-tb-zero"))==null?void 0:i.checked)||!1;let a=ie.accounts||[];t&&(a=a.filter(c=>c.open_debit||c.open_credit||c.period_debit||c.period_credit||c.close_debit||c.close_credit));const s=e.querySelector("#tb-company"),r=((p=s.options[s.selectedIndex])==null?void 0:p.text)||"",n=e.querySelector("#tb-date-from").value,o=e.querySelector("#tb-date-to").value;return{items:a,companyName:r,dateFrom:n,dateTo:o}}function da(e){const t=mt(e);if(!t){b("لا توجد بيانات للتصدير","error");return}try{const{items:a,companyName:s,dateFrom:r,dateTo:n}=t,o=[];o.push([`ميزان المراجعة — ${s}`]),o.push([`الفترة: ${r} → ${n}`]),o.push([]),o.push(["كود الحساب","اسم الحساب","نوع الحساب","رصيد افتتاحي - مدين","رصيد افتتاحي - دائن","حركة الفترة - مدين","حركة الفترة - دائن","رصيد ختامي - مدين","رصيد ختامي - دائن"]);const i={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};for(const u of a)o.push([u.account_code,u.account_name,u.account_type||"",u.open_debit||0,u.open_credit||0,u.period_debit||0,u.period_credit||0,u.close_debit||0,u.close_credit||0]),i.od+=u.open_debit||0,i.oc+=u.open_credit||0,i.pd+=u.period_debit||0,i.pc+=u.period_credit||0,i.cd+=u.close_debit||0,i.cc+=u.close_credit||0;o.push(["","الإجمالي","",i.od,i.oc,i.pd,i.pc,i.cd,i.cc]);const p=XLSX.utils.book_new(),c=XLSX.utils.aoa_to_sheet(o);c["!cols"]=[{wch:14},{wch:40},{wch:20},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18}],c["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];const l="#,##0.00";for(let u=4;u<o.length;u++)for(let d=3;d<=8;d++){const g=XLSX.utils.encode_cell({r:u,c:d});c[g]&&(c[g].t="n",c[g].z=l)}XLSX.utils.book_append_sheet(p,c,"ميزان المراجعة"),XLSX.writeFile(p,`trial_balance_${r}_${n}.xlsx`),b("✅ تم تصدير ملف Excel بنجاح","success")}catch(a){console.error("Excel export error:",a),b("خطأ في تصدير Excel","error")}}async function ca(e){const t=mt(e);if(!t){b("لا توجد بيانات للتصدير","error");return}try{b("⏳ جاري إنشاء PDF...","info");const{items:a,companyName:s,dateFrom:r,dateTo:n}=t,o={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};a.forEach($=>{o.od+=$.open_debit||0,o.oc+=$.open_credit||0,o.pd+=$.period_debit||0,o.pc+=$.period_credit||0,o.cd+=$.close_debit||0,o.cc+=$.close_credit||0});const i=document.createElement("div");i.style.cssText="position:fixed;top:-99999px;left:0;width:1400px;background:#fff;padding:30px;font-family:Arial,Tahoma,sans-serif;direction:rtl;color:#000;",i.innerHTML=`
+  `}function mt(e){var i,p;if(!ie)return null;const t=((i=e.querySelector("#chk-tb-zero"))==null?void 0:i.checked)||!1;let a=ie.accounts||[];t&&(a=a.filter(c=>c.open_debit||c.open_credit||c.period_debit||c.period_credit||c.close_debit||c.close_credit));const s=e.querySelector("#tb-company"),r=((p=s.options[s.selectedIndex])==null?void 0:p.text)||"",o=e.querySelector("#tb-date-from").value,n=e.querySelector("#tb-date-to").value;return{items:a,companyName:r,dateFrom:o,dateTo:n}}function da(e){const t=mt(e);if(!t){y("لا توجد بيانات للتصدير","error");return}try{const{items:a,companyName:s,dateFrom:r,dateTo:o}=t,n=[];n.push([`ميزان المراجعة — ${s}`]),n.push([`الفترة: ${r} → ${o}`]),n.push([]),n.push(["كود الحساب","اسم الحساب","نوع الحساب","رصيد افتتاحي - مدين","رصيد افتتاحي - دائن","حركة الفترة - مدين","حركة الفترة - دائن","رصيد ختامي - مدين","رصيد ختامي - دائن"]);const i={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};for(const u of a)n.push([u.account_code,u.account_name,u.account_type||"",u.open_debit||0,u.open_credit||0,u.period_debit||0,u.period_credit||0,u.close_debit||0,u.close_credit||0]),i.od+=u.open_debit||0,i.oc+=u.open_credit||0,i.pd+=u.period_debit||0,i.pc+=u.period_credit||0,i.cd+=u.close_debit||0,i.cc+=u.close_credit||0;n.push(["","الإجمالي","",i.od,i.oc,i.pd,i.pc,i.cd,i.cc]);const p=XLSX.utils.book_new(),c=XLSX.utils.aoa_to_sheet(n);c["!cols"]=[{wch:14},{wch:40},{wch:20},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18},{wch:18}],c["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];const l="#,##0.00";for(let u=4;u<n.length;u++)for(let d=3;d<=8;d++){const g=XLSX.utils.encode_cell({r:u,c:d});c[g]&&(c[g].t="n",c[g].z=l)}XLSX.utils.book_append_sheet(p,c,"ميزان المراجعة"),XLSX.writeFile(p,`trial_balance_${r}_${o}.xlsx`),y("✅ تم تصدير ملف Excel بنجاح","success")}catch(a){console.error("Excel export error:",a),y("خطأ في تصدير Excel","error")}}async function ca(e){const t=mt(e);if(!t){y("لا توجد بيانات للتصدير","error");return}try{y("⏳ جاري إنشاء PDF...","info");const{items:a,companyName:s,dateFrom:r,dateTo:o}=t,n={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};a.forEach($=>{n.od+=$.open_debit||0,n.oc+=$.open_credit||0,n.pd+=$.period_debit||0,n.pc+=$.period_credit||0,n.cd+=$.close_debit||0,n.cc+=$.close_credit||0});const i=document.createElement("div");i.style.cssText="position:fixed;top:-99999px;left:0;width:1400px;background:#fff;padding:30px;font-family:Arial,Tahoma,sans-serif;direction:rtl;color:#000;",i.innerHTML=`
       <div style="text-align:center;margin-bottom:20px;">
         <h2 style="margin:0 0 6px;font-size:22px;color:#000;font-weight:900;">ميزان المراجعة</h2>
         <h3 style="margin:0 0 6px;font-size:16px;color:#1e293b;font-weight:700;">${s}</h3>
-        <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">الفترة: ${r} → ${n}</p>
+        <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">الفترة: ${r} → ${o}</p>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;direction:rtl;">
         <thead>
@@ -1459,19 +1459,19 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           `).join("")}
           <tr style="background:#1e293b;color:#fff;font-weight:700;">
             <td style="padding:6px 8px;border:1px solid #000;text-align:right;font-size:13px;" colspan="2">الإجمالي</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.od)}</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.oc)}</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.pd)}</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.pc)}</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.cd)}</td>
-            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(o.cc)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.od)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.oc)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.pd)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.pc)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.cd)}</td>
+            <td style="padding:6px 8px;border:1px solid #000;text-align:left;font-family:monospace;">${D(n.cc)}</td>
           </tr>
         </tbody>
       </table>
       <div style="text-align:center;margin-top:14px;font-size:10px;color:#64748b;font-weight:600;">
         Mizaniat BI | تم الإنشاء: ${new Date().toLocaleString("ar-SA")}
       </div>
-    `,document.body.appendChild(i);const p=await it(i,{scale:3,useCORS:!0,backgroundColor:"#ffffff"});document.body.removeChild(i);const c=new lt({orientation:"landscape",unit:"mm",format:"a4"}),l=c.internal.pageSize.getWidth(),u=c.internal.pageSize.getHeight(),d=15,g=12,f=10,y=l-f*2,x=u-d-g,E=y,w=p.height/p.width*E,m=p.toDataURL("image/png");if(w<=x)c.addImage(m,"PNG",f,d,E,w);else{const $=Math.ceil((w+5)/x);for(let _=0;_<$;_++){_>0&&c.addPage();const q=d-_*x;c.addImage(m,"PNG",f,q,E,w),c.setFillColor(255,255,255),c.rect(0,0,l,d,"F"),_===$-1?c.rect(0,u-5,l,5,"F"):c.rect(0,u-g,l,g,"F"),c.setFontSize(8),c.setTextColor(150),c.text(`${_+1} / ${$}`,l/2,u-1.5,{align:"center"})}}c.save(`trial_balance_${r}_${n}.pdf`),b("✅ تم تصدير ملف PDF بنجاح","success")}catch(a){console.error("PDF export error:",a),b("خطأ في تصدير PDF: "+a.message,"error")}}function D(e){return!e||e===0?"-":Number(e).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}let le=null,ae={},Q=[];async function pa(e){const t=S.get("companies")||[],a=S.get("fiscalYear")||"",s=S.get("dateFrom")||"",r=S.get("dateTo")||"",n=S.get("filterOptions")||{};e.innerHTML=`
+    `,document.body.appendChild(i);const p=await it(i,{scale:3,useCORS:!0,backgroundColor:"#ffffff"});document.body.removeChild(i);const c=new lt({orientation:"landscape",unit:"mm",format:"a4"}),l=c.internal.pageSize.getWidth(),u=c.internal.pageSize.getHeight(),d=15,g=12,f=10,b=l-f*2,x=u-d-g,z=b,w=p.height/p.width*z,m=p.toDataURL("image/png");if(w<=x)c.addImage(m,"PNG",f,d,z,w);else{const $=Math.ceil((w+5)/x);for(let _=0;_<$;_++){_>0&&c.addPage();const L=d-_*x;c.addImage(m,"PNG",f,L,z,w),c.setFillColor(255,255,255),c.rect(0,0,l,d,"F"),_===$-1?c.rect(0,u-5,l,5,"F"):c.rect(0,u-g,l,g,"F"),c.setFontSize(8),c.setTextColor(150),c.text(`${_+1} / ${$}`,l/2,u-1.5,{align:"center"})}}c.save(`trial_balance_${r}_${o}.pdf`),y("✅ تم تصدير ملف PDF بنجاح","success")}catch(a){console.error("PDF export error:",a),y("خطأ في تصدير PDF: "+a.message,"error")}}function D(e){return!e||e===0?"-":Number(e).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}let le=null,ae={},Q=[];async function pa(e){const t=S.get("companies")||[],a=S.get("fiscalYear")||"",s=S.get("dateFrom")||"",r=S.get("dateTo")||"",o=S.get("filterOptions")||{};e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">ميزان المراجعة التفصيلي</h1>
@@ -1505,15 +1505,15 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div class="filter-group">
           <span class="filter-label">الشركة</span>
           <select class="filter-select" id="dtb-company" style="min-width:220px;">
-            ${t.map(o=>`<option value="${o.id}">${o.name}</option>`).join("")}
+            ${t.map(n=>`<option value="${n.id}">${n.name}</option>`).join("")}
           </select>
         </div>
         <div class="filter-group">
           <span class="filter-label">السنة المالية</span>
           <select class="filter-select" id="dtb-fiscal-year">
             <option value="">-- اختر --</option>
-            ${(n.fiscalYears||[]).map(o=>`
-              <option value="${o}" ${a===o?"selected":""}>${o}</option>
+            ${(o.fiscalYears||[]).map(n=>`
+              <option value="${n}" ${a===n?"selected":""}>${n}</option>
             `).join("")}
           </select>
         </div>
@@ -1529,7 +1529,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <span class="filter-label">مركز التكلفة</span>
           <select class="filter-select" id="dtb-cost-center">
             <option value="">الكل</option>
-            ${(n.costCenters||[]).map(o=>`<option value="${o}">${o}</option>`).join("")}
+            ${(o.costCenters||[]).map(n=>`<option value="${n}">${n}</option>`).join("")}
           </select>
         </div>
         <div class="filter-group" style="align-self:flex-end;">
@@ -1546,10 +1546,10 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     </div>
 
     <div id="dtb-content"><p style="text-align:center;color:var(--text-muted);padding:var(--space-xl);">اختر الشركة والفترة ثم اضغط "عرض الميزان"</p></div>
-  `,e.querySelector("#dtb-fiscal-year").addEventListener("change",o=>{const i=o.target.value;i&&(e.querySelector("#dtb-date-from").value=`${i}-01-01`,e.querySelector("#dtb-date-to").value=`${i}-12-31`)}),e.querySelector("#dtb-company").addEventListener("change",()=>Re(e)),e.querySelector("#btn-dtb-load").addEventListener("click",()=>ma(e)),e.querySelector("#chk-dtb-zero").addEventListener("change",()=>{le&&gt(e)}),e.querySelector("#btn-dtb-pdf").addEventListener("click",()=>ya(e)),e.querySelector("#btn-dtb-excel").addEventListener("click",()=>ga(e)),e.querySelector("#btn-dtb-config").addEventListener("click",()=>{const o=e.querySelector("#dtb-config-panel");o.style.display=o.style.display==="none"?"":"none",o.style.display!=="none"&&ua(e)}),e.querySelector("#btn-close-config").addEventListener("click",()=>{e.querySelector("#dtb-config-panel").style.display="none"}),a&&(e.querySelector("#dtb-date-from").value=`${a}-01-01`,e.querySelector("#dtb-date-to").value=`${a}-12-31`),await Re(e)}async function Re(e){const t=e.querySelector("#dtb-company").value;try{const a=await h.getPartnerAccountConfig({companyId:t});Q=(a.configs||[]).map(r=>r.account_code);const s=e.querySelector("#dtb-account-badges");Q.length>0?s.innerHTML=Q.map(r=>{const n=a.configs.find(o=>o.account_code===r);return`<span style="font-size:0.7rem;background:rgba(59,130,246,0.15);color:var(--accent-blue);padding:2px 8px;border-radius:var(--radius-sm);">${r}${n!=null&&n.account_name?" — "+n.account_name:""}</span>`}).join(""):s.innerHTML='<span style="font-size:0.7rem;color:var(--accent-amber);">⚠️ لم يتم إعداد حسابات التفصيل — اضغط "إعداد الحسابات"</span>'}catch(a){console.error("Config load error:",a),Q=[]}}async function ua(e){var s;const t=e.querySelector("#dtb-company").value,a=e.querySelector("#dtb-config-content");a.innerHTML='<div class="skeleton" style="height:200px;"></div>';try{const r=await h.getPartnerAccountConfig({companyId:t}),{configs:n,categories:o,labels:i,availableAccounts:p}=r,c={};for(const d of n)c[d.account_category]=d;const l=e.querySelector("#dtb-company"),u=((s=l.options[l.selectedIndex])==null?void 0:s.text)||"";a.innerHTML=`
+  `,e.querySelector("#dtb-fiscal-year").addEventListener("change",n=>{const i=n.target.value;i&&(e.querySelector("#dtb-date-from").value=`${i}-01-01`,e.querySelector("#dtb-date-to").value=`${i}-12-31`)}),e.querySelector("#dtb-company").addEventListener("change",()=>Re(e)),e.querySelector("#btn-dtb-load").addEventListener("click",()=>ma(e)),e.querySelector("#chk-dtb-zero").addEventListener("change",()=>{le&&gt(e)}),e.querySelector("#btn-dtb-pdf").addEventListener("click",()=>ya(e)),e.querySelector("#btn-dtb-excel").addEventListener("click",()=>ga(e)),e.querySelector("#btn-dtb-config").addEventListener("click",()=>{const n=e.querySelector("#dtb-config-panel");n.style.display=n.style.display==="none"?"":"none",n.style.display!=="none"&&ua(e)}),e.querySelector("#btn-close-config").addEventListener("click",()=>{e.querySelector("#dtb-config-panel").style.display="none"}),a&&(e.querySelector("#dtb-date-from").value=`${a}-01-01`,e.querySelector("#dtb-date-to").value=`${a}-12-31`),await Re(e)}async function Re(e){const t=e.querySelector("#dtb-company").value;try{const a=await h.getPartnerAccountConfig({companyId:t});Q=(a.configs||[]).map(r=>r.account_code);const s=e.querySelector("#dtb-account-badges");Q.length>0?s.innerHTML=Q.map(r=>{const o=a.configs.find(n=>n.account_code===r);return`<span style="font-size:0.7rem;background:rgba(59,130,246,0.15);color:var(--accent-blue);padding:2px 8px;border-radius:var(--radius-sm);">${r}${o!=null&&o.account_name?" — "+o.account_name:""}</span>`}).join(""):s.innerHTML='<span style="font-size:0.7rem;color:var(--accent-amber);">⚠️ لم يتم إعداد حسابات التفصيل — اضغط "إعداد الحسابات"</span>'}catch(a){console.error("Config load error:",a),Q=[]}}async function ua(e){var s;const t=e.querySelector("#dtb-company").value,a=e.querySelector("#dtb-config-content");a.innerHTML='<div class="skeleton" style="height:200px;"></div>';try{const r=await h.getPartnerAccountConfig({companyId:t}),{configs:o,categories:n,labels:i,availableAccounts:p}=r,c={};for(const d of o)c[d.account_category]=d;const l=e.querySelector("#dtb-company"),u=((s=l.options[l.selectedIndex])==null?void 0:s.text)||"";a.innerHTML=`
       <h4 style="color:var(--text-white);margin:0 0 var(--space-md);font-size:0.85rem;">📌 ${u}</h4>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:var(--space-md);">
-        ${o.map(d=>{const g=c[d];return`
+        ${n.map(d=>{const g=c[d];return`
             <div style="background:rgba(255,255,255,0.03);border-radius:var(--radius-md);padding:var(--space-md);border:1px solid rgba(255,255,255,0.06);">
               <label style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:6px;">${i[d]}</label>
               <select class="filter-select config-select" data-category="${d}" style="width:100%;font-size:0.8rem;">
@@ -1564,7 +1564,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <div style="margin-top:var(--space-md);display:flex;gap:var(--space-sm);">
         <button class="btn btn-primary" id="btn-save-config" style="font-size:0.8rem;">💾 حفظ الإعدادات</button>
       </div>
-    `,e.querySelector("#btn-save-config").addEventListener("click",async()=>{const d=e.querySelectorAll(".config-select"),g=[];d.forEach(f=>{var x;const y=f.options[f.selectedIndex];g.push({category:f.dataset.category,account_code:f.value,account_name:((x=y==null?void 0:y.dataset)==null?void 0:x.name)||""})});try{await h.savePartnerAccountConfig({companyId:t,mappings:g}),b("✅ تم حفظ إعدادات الحسابات","success"),await Re(e)}catch{b("خطأ في الحفظ","error")}})}catch{a.innerHTML='<p style="color:var(--accent-red);">خطأ في تحميل الإعدادات</p>'}}async function ma(e){const t=e.querySelector("#dtb-company").value,a=e.querySelector("#dtb-date-from").value,s=e.querySelector("#dtb-date-to").value,r=e.querySelector("#dtb-cost-center").value;if(!a||!s){b("يجب اختيار الفترة","error");return}const n=e.querySelector("#dtb-content");n.innerHTML='<div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div>';try{const o=[h.getTrialBalance({companyId:t,dateFrom:a,dateTo:s,costCenter:r})];Q.length>0&&o.push(h.getDetailedTrialBalance({companyId:t,dateFrom:a,dateTo:s,accountCodes:Q.join(",")}));const[i,p]=await Promise.all(o);if(le=i,ae={},p!=null&&p.accounts)for(const c of p.accounts)ae[c.account_code]||(ae[c.account_code]=[]),ae[c.account_code].push(c);gt(e),e.querySelector("#btn-dtb-pdf").disabled=!1,e.querySelector("#btn-dtb-excel").disabled=!1}catch(o){console.error("Load error:",o),b("خطأ في تحميل الميزان","error"),n.innerHTML='<p style="text-align:center;color:var(--accent-red);padding:var(--space-xl);">خطأ في التحميل</p>'}}function gt(e){var p,c;const t=e.querySelector("#dtb-content");if(!le)return;const a=((p=e.querySelector("#chk-dtb-zero"))==null?void 0:p.checked)||!1,s=e.querySelector("#dtb-company"),r=((c=s.options[s.selectedIndex])==null?void 0:c.text)||"";let n=le.accounts||[];a&&(n=n.filter(l=>l.open_debit||l.open_credit||l.period_debit||l.period_credit||l.close_debit||l.close_credit));const o={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};let i="";for(let l=0;l<n.length;l++){const u=n[l];o.od+=u.open_debit||0,o.oc+=u.open_credit||0,o.pd+=u.period_debit||0,o.pc+=u.period_credit||0,o.cd+=u.close_debit||0,o.cc+=u.close_credit||0;const d=Q.includes(u.account_code),g=ae[u.account_code]||[],f=d&&g.length>0;if(i+=`
+    `,e.querySelector("#btn-save-config").addEventListener("click",async()=>{const d=e.querySelectorAll(".config-select"),g=[];d.forEach(f=>{var x;const b=f.options[f.selectedIndex];g.push({category:f.dataset.category,account_code:f.value,account_name:((x=b==null?void 0:b.dataset)==null?void 0:x.name)||""})});try{await h.savePartnerAccountConfig({companyId:t,mappings:g}),y("✅ تم حفظ إعدادات الحسابات","success"),await Re(e)}catch{y("خطأ في الحفظ","error")}})}catch{a.innerHTML='<p style="color:var(--accent-red);">خطأ في تحميل الإعدادات</p>'}}async function ma(e){const t=e.querySelector("#dtb-company").value,a=e.querySelector("#dtb-date-from").value,s=e.querySelector("#dtb-date-to").value,r=e.querySelector("#dtb-cost-center").value;if(!a||!s){y("يجب اختيار الفترة","error");return}const o=e.querySelector("#dtb-content");o.innerHTML='<div class="skeleton" style="height:400px;border-radius:var(--radius-lg);"></div>';try{const n=[h.getTrialBalance({companyId:t,dateFrom:a,dateTo:s,costCenter:r})];Q.length>0&&n.push(h.getDetailedTrialBalance({companyId:t,dateFrom:a,dateTo:s,accountCodes:Q.join(",")}));const[i,p]=await Promise.all(n);if(le=i,ae={},p!=null&&p.accounts)for(const c of p.accounts)ae[c.account_code]||(ae[c.account_code]=[]),ae[c.account_code].push(c);gt(e),e.querySelector("#btn-dtb-pdf").disabled=!1,e.querySelector("#btn-dtb-excel").disabled=!1}catch(n){console.error("Load error:",n),y("خطأ في تحميل الميزان","error"),o.innerHTML='<p style="text-align:center;color:var(--accent-red);padding:var(--space-xl);">خطأ في التحميل</p>'}}function gt(e){var p,c;const t=e.querySelector("#dtb-content");if(!le)return;const a=((p=e.querySelector("#chk-dtb-zero"))==null?void 0:p.checked)||!1,s=e.querySelector("#dtb-company"),r=((c=s.options[s.selectedIndex])==null?void 0:c.text)||"";let o=le.accounts||[];a&&(o=o.filter(l=>l.open_debit||l.open_credit||l.period_debit||l.period_credit||l.close_debit||l.close_credit));const n={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};let i="";for(let l=0;l<o.length;l++){const u=o[l];n.od+=u.open_debit||0,n.oc+=u.open_credit||0,n.pd+=u.period_debit||0,n.pc+=u.period_credit||0,n.cd+=u.close_debit||0,n.cc+=u.close_credit||0;const d=Q.includes(u.account_code),g=ae[u.account_code]||[],f=d&&g.length>0;if(i+=`
       <tr class="${f?"expandable-row":""}" data-code="${u.account_code}"
           style="${f?"cursor:pointer;":""}${l%2===0?"":"background:rgba(255,255,255,0.015);"}">
         <td style="font-family:var(--font-en);font-weight:500;${f?"color:var(--accent-blue);":""}">${u.account_code}</td>
@@ -1580,22 +1580,22 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <td class="number">${v(u.close_debit,2)}</td>
         <td class="number">${v(u.close_credit,2)}</td>
       </tr>
-    `,f)for(const y of g){const x=(y.close_debit||0)-(y.close_credit||0);i+=`
+    `,f)for(const b of g){const x=(b.close_debit||0)-(b.close_credit||0);i+=`
           <tr class="partner-detail-row" data-parent="${u.account_code}" style="display:none;background:rgba(59,130,246,0.03);">
             <td style="color:var(--text-muted);font-size:0.75rem;"></td>
-            <td style="padding-right:36px;color:var(--text-secondary);font-size:0.8rem;">↳ ${y.partner_name}</td>
-            <td class="number" style="font-size:0.8rem;">${v(y.open_debit,2)}</td>
-            <td class="number" style="font-size:0.8rem;">${v(y.open_credit,2)}</td>
-            <td class="number" style="font-size:0.8rem;">${v(y.period_debit,2)}</td>
-            <td class="number" style="font-size:0.8rem;">${v(y.period_credit,2)}</td>
-            <td class="number" style="font-size:0.8rem;color:${x>=0?"var(--accent-emerald)":"var(--accent-red)"};">${v(y.close_debit,2)}</td>
-            <td class="number" style="font-size:0.8rem;color:${x>=0?"var(--accent-emerald)":"var(--accent-red)"};">${v(y.close_credit,2)}</td>
+            <td style="padding-right:36px;color:var(--text-secondary);font-size:0.8rem;">↳ ${b.partner_name}</td>
+            <td class="number" style="font-size:0.8rem;">${v(b.open_debit,2)}</td>
+            <td class="number" style="font-size:0.8rem;">${v(b.open_credit,2)}</td>
+            <td class="number" style="font-size:0.8rem;">${v(b.period_debit,2)}</td>
+            <td class="number" style="font-size:0.8rem;">${v(b.period_credit,2)}</td>
+            <td class="number" style="font-size:0.8rem;color:${x>=0?"var(--accent-emerald)":"var(--accent-red)"};">${v(b.close_debit,2)}</td>
+            <td class="number" style="font-size:0.8rem;color:${x>=0?"var(--accent-emerald)":"var(--accent-red)"};">${v(b.close_credit,2)}</td>
           </tr>
         `}}t.innerHTML=`
     <div class="glass-card" style="padding:var(--space-md);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
         <h3 style="color:var(--text-white);margin:0;font-size:0.95rem;">${r}</h3>
-        <span style="color:var(--text-muted);font-size:0.75rem;">${n.length} حساب</span>
+        <span style="color:var(--text-muted);font-size:0.75rem;">${o.length} حساب</span>
       </div>
       <div class="table-container">
         <table class="data-table" style="font-size:0.82rem;">
@@ -1618,48 +1618,48 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <tfoot>
             <tr style="font-weight:700;background:rgba(255,255,255,0.04);">
               <td colspan="2" style="text-align:right;">الإجمالي</td>
-              <td class="number">${v(o.od,2)}</td>
-              <td class="number">${v(o.oc,2)}</td>
-              <td class="number">${v(o.pd,2)}</td>
-              <td class="number">${v(o.pc,2)}</td>
-              <td class="number">${v(o.cd,2)}</td>
-              <td class="number">${v(o.cc,2)}</td>
+              <td class="number">${v(n.od,2)}</td>
+              <td class="number">${v(n.oc,2)}</td>
+              <td class="number">${v(n.pd,2)}</td>
+              <td class="number">${v(n.pc,2)}</td>
+              <td class="number">${v(n.cd,2)}</td>
+              <td class="number">${v(n.cc,2)}</td>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
-  `,t.querySelectorAll(".expandable-row").forEach(l=>{l.addEventListener("click",()=>{var y;const u=l.dataset.code,d=l.querySelector(".expand-icon"),g=t.querySelectorAll(`.partner-detail-row[data-parent="${u}"]`),f=((y=g[0])==null?void 0:y.style.display)!=="none";g.forEach(x=>x.style.display=f?"none":""),d&&(d.style.transform=f?"":"rotate(90deg)")})})}function yt(e){var n,o;if(!le)return null;const t=((n=e.querySelector("#chk-dtb-zero"))==null?void 0:n.checked)||!1;let a=le.accounts||[];t&&(a=a.filter(i=>i.open_debit||i.open_credit||i.period_debit||i.period_credit||i.close_debit||i.close_credit));const s=e.querySelector("#dtb-company"),r=((o=s.options[s.selectedIndex])==null?void 0:o.text)||"";return{items:a,companyName:r,dateFrom:e.querySelector("#dtb-date-from").value,dateTo:e.querySelector("#dtb-date-to").value}}function ga(e){const t=yt(e);if(!t)return b("لا توجد بيانات","error");try{const{items:a,companyName:s,dateFrom:r,dateTo:n}=t,o=[];o.push([`ميزان المراجعة التفصيلي — ${s}`]),o.push([`الفترة: ${r} → ${n}`]),o.push([]),o.push(["كود","الحساب","الشريك","افتتاحي مدين","افتتاحي دائن","حركة مدين","حركة دائن","ختامي مدين","ختامي دائن"]);for(const u of a){o.push([u.account_code,u.account_name,"",u.open_debit||0,u.open_credit||0,u.period_debit||0,u.period_credit||0,u.close_debit||0,u.close_credit||0]);const d=ae[u.account_code];if(d)for(const g of d)o.push(["","",g.partner_name,g.open_debit||0,g.open_credit||0,g.period_debit||0,g.period_credit||0,g.close_debit||0,g.close_credit||0])}const i={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};for(const u of a)i.od+=u.open_debit||0,i.oc+=u.open_credit||0,i.pd+=u.period_debit||0,i.pc+=u.period_credit||0,i.cd+=u.close_debit||0,i.cc+=u.close_credit||0;o.push(["","الإجمالي","",i.od,i.oc,i.pd,i.pc,i.cd,i.cc]);const p=XLSX.utils.book_new(),c=XLSX.utils.aoa_to_sheet(o);c["!cols"]=[{wch:12},{wch:35},{wch:35},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16}],c["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];const l="#,##0.00";for(let u=4;u<o.length;u++)for(let d=3;d<=8;d++){const g=XLSX.utils.encode_cell({r:u,c:d});c[g]&&typeof c[g].v=="number"&&(c[g].t="n",c[g].z=l)}XLSX.utils.book_append_sheet(p,c,"ميزان تفصيلي"),XLSX.writeFile(p,`detailed_trial_balance_${r}_${n}.xlsx`),b("✅ تم تصدير Excel","success")}catch(a){console.error(a),b("خطأ في التصدير","error")}}async function ya(e){const t=yt(e);if(!t)return b("لا توجد بيانات","error");try{b("⏳ جاري إنشاء PDF...","info");const{items:a,companyName:s,dateFrom:r,dateTo:n}=t,o=k=>!k||k===0?"-":Number(k).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});let i="",p=0;for(const k of a){const L=Q.includes(k.account_code),j=p%2===0?"#fff":"#f1f5f9";i+=`<tr style="background:${L?"#eef2ff":j};">
-        <td style="padding:5px 8px;border:1px solid #cbd5e1;text-align:center;font-family:monospace;font-weight:${L?"700":"500"};color:${L?"#2563eb":"#000"};">${k.account_code}</td>
-        <td style="padding:5px 8px;border:1px solid #cbd5e1;text-align:right;font-weight:${L?"700":"500"};color:${L?"#2563eb":"#000"};">${k.account_name}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.open_debit)}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.open_credit)}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.period_debit)}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.period_credit)}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.close_debit)}</td>
-        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${o(k.close_credit)}</td>
+  `,t.querySelectorAll(".expandable-row").forEach(l=>{l.addEventListener("click",()=>{var b;const u=l.dataset.code,d=l.querySelector(".expand-icon"),g=t.querySelectorAll(`.partner-detail-row[data-parent="${u}"]`),f=((b=g[0])==null?void 0:b.style.display)!=="none";g.forEach(x=>x.style.display=f?"none":""),d&&(d.style.transform=f?"":"rotate(90deg)")})})}function yt(e){var o,n;if(!le)return null;const t=((o=e.querySelector("#chk-dtb-zero"))==null?void 0:o.checked)||!1;let a=le.accounts||[];t&&(a=a.filter(i=>i.open_debit||i.open_credit||i.period_debit||i.period_credit||i.close_debit||i.close_credit));const s=e.querySelector("#dtb-company"),r=((n=s.options[s.selectedIndex])==null?void 0:n.text)||"";return{items:a,companyName:r,dateFrom:e.querySelector("#dtb-date-from").value,dateTo:e.querySelector("#dtb-date-to").value}}function ga(e){const t=yt(e);if(!t)return y("لا توجد بيانات","error");try{const{items:a,companyName:s,dateFrom:r,dateTo:o}=t,n=[];n.push([`ميزان المراجعة التفصيلي — ${s}`]),n.push([`الفترة: ${r} → ${o}`]),n.push([]),n.push(["كود","الحساب","الشريك","افتتاحي مدين","افتتاحي دائن","حركة مدين","حركة دائن","ختامي مدين","ختامي دائن"]);for(const u of a){n.push([u.account_code,u.account_name,"",u.open_debit||0,u.open_credit||0,u.period_debit||0,u.period_credit||0,u.close_debit||0,u.close_credit||0]);const d=ae[u.account_code];if(d)for(const g of d)n.push(["","",g.partner_name,g.open_debit||0,g.open_credit||0,g.period_debit||0,g.period_credit||0,g.close_debit||0,g.close_credit||0])}const i={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};for(const u of a)i.od+=u.open_debit||0,i.oc+=u.open_credit||0,i.pd+=u.period_debit||0,i.pc+=u.period_credit||0,i.cd+=u.close_debit||0,i.cc+=u.close_credit||0;n.push(["","الإجمالي","",i.od,i.oc,i.pd,i.pc,i.cd,i.cc]);const p=XLSX.utils.book_new(),c=XLSX.utils.aoa_to_sheet(n);c["!cols"]=[{wch:12},{wch:35},{wch:35},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16},{wch:16}],c["!merges"]=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}}];const l="#,##0.00";for(let u=4;u<n.length;u++)for(let d=3;d<=8;d++){const g=XLSX.utils.encode_cell({r:u,c:d});c[g]&&typeof c[g].v=="number"&&(c[g].t="n",c[g].z=l)}XLSX.utils.book_append_sheet(p,c,"ميزان تفصيلي"),XLSX.writeFile(p,`detailed_trial_balance_${r}_${o}.xlsx`),y("✅ تم تصدير Excel","success")}catch(a){console.error(a),y("خطأ في التصدير","error")}}async function ya(e){const t=yt(e);if(!t)return y("لا توجد بيانات","error");try{y("⏳ جاري إنشاء PDF...","info");const{items:a,companyName:s,dateFrom:r,dateTo:o}=t,n=k=>!k||k===0?"-":Number(k).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});let i="",p=0;for(const k of a){const E=Q.includes(k.account_code),j=p%2===0?"#fff":"#f1f5f9";i+=`<tr style="background:${E?"#eef2ff":j};">
+        <td style="padding:5px 8px;border:1px solid #cbd5e1;text-align:center;font-family:monospace;font-weight:${E?"700":"500"};color:${E?"#2563eb":"#000"};">${k.account_code}</td>
+        <td style="padding:5px 8px;border:1px solid #cbd5e1;text-align:right;font-weight:${E?"700":"500"};color:${E?"#2563eb":"#000"};">${k.account_name}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.open_debit)}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.open_credit)}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.period_debit)}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.period_credit)}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.close_debit)}</td>
+        <td style="padding:5px 6px;border:1px solid #cbd5e1;text-align:left;font-family:monospace;color:#000;">${n(k.close_credit)}</td>
       </tr>`,p++;const T=ae[k.account_code];if(T)for(const I of T)i+=`<tr style="background:#f8fafc;">
           <td style="padding:3px;border:1px solid #e2e8f0;"></td>
           <td style="padding:3px 8px;border:1px solid #e2e8f0;text-align:right;font-size:10px;color:#475569;padding-right:20px;">↳ ${I.partner_name}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.open_debit)}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.open_credit)}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.period_debit)}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.period_credit)}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.close_debit)}</td>
-          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${o(I.close_credit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.open_debit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.open_credit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.period_debit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.period_credit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.close_debit)}</td>
+          <td style="padding:3px 6px;border:1px solid #e2e8f0;text-align:left;font-family:monospace;font-size:10px;color:#475569;">${n(I.close_credit)}</td>
         </tr>`}let c={od:0,oc:0,pd:0,pc:0,cd:0,cc:0};for(const k of a)c.od+=k.open_debit||0,c.oc+=k.open_credit||0,c.pd+=k.period_debit||0,c.pc+=k.period_credit||0,c.cd+=k.close_debit||0,c.cc+=k.close_credit||0;i+=`<tr style="background:#1e293b;color:#fff;font-weight:700;">
       <td style="padding:6px 8px;border:1px solid #000;" colspan="2" align="right">الإجمالي</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.od)}</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.oc)}</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.pd)}</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.pc)}</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.cd)}</td>
-      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${o(c.cc)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.od)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.oc)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.pd)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.pc)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.cd)}</td>
+      <td style="padding:6px;border:1px solid #000;text-align:left;font-family:monospace;">${n(c.cc)}</td>
     </tr>`;const l=document.createElement("div");l.style.cssText="position:fixed;top:-99999px;left:0;width:1400px;background:#fff;padding:30px;font-family:Arial,Tahoma,sans-serif;direction:rtl;color:#000;",l.innerHTML=`
       <div style="text-align:center;margin-bottom:20px;">
         <h2 style="margin:0 0 6px;font-size:22px;color:#000;font-weight:900;">ميزان المراجعة التفصيلي</h2>
         <h3 style="margin:0 0 6px;font-size:16px;color:#1e293b;font-weight:700;">${s}</h3>
-        <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">الفترة: ${r} → ${n}</p>
+        <p style="margin:0;font-size:13px;color:#334155;font-weight:600;">الفترة: ${r} → ${o}</p>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:11px;direction:rtl;">
         <thead>
@@ -1680,7 +1680,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <tbody>${i}</tbody>
       </table>
       <div style="text-align:center;margin-top:14px;font-size:10px;color:#64748b;">Mizaniat BI | ${new Date().toLocaleString("ar-SA")}</div>
-    `,document.body.appendChild(l);const u=await it(l,{scale:3,useCORS:!0,backgroundColor:"#fff"});document.body.removeChild(l);const d=new lt({orientation:"landscape",unit:"mm",format:"a4"}),g=d.internal.pageSize.getWidth(),f=d.internal.pageSize.getHeight(),y=15,x=12,E=10,w=g-E*2,m=f-y-x,$=w,_=u.height/u.width*$,q=u.toDataURL("image/png");if(_<=m)d.addImage(q,"PNG",E,y,$,_);else{const k=Math.ceil((_+5)/m);for(let L=0;L<k;L++){L>0&&d.addPage(),d.addImage(q,"PNG",E,y-L*m,$,_),d.setFillColor(255,255,255),d.rect(0,0,g,y,"F");const j=L===k-1;j?d.rect(0,f-5,g,5,"F"):d.rect(0,f-x,g,x,"F"),d.setFontSize(8),d.setTextColor(150),d.text(`${L+1} / ${k}`,g/2,f-(j?1.5:4),{align:"center"})}}d.save(`detailed_trial_balance_${r}_${n}.pdf`),b("✅ تم تصدير PDF","success")}catch(a){console.error(a),b("خطأ: "+a.message,"error")}}async function ba(e){const t=S.get("companies")||[];e.innerHTML=`
+    `,document.body.appendChild(l);const u=await it(l,{scale:3,useCORS:!0,backgroundColor:"#fff"});document.body.removeChild(l);const d=new lt({orientation:"landscape",unit:"mm",format:"a4"}),g=d.internal.pageSize.getWidth(),f=d.internal.pageSize.getHeight(),b=15,x=12,z=10,w=g-z*2,m=f-b-x,$=w,_=u.height/u.width*$,L=u.toDataURL("image/png");if(_<=m)d.addImage(L,"PNG",z,b,$,_);else{const k=Math.ceil((_+5)/m);for(let E=0;E<k;E++){E>0&&d.addPage(),d.addImage(L,"PNG",z,b-E*m,$,_),d.setFillColor(255,255,255),d.rect(0,0,g,b,"F");const j=E===k-1;j?d.rect(0,f-5,g,5,"F"):d.rect(0,f-x,g,x,"F"),d.setFontSize(8),d.setTextColor(150),d.text(`${E+1} / ${k}`,g/2,f-(j?1.5:4),{align:"center"})}}d.save(`detailed_trial_balance_${r}_${o}.pdf`),y("✅ تم تصدير PDF","success")}catch(a){console.error(a),y("خطأ: "+a.message,"error")}}async function ba(e){const t=S.get("companies")||[];e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">قيود الإقفال</h1>
@@ -1776,26 +1776,26 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
               </tr>
             </thead>
             <tbody>
-              ${r.map(n=>`
-                <tr${n.account_code===s.target_account?' style="background:rgba(16,185,129,0.08);font-weight:600;"':""}>
-                  <td style="font-family:var(--font-en);color:var(--accent-blue);">${n.account_code}</td>
-                  <td>${n.account_name}</td>
-                  <td style="font-size:0.7rem;color:var(--text-muted);">${n.account_type||"-"}</td>
-                  <td class="number">${n.debit?v(n.debit,2):"-"}</td>
-                  <td class="number">${n.credit?v(n.credit,2):"-"}</td>
+              ${r.map(o=>`
+                <tr${o.account_code===s.target_account?' style="background:rgba(16,185,129,0.08);font-weight:600;"':""}>
+                  <td style="font-family:var(--font-en);color:var(--accent-blue);">${o.account_code}</td>
+                  <td>${o.account_name}</td>
+                  <td style="font-size:0.7rem;color:var(--text-muted);">${o.account_type||"-"}</td>
+                  <td class="number">${o.debit?v(o.debit,2):"-"}</td>
+                  <td class="number">${o.credit?v(o.credit,2):"-"}</td>
                 </tr>
               `).join("")}
               <tr class="total-row">
                 <td colspan="3" style="font-weight:700;">الإجمالي</td>
-                <td class="number" style="font-weight:700;">${v(r.reduce((n,o)=>n+(o.debit||0),0),2)}</td>
-                <td class="number" style="font-weight:700;">${v(r.reduce((n,o)=>n+(o.credit||0),0),2)}</td>
+                <td class="number" style="font-weight:700;">${v(r.reduce((o,n)=>o+(n.debit||0),0),2)}</td>
+                <td class="number" style="font-weight:700;">${v(r.reduce((o,n)=>o+(n.credit||0),0),2)}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </details>
     </div>
-  `}).join(""),a.querySelectorAll(".btn-delete-ce").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.company,n=s.dataset.year;if(confirm(`هل تريد حذف قيد إقفال ${n}؟ سيتم إزالته من قاعدة البيانات.`))try{const o=await h.deleteClosingEntry({companyId:r,fiscalYear:n});b(`✅ تم حذف قيد الإقفال — ${n}`,"success"),De(e)}catch(o){console.error("Delete error:",o),b("خطأ في حذف القيد","error")}})})}const bt=["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1"];let X=[],ee=[],Fe=[],Ce={journals:[],analytics:[]};const A=e=>String(e??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"),pe=e=>Math.round(Number(e)||0).toLocaleString("en-US");async function fa(e){const t=S.get("companies")||[];e.innerHTML=`
+  `}).join(""),a.querySelectorAll(".btn-delete-ce").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.company,o=s.dataset.year;if(confirm(`هل تريد حذف قيد إقفال ${o}؟ سيتم إزالته من قاعدة البيانات.`))try{const n=await h.deleteClosingEntry({companyId:r,fiscalYear:o});y(`✅ تم حذف قيد الإقفال — ${o}`,"success"),De(e)}catch(n){console.error("Delete error:",n),y("خطأ في حذف القيد","error")}})})}const bt=["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#ec4899","#06b6d4","#84cc16","#f97316","#6366f1"];let X=[],ee=[],Fe=[],Ce={journals:[],analytics:[]};const A=e=>String(e??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"),pe=e=>Math.round(Number(e)||0).toLocaleString("en-US");async function fa(e){const t=S.get("companies")||[];e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">الحسابات التحليلية</h1>
@@ -1883,11 +1883,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <input type="hidden" id="edit-group-id" value="" />
       </div>
     </div>
-  `,e.querySelectorAll(".color-dot").forEach(s=>{s.addEventListener("click",()=>{e.querySelectorAll(".color-dot").forEach(r=>r.style.borderColor="transparent"),s.style.borderColor="#fff"})});const a=e.querySelector(".color-dot");a&&(a.style.borderColor="#fff"),e.querySelector("#btn-add-group").addEventListener("click",()=>ft(e)),e.querySelector("#btn-cancel-modal").addEventListener("click",()=>Oe(e)),e.querySelector("#btn-confirm-modal").addEventListener("click",()=>xa(e)),e.querySelector("#btn-load-accounts").addEventListener("click",()=>ht(e)),e.querySelector("#btn-save-mappings").addEventListener("click",()=>$a(e)),e.querySelector("#group-modal").addEventListener("click",s=>{s.target.id==="group-modal"&&Oe(e)}),e.querySelector("#btn-cc-rebuild").addEventListener("click",async s=>{const r=s.currentTarget;r.disabled=!0;try{await h.rebuildAttribution(),b("✅ أُعيد بناء الإسناد من الإعدادات الحالية","success"),await be(e)}catch(n){b("خطأ في إعادة البناء: "+(n.message||""),"error")}finally{r.disabled=!1}}),await Ge(e),await be(e)}function vt(e,t,a=""){return`
-    <select class="filter-select ${e}" ${a} style="font-size:0.78rem;padding:4px 8px;width:100%;">
+  `,e.querySelectorAll(".color-dot").forEach(s=>{s.addEventListener("click",()=>{e.querySelectorAll(".color-dot").forEach(r=>r.style.borderColor="transparent"),s.style.borderColor="#fff"})});const a=e.querySelector(".color-dot");a&&(a.style.borderColor="#fff"),e.querySelector("#btn-add-group").addEventListener("click",()=>ft(e)),e.querySelector("#btn-cancel-modal").addEventListener("click",()=>Oe(e)),e.querySelector("#btn-confirm-modal").addEventListener("click",()=>xa(e)),e.querySelector("#btn-load-accounts").addEventListener("click",()=>ht(e)),e.querySelector("#btn-save-mappings").addEventListener("click",()=>$a(e)),e.querySelector("#group-modal").addEventListener("click",s=>{s.target.id==="group-modal"&&Oe(e)}),e.querySelector("#btn-cc-rebuild").addEventListener("click",async s=>{const r=s.currentTarget;r.disabled=!0;try{await h.rebuildAttribution(),y("✅ أُعيد بناء الإسناد من الإعدادات الحالية","success"),await be(e)}catch(o){y("خطأ في إعادة البناء: "+(o.message||""),"error")}finally{r.disabled=!1}}),await Ge(e),await be(e)}function vt(e,t,a=""){return`
+    <select class="filter-select ${e}" ${a} style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
       <option value="">— بدون قسم (يبقى في صفّه) —</option>
       ${X.map(s=>`<option value="${s.id}"${String(s.id)===String(t)?" selected":""}>${A(s.name)}</option>`).join("")}
-    </select>`}async function be(e){const t=e.querySelector("#cc-conflicts-content"),a=e.querySelector("#cc-conflicts-count");if(t)try{const s=await h.getAttributionConflicts(),r=s.journals||[],n=s.analytics||[],o=s.combinations||[],i=s.unmapped_analytics||[],p=s.stale_mappings||[];a.textContent=`${r.length+n.length+o.length} بندًا`;const c=`
+    </select>`}async function be(e){const t=e.querySelector("#cc-conflicts-content"),a=e.querySelector("#cc-conflicts-count");if(t)try{const s=await h.getAttributionConflicts(),r=s.journals||[],o=s.analytics||[],n=s.combinations||[],i=s.unmapped_analytics||[],p=s.stale_mappings||[];a.textContent=`${r.length+o.length+n.length} بندًا`;const c=`
       ${i.length?`
       <details style="margin-top:var(--space-md);font-size:0.8rem;">
         <summary>للعلم: ${i.length} مركز تكلفة له مبالغ دون قسم (يظهر باسمه حتى يُصنَّف في الجدول أدناه)</summary>
@@ -1901,97 +1901,110 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <ul style="margin:6px 0 0;padding-right:18px;">
           ${p.map(l=>`<li>${A(l.company_name)} — ${A(l.analytic_account)}</li>`).join("")}
         </ul>
-      </details>`:""}`;if(r.length+n.length+o.length===0){t.innerHTML=`<p style="margin:0;color:var(--accent-emerald);font-size:0.82rem;">✓ لا توجد تعارضات بانتظار قرار.</p>${c}`;return}t.innerHTML=`
+      </details>`:""}`;if(r.length+o.length+n.length===0){t.innerHTML=`<p style="margin:0;color:var(--accent-emerald);font-size:0.82rem;">✓ لا توجد تعارضات بانتظار قرار.</p>${c}`;return}t.innerHTML=`
       ${r.length?`
-      <div class="data-table-wrapper">
-        <table class="data-table" id="cc-conflicts-journals" style="font-size:0.8rem;min-width:1280px;">
+      <div class="data-table-wrapper" id="cc-conflicts-wrap">
+        <!-- Three fixed columns (journal · candidates and amounts · decision) so the table never
+             needs a horizontal scroll; the two selects and the button are stacked in the last one. -->
+        <table class="data-table" id="cc-conflicts-journals" style="font-size:0.8rem;table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:28%;">
+            <col style="width:40%;">
+            <col style="width:32%;">
+          </colgroup>
           <thead>
             <tr>
-              <th style="text-align:right;min-width:170px;">الشركة</th>
-              <th style="text-align:right;min-width:170px;">الدفتر</th>
-              <th style="text-align:right;min-width:140px;">التعارض</th>
-              <th style="text-align:right;min-width:190px;">المرشحون</th>
-              <th style="text-align:center;min-width:110px;">فواتير على صفّ الدفتر</th>
-              <th style="text-align:center;min-width:110px;">إيراد/مصروف غير موسوم</th>
-              <th style="width:170px;text-align:center;">القسم</th>
-              <th style="width:190px;text-align:center;">مركز التكلفة للسطور غير الموسومة</th>
-              <th style="width:100px;"></th>
+              <th style="text-align:right;">الدفتر والتعارض</th>
+              <th style="text-align:right;">المرشحون والمبالغ</th>
+              <th style="text-align:right;">القرار</th>
             </tr>
           </thead>
           <tbody>
-            ${r.map((l,u)=>{const d=(l.ledger_by_year||[]).reduce((y,x)=>({rev:y.rev+(x.revenue||0),exp:y.exp+(x.expense||0)}),{rev:0,exp:0}),g=l.current_default?l.current_default.group_id:"",f=l.current_default?l.current_default.analytic_id:"";return`
+            ${r.map((l,u)=>{const d=(l.ledger_by_year||[]).reduce((z,w)=>({rev:z.rev+(w.revenue||0),exp:z.exp+(w.expense||0)}),{rev:0,exp:0}),g=l.current_default?l.current_default.group_id:"",f=l.current_default?l.current_default.analytic_id:"",b="vertical-align:top;white-space:normal;overflow-wrap:anywhere;",x="font-size:0.72rem;color:var(--text-muted);";return`
               <tr data-idx="${u}">
-                <td>${A(l.company_name)}</td>
-                <td><strong>${A(l.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">${A(l.cost_center_key)}</div></td>
-                <td>${l.kind==="department"?"مرتبط بأكثر من قسم":"مرتبط بأكثر من مركز تكلفة"}${l.current_default&&l.current_default.group_id?`<div style="font-size:0.7rem;color:var(--text-muted);">القسم المرحّل: ${A(l.current_default.group_name||"")}</div>`:""}</td>
-                <td style="font-size:0.75rem;">
-                  <div>الأقسام: ${l.candidate_departments.map(y=>A(y.name)).join(" / ")||"—"}</div>
-                  <details><summary>${l.candidate_analytics.length} مركز تكلفة</summary>
-                    ${l.candidate_analytics.map(y=>`<div>${A(y.name)}${y.department_name?` <span style="color:var(--text-muted);">(${A(y.department_name)})</span>`:""}</div>`).join("")}
+                <td style="${b}">
+                  <strong>${A(l.journal_name)}</strong>
+                  <div class="cc-key" style="${x}">${A(l.cost_center_key)}</div>
+                  <div style="${x}">${A(l.company_name)}</div>
+                  <div style="margin-top:4px;color:var(--accent-amber);font-size:0.75rem;">${l.kind==="department"?"مرتبط بأكثر من قسم":"مرتبط بأكثر من مركز تكلفة"}</div>
+                  ${l.current_default&&l.current_default.group_id?`<div style="${x}">القسم المرحّل: ${A(l.current_default.group_name||"")}</div>`:""}
+                </td>
+                <td style="${b}font-size:0.76rem;">
+                  <div><span style="color:var(--text-muted);">الأقسام:</span> ${l.candidate_departments.map(z=>A(z.name)).join(" / ")||"—"}</div>
+                  <details style="margin-top:4px;"><summary style="cursor:pointer;">${l.candidate_analytics.length} مركز تكلفة مرشح</summary>
+                    <ul style="margin:4px 0 0;padding-right:16px;max-height:180px;overflow-y:auto;">
+                      ${l.candidate_analytics.map(z=>`<li>${A(z.name)}${z.department_name?` <span style="color:var(--text-muted);">(${A(z.department_name)})</span>`:""}</li>`).join("")}
+                    </ul>
                   </details>
+                  <div style="margin-top:6px;"><span style="color:var(--text-muted);">فواتير على صفّ الدفتر:</span> ${l.invoices} <span style="${x}">(${pe(l.invoices_untaxed)} قبل الضريبة)</span></div>
+                  <div><span style="color:var(--text-muted);">إيراد / مصروف غير موسوم:</span> ${pe(d.rev)} / ${pe(d.exp)}</div>
                 </td>
-                <td style="text-align:center;">${l.invoices}<div style="font-size:0.7rem;color:var(--text-muted);">${pe(l.invoices_untaxed)} قبل الضريبة</div></td>
-                <td style="text-align:center;">${pe(d.rev)} / ${pe(d.exp)}</td>
-                <td>${vt("cc-group-select",g)}</td>
-                <td>
-                  <select class="filter-select cc-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                <td style="${b}">
+                  <label style="display:block;${x}margin-bottom:2px;">القسم</label>
+                  ${vt("cc-group-select",g)}
+                  <label style="display:block;${x}margin:6px 0 2px;">مركز التكلفة للسطور غير الموسومة</label>
+                  <select class="filter-select cc-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
                     <option value="">— بدون (صفّ الدفتر المستقل) —</option>
-                    ${l.candidate_analytics.filter(y=>y.analytic_id).map(y=>`<option value="${y.analytic_id}"${String(y.analytic_id)===String(f)?" selected":""}>${A(y.name)}</option>`).join("")}
+                    ${l.candidate_analytics.filter(z=>z.analytic_id).map(z=>`<option value="${z.analytic_id}"${String(z.analytic_id)===String(f)?" selected":""}>${A(z.name)}</option>`).join("")}
                   </select>
+                  <button class="btn btn-primary cc-decide" style="margin-top:8px;font-size:0.75rem;padding:5px 12px;">اعتماد القرار</button>
                 </td>
-                <td><button class="btn btn-primary cc-decide" style="font-size:0.75rem;padding:4px 10px;">اعتماد القرار</button></td>
               </tr>`}).join("")}
           </tbody>
         </table>
       </div>`:""}
-      ${n.length?`
+      ${o.length?`
       <div style="margin-top:var(--space-md);font-size:0.8rem;">
         <strong>حسابات تحليلية مصنفة في أكثر من قسم</strong> (تُعامل بلا قسم حتى يُصحَّح تصنيفها في الجدول أدناه):
         <ul style="margin:6px 0 0;padding-right:18px;">
-          ${n.map(l=>`<li>${A(l.company_name)} — ${A(l.analytic_account)}: ${l.departments.map(u=>A(u.name)).join(" / ")}</li>`).join("")}
+          ${o.map(l=>`<li>${A(l.company_name)} — ${A(l.analytic_account)}: ${l.departments.map(u=>A(u.name)).join(" / ")}</li>`).join("")}
         </ul>
       </div>`:""}
-      ${o.length?`
+      ${n.length?`
       <div style="margin-top:var(--space-md);font-size:0.8rem;">
         <strong>سطور بتوزيع تحليلي يجمع أكثر من خطة في مفتاح واحد</strong> (تبقى في صفّ الدفتر):
-        ${o.map(l=>`${A(l.company_name)}: ${l.lines} سطر`).join(" · ")}
+        ${n.map(l=>`${A(l.company_name)}: ${l.lines} سطر`).join(" · ")}
       </div>`:""}
       ${c}
-    `,t.querySelectorAll("#cc-conflicts-journals tbody tr").forEach(l=>{const u=r[Number(l.dataset.idx)];l.querySelector(".cc-decide").addEventListener("click",async d=>{var f;const g=d.currentTarget;g.disabled=!0;try{await h.saveJournalDefault({companyId:u.company_id,journalId:u.journal_id,groupId:l.querySelector(".cc-group-select").value||null,analyticId:l.querySelector(".cc-analytic-select").value||null}),b("✅ تم اعتماد القرار وإعادة بناء الأرقام","success"),await be(e);const y=(f=e.querySelector("#aa-company"))==null?void 0:f.value;y&&String(y)===String(u.company_id)&&ee.length&&await Xe(e,y)}catch(y){b("خطأ في حفظ القرار: "+(y.message||""),"error"),g.disabled=!1}})})}catch(s){console.error("Load conflicts error:",s),t.innerHTML='<p style="color:var(--accent-red);margin:0;">خطأ في تحميل التعارضات</p>'}}async function Xe(e,t){const a=e.querySelector("#journal-defaults-content");if(a){a.innerHTML='<div class="skeleton" style="height:120px;"></div>';try{Ce=await h.getJournalDefaults(t);const s=Ce.journals||[];if(!s.length){a.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-md);">لا توجد دفاتر مبيعات أو إعدادات دفاتر لهذه الشركة</p>';return}const r=n=>(Ce.analytics||[]).map(o=>`<option value="${o.id}"${String(o.id)===String(n)?" selected":""}>${A(o.name)}</option>`).join("");a.innerHTML=`
+    `,t.querySelectorAll("#cc-conflicts-journals tbody tr").forEach(l=>{const u=r[Number(l.dataset.idx)];l.querySelector(".cc-decide").addEventListener("click",async d=>{var f;const g=d.currentTarget;g.disabled=!0;try{await h.saveJournalDefault({companyId:u.company_id,journalId:u.journal_id,groupId:l.querySelector(".cc-group-select").value||null,analyticId:l.querySelector(".cc-analytic-select").value||null}),y("✅ تم اعتماد القرار وإعادة بناء الأرقام","success"),await be(e);const b=(f=e.querySelector("#aa-company"))==null?void 0:f.value;b&&String(b)===String(u.company_id)&&ee.length&&await Xe(e,b)}catch(b){y("خطأ في حفظ القرار: "+(b.message||""),"error"),g.disabled=!1}})})}catch(s){console.error("Load conflicts error:",s),t.innerHTML='<p style="color:var(--accent-red);margin:0;">خطأ في تحميل التعارضات</p>'}}async function Xe(e,t){const a=e.querySelector("#journal-defaults-content");if(a){a.innerHTML='<div class="skeleton" style="height:120px;"></div>';try{Ce=await h.getJournalDefaults(t);const s=Ce.journals||[];if(!s.length){a.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-md);">لا توجد دفاتر مبيعات أو إعدادات دفاتر لهذه الشركة</p>';return}const r=o=>(Ce.analytics||[]).map(n=>`<option value="${n.id}"${String(n.id)===String(o)?" selected":""}>${A(n.name)}</option>`).join("");a.innerHTML=`
       <div class="data-table-wrapper">
-        <table class="data-table" id="journal-defaults-table" style="font-size:0.8rem;">
+        <table class="data-table" id="journal-defaults-table" style="font-size:0.8rem;table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:24%;"><col style="width:8%;"><col style="width:11%;">
+            <col style="width:22%;"><col style="width:23%;"><col style="width:12%;">
+          </colgroup>
           <thead>
             <tr>
               <th style="text-align:right;">الدفتر</th>
               <th style="text-align:center;">الفواتير</th>
               <th style="text-align:center;">الحالة</th>
-              <th style="width:200px;text-align:center;">القسم</th>
-              <th style="width:230px;text-align:center;">مركز التكلفة للسطور غير الموسومة</th>
-              <th style="width:150px;"></th>
+              <th style="text-align:center;">القسم</th>
+              <th style="text-align:center;white-space:normal;">مركز التكلفة للسطور غير الموسومة</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            ${s.map((n,o)=>{const i=n.decided_by_user?'<span style="color:var(--accent-emerald);">قرار المستخدم</span>':n.source==="seed"?'<span style="color:var(--accent-blue);">مُرحّلة</span>':n.flagged?'<span style="color:var(--accent-amber);">تحتاج قرارًا</span>':'<span style="color:var(--text-muted);">بلا إعداد</span>';return`
-              <tr data-idx="${o}">
-                <td><strong>${A(n.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">j:${n.journal_id}</div></td>
-                <td style="text-align:center;">${n.invoices}</td>
-                <td style="text-align:center;">${i}</td>
-                <td>${vt("jd-group-select",n.group_id||"")}</td>
+            ${s.map((o,n)=>{const i=o.decided_by_user?'<span style="color:var(--accent-emerald);">قرار المستخدم</span>':o.source==="seed"?'<span style="color:var(--accent-blue);">مُرحّلة</span>':o.flagged?'<span style="color:var(--accent-amber);">تحتاج قرارًا</span>':'<span style="color:var(--text-muted);">بلا إعداد</span>';return`
+              <tr data-idx="${n}">
+                <td style="white-space:normal;overflow-wrap:anywhere;"><strong>${A(o.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">j:${o.journal_id}</div></td>
+                <td style="text-align:center;">${o.invoices}</td>
+                <td style="text-align:center;white-space:normal;">${i}</td>
+                <td>${vt("jd-group-select",o.group_id||"")}</td>
                 <td>
-                  <select class="filter-select jd-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                  <select class="filter-select jd-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
                     <option value="">— بدون (صفّ الدفتر المستقل) —</option>
-                    ${r(n.analytic_id||"")}
+                    ${r(o.analytic_id||"")}
                   </select>
                 </td>
-                <td style="white-space:nowrap;">
-                  <button class="btn btn-primary jd-save" style="font-size:0.72rem;padding:4px 8px;">حفظ</button>
-                  ${n.group_id||n.analytic_id||n.decided_by_user?'<button class="btn jd-clear" style="font-size:0.72rem;padding:4px 8px;">إلغاء</button>':""}
+                <td style="white-space:normal;">
+                  <button class="btn btn-primary jd-save" style="font-size:0.72rem;padding:4px 8px;margin:2px;">حفظ</button>
+                  ${o.group_id||o.analytic_id||o.decided_by_user?'<button class="btn jd-clear" style="font-size:0.72rem;padding:4px 8px;margin:2px;">إلغاء</button>':""}
                 </td>
               </tr>`}).join("")}
           </tbody>
         </table>
       </div>
-    `,a.querySelectorAll("#journal-defaults-table tbody tr").forEach(n=>{const o=s[Number(n.dataset.idx)],i=async c=>{b(c,"success"),await Xe(e,t),await be(e)};n.querySelector(".jd-save").addEventListener("click",async c=>{const l=c.currentTarget;l.disabled=!0;try{await h.saveJournalDefault({companyId:t,journalId:o.journal_id,groupId:n.querySelector(".jd-group-select").value||null,analyticId:n.querySelector(".jd-analytic-select").value||null}),await i("✅ تم حفظ إعداد الدفتر وإعادة بناء الأرقام")}catch(u){b("خطأ في الحفظ: "+(u.message||""),"error"),l.disabled=!1}});const p=n.querySelector(".jd-clear");p&&p.addEventListener("click",async()=>{if(confirm("سيعود الدفتر بلا قسم ولا مركز تكلفة افتراضي (صفّه المستقل). متابعة؟"))try{await h.deleteJournalDefault(t,o.journal_id),await i("تم إلغاء إعداد الدفتر")}catch(c){b("خطأ: "+(c.message||""),"error")}})})}catch(s){console.error("Load journal defaults error:",s),a.innerHTML='<p style="color:var(--accent-red);text-align:center;">خطأ في تحميل إعدادات الدفاتر</p>'}}}async function Ge(e){try{X=await h.getAnalyticGroups(),ha(e)}catch(t){console.error("Load groups error:",t)}}function ha(e){const t=e.querySelector("#groups-list");if(!X.length){t.innerHTML='<p style="color:var(--text-muted);font-size:0.8rem;">لا توجد مجموعات — أنشئ مجموعة جديدة لبدء التصنيف</p>';return}t.innerHTML=X.map(a=>`
+    `,a.querySelectorAll("#journal-defaults-table tbody tr").forEach(o=>{const n=s[Number(o.dataset.idx)],i=async c=>{y(c,"success"),await Xe(e,t),await be(e)};o.querySelector(".jd-save").addEventListener("click",async c=>{const l=c.currentTarget;l.disabled=!0;try{await h.saveJournalDefault({companyId:t,journalId:n.journal_id,groupId:o.querySelector(".jd-group-select").value||null,analyticId:o.querySelector(".jd-analytic-select").value||null}),await i("✅ تم حفظ إعداد الدفتر وإعادة بناء الأرقام")}catch(u){y("خطأ في الحفظ: "+(u.message||""),"error"),l.disabled=!1}});const p=o.querySelector(".jd-clear");p&&p.addEventListener("click",async()=>{if(confirm("سيعود الدفتر بلا قسم ولا مركز تكلفة افتراضي (صفّه المستقل). متابعة؟"))try{await h.deleteJournalDefault(t,n.journal_id),await i("تم إلغاء إعداد الدفتر")}catch(c){y("خطأ: "+(c.message||""),"error")}})})}catch(s){console.error("Load journal defaults error:",s),a.innerHTML='<p style="color:var(--accent-red);text-align:center;">خطأ في تحميل إعدادات الدفاتر</p>'}}}async function Ge(e){try{X=await h.getAnalyticGroups(),ha(e)}catch(t){console.error("Load groups error:",t)}}function ha(e){const t=e.querySelector("#groups-list");if(!X.length){t.innerHTML='<p style="color:var(--text-muted);font-size:0.8rem;">لا توجد مجموعات — أنشئ مجموعة جديدة لبدء التصنيف</p>';return}t.innerHTML=X.map(a=>`
     <div class="group-chip" data-id="${a.id}" style="
       display:flex;align-items:center;gap:8px;padding:8px 14px;
       background:rgba(255,255,255,0.04);border-radius:var(--radius-md);
@@ -2008,13 +2021,13 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         font-size:0.7rem;padding:2px 4px;opacity:0.6;
       ">✕</button>
     </div>
-  `).join(""),t.querySelectorAll(".btn-edit-group").forEach(a=>{a.addEventListener("click",()=>{const s=X.find(r=>r.id==a.dataset.id);s&&ft(e,s)})}),t.querySelectorAll(".btn-delete-group").forEach(a=>{a.addEventListener("click",async()=>{if(confirm("هل تريد حذف هذه المجموعة؟ سيتم إلغاء ربط جميع الحسابات المرتبطة بها."))try{await h.deleteAnalyticGroup(a.dataset.id),b("تم حذف المجموعة","success"),await Ge(e),ee.length&&Ye(e)}catch{b("خطأ في الحذف","error")}})})}function ft(e,t=null){const a=e.querySelector("#group-modal");a.style.display="flex",e.querySelector("#modal-title").textContent=t?"تعديل المجموعة":"مجموعة جديدة",e.querySelector("#group-name").value=t?t.name:"",e.querySelector("#edit-group-id").value=t?t.id:"";const s=t?t.color:bt[0];e.querySelectorAll(".color-dot").forEach(n=>{n.style.borderColor=n.dataset.color===s?"#fff":"transparent"});const r=e.querySelector(`input[name="group-color"][value="${s}"]`);r&&(r.checked=!0),e.querySelector("#group-name").focus()}function Oe(e){e.querySelector("#group-modal").style.display="none"}async function xa(e){var r;const t=e.querySelector("#group-name").value.trim(),a=((r=e.querySelector('input[name="group-color"]:checked'))==null?void 0:r.value)||"#3b82f6",s=e.querySelector("#edit-group-id").value;if(!t){b("أدخل اسم المجموعة","error");return}try{s?(await h.updateAnalyticGroup(s,{name:t,color:a}),b("✅ تم تعديل المجموعة","success")):(await h.createAnalyticGroup({name:t,color:a}),b("✅ تم إنشاء المجموعة","success")),Oe(e),await Ge(e),ee.length&&Ye(e)}catch{b("خطأ في الحفظ","error")}}async function ht(e){const t=e.querySelector("#aa-company").value,a=e.querySelector("#accounts-content");a.innerHTML='<div class="skeleton" style="height:300px;"></div>';try{const[s,r]=await Promise.all([h.getAnalyticAccounts({companyId:t}),h.getAnalyticGroupMappings({companyId:t})]);ee=s,Fe=r,Ye(e),e.querySelector("#btn-save-mappings").disabled=!1,await Xe(e,t)}catch(s){console.error("Load accounts error:",s),a.innerHTML='<p style="color:var(--accent-red);text-align:center;">خطأ في تحميل الحسابات</p>'}}function Ye(e){var u;const t=e.querySelector("#accounts-content"),a=e.querySelector("#aa-company"),s=((u=a.options[a.selectedIndex])==null?void 0:u.text)||"";if(!ee.length){t.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-lg);">لا توجد حسابات تحليلية لهذه الشركة</p>';return}const r={},n={};for(const d of Fe)r[d.analytic_account]=d.group_id,n[d.analytic_account]=d.redistributable?1:0;const o={};for(const d of Fe)o[d.group_id]=(o[d.group_id]||0)+1;const i=ee.filter(d=>!r[d.analytic_account]).length,p=X.map(d=>`<option value="${d.id}">${d.name}</option>`).join("");t.innerHTML=`
+  `).join(""),t.querySelectorAll(".btn-edit-group").forEach(a=>{a.addEventListener("click",()=>{const s=X.find(r=>r.id==a.dataset.id);s&&ft(e,s)})}),t.querySelectorAll(".btn-delete-group").forEach(a=>{a.addEventListener("click",async()=>{if(confirm("هل تريد حذف هذه المجموعة؟ سيتم إلغاء ربط جميع الحسابات المرتبطة بها."))try{await h.deleteAnalyticGroup(a.dataset.id),y("تم حذف المجموعة","success"),await Ge(e),ee.length&&Ye(e)}catch{y("خطأ في الحذف","error")}})})}function ft(e,t=null){const a=e.querySelector("#group-modal");a.style.display="flex",e.querySelector("#modal-title").textContent=t?"تعديل المجموعة":"مجموعة جديدة",e.querySelector("#group-name").value=t?t.name:"",e.querySelector("#edit-group-id").value=t?t.id:"";const s=t?t.color:bt[0];e.querySelectorAll(".color-dot").forEach(o=>{o.style.borderColor=o.dataset.color===s?"#fff":"transparent"});const r=e.querySelector(`input[name="group-color"][value="${s}"]`);r&&(r.checked=!0),e.querySelector("#group-name").focus()}function Oe(e){e.querySelector("#group-modal").style.display="none"}async function xa(e){var r;const t=e.querySelector("#group-name").value.trim(),a=((r=e.querySelector('input[name="group-color"]:checked'))==null?void 0:r.value)||"#3b82f6",s=e.querySelector("#edit-group-id").value;if(!t){y("أدخل اسم المجموعة","error");return}try{s?(await h.updateAnalyticGroup(s,{name:t,color:a}),y("✅ تم تعديل المجموعة","success")):(await h.createAnalyticGroup({name:t,color:a}),y("✅ تم إنشاء المجموعة","success")),Oe(e),await Ge(e),ee.length&&Ye(e)}catch{y("خطأ في الحفظ","error")}}async function ht(e){const t=e.querySelector("#aa-company").value,a=e.querySelector("#accounts-content");a.innerHTML='<div class="skeleton" style="height:300px;"></div>';try{const[s,r]=await Promise.all([h.getAnalyticAccounts({companyId:t}),h.getAnalyticGroupMappings({companyId:t})]);ee=s,Fe=r,Ye(e),e.querySelector("#btn-save-mappings").disabled=!1,await Xe(e,t)}catch(s){console.error("Load accounts error:",s),a.innerHTML='<p style="color:var(--accent-red);text-align:center;">خطأ في تحميل الحسابات</p>'}}function Ye(e){var u;const t=e.querySelector("#accounts-content"),a=e.querySelector("#aa-company"),s=((u=a.options[a.selectedIndex])==null?void 0:u.text)||"";if(!ee.length){t.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-lg);">لا توجد حسابات تحليلية لهذه الشركة</p>';return}const r={},o={};for(const d of Fe)r[d.analytic_account]=d.group_id,o[d.analytic_account]=d.redistributable?1:0;const n={};for(const d of Fe)n[d.group_id]=(n[d.group_id]||0)+1;const i=ee.filter(d=>!r[d.analytic_account]).length,p=X.map(d=>`<option value="${d.id}">${d.name}</option>`).join("");t.innerHTML=`
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md);">
       <h4 style="margin:0;color:var(--text-white);font-size:0.9rem;">📊 ${s} — ${ee.length} حساب تحليلي</h4>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         ${X.map(d=>`
           <span style="font-size:0.7rem;padding:3px 10px;border-radius:var(--radius-sm);background:${d.color}22;color:${d.color};border:1px solid ${d.color}44;">
-            ${d.name}: ${o[d.id]||0}
+            ${d.name}: ${n[d.id]||0}
           </span>
         `).join("")}
         <span style="font-size:0.7rem;padding:3px 10px;border-radius:var(--radius-sm);background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);">
@@ -2043,7 +2056,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           </tr>
         </thead>
         <tbody>
-          ${ee.map((d,g)=>{const f=r[d.analytic_account]||"",y=n[d.analytic_account]||0,x=X.find(E=>E.id==f);return`
+          ${ee.map((d,g)=>{const f=r[d.analytic_account]||"",b=o[d.analytic_account]||0,x=X.find(z=>z.id==f);return`
               <tr style="${x?`border-right:3px solid ${x.color};`:""}">
                 <td style="text-align:center;"><input type="checkbox" class="aa-row-check" value="${d.analytic_account}" style="cursor:pointer;" /></td>
                 <td style="color:var(--text-muted);font-size:0.75rem;">${g+1}</td>
@@ -2061,8 +2074,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
                 </td>
                 <td style="text-align:center;">
                   <select class="filter-select account-redist-select" data-account="${d.analytic_account}" style="font-size:0.78rem;padding:4px 8px;width:100%;">
-                    <option value="0"${y?"":" selected"}>لا</option>
-                    <option value="1"${y?" selected":""}>نعم</option>
+                    <option value="0"${b?"":" selected"}>لا</option>
+                    <option value="1"${b?" selected":""}>نعم</option>
                   </select>
                 </td>
               </tr>
@@ -2070,7 +2083,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </tbody>
       </table>
     </div>
-  `;const c=t.querySelector("#check-all-aa"),l=t.querySelectorAll(".aa-row-check");c&&c.addEventListener("change",d=>{l.forEach(g=>{g.checked=d.target.checked})}),t.querySelectorAll(".btn-assign-all").forEach(d=>{d.addEventListener("click",()=>{const g=d.dataset.group;let f=Array.from(l).filter(y=>y.checked);if(f.length===0){if(!confirm("لم يتم تحديد أي حسابات. هل تريد تطبيق هذه المجموعة على جميع الحسابات في الجدول؟"))return;t.querySelectorAll(".account-group-select").forEach(y=>{y.value=g,y.dispatchEvent(new Event("change"))})}else{const y=f.map(x=>x.value);t.querySelectorAll(".account-group-select").forEach(x=>{y.includes(x.dataset.account)&&(x.value=g,x.dispatchEvent(new Event("change")))}),c&&(c.checked=!1),l.forEach(x=>x.checked=!1)}})}),t.querySelectorAll(".account-group-select").forEach(d=>{d.addEventListener("change",()=>{const g=X.find(y=>y.id==d.value),f=d.closest("tr");f.style.borderRight=g?`3px solid ${g.color}`:""})})}async function $a(e){const t=e.querySelector("#aa-company").value,a=e.querySelectorAll(".account-group-select"),s=e.querySelectorAll(".account-redist-select"),r=[],n=[],o={};s.forEach(i=>{o[i.dataset.account]=parseInt(i.value)||0}),a.forEach(i=>{n.push(i.dataset.account),i.value&&r.push({analytic_account:i.dataset.account,group_id:parseInt(i.value),redistributable:o[i.dataset.account]||0})});try{await h.saveAnalyticGroupMappings({companyId:t,mappings:r,accounts:n}),b("✅ تم حفظ التصنيف وإعادة بناء الأرقام","success"),await ht(e),await be(e)}catch(i){console.error("Save mappings error:",i),b("خطأ في حفظ التصنيف","error")}}let me=[],ze=null;async function wa(e){const t=S.get("companies")||[];if(!t.length){e.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-2xl);">يرجى إضافة شركة أولاً.</p>';return}ze=t[0].id,e.innerHTML=`
+  `;const c=t.querySelector("#check-all-aa"),l=t.querySelectorAll(".aa-row-check");c&&c.addEventListener("change",d=>{l.forEach(g=>{g.checked=d.target.checked})}),t.querySelectorAll(".btn-assign-all").forEach(d=>{d.addEventListener("click",()=>{const g=d.dataset.group;let f=Array.from(l).filter(b=>b.checked);if(f.length===0){if(!confirm("لم يتم تحديد أي حسابات. هل تريد تطبيق هذه المجموعة على جميع الحسابات في الجدول؟"))return;t.querySelectorAll(".account-group-select").forEach(b=>{b.value=g,b.dispatchEvent(new Event("change"))})}else{const b=f.map(x=>x.value);t.querySelectorAll(".account-group-select").forEach(x=>{b.includes(x.dataset.account)&&(x.value=g,x.dispatchEvent(new Event("change")))}),c&&(c.checked=!1),l.forEach(x=>x.checked=!1)}})}),t.querySelectorAll(".account-group-select").forEach(d=>{d.addEventListener("change",()=>{const g=X.find(b=>b.id==d.value),f=d.closest("tr");f.style.borderRight=g?`3px solid ${g.color}`:""})})}async function $a(e){const t=e.querySelector("#aa-company").value,a=e.querySelectorAll(".account-group-select"),s=e.querySelectorAll(".account-redist-select"),r=[],o=[],n={};s.forEach(i=>{n[i.dataset.account]=parseInt(i.value)||0}),a.forEach(i=>{o.push(i.dataset.account),i.value&&r.push({analytic_account:i.dataset.account,group_id:parseInt(i.value),redistributable:n[i.dataset.account]||0})});try{await h.saveAnalyticGroupMappings({companyId:t,mappings:r,accounts:o}),y("✅ تم حفظ التصنيف وإعادة بناء الأرقام","success"),await ht(e),await be(e)}catch(i){console.error("Save mappings error:",i),y("خطأ في حفظ التصنيف","error")}}let me=[],ze=null;async function wa(e){const t=S.get("companies")||[];if(!t.length){e.innerHTML='<p style="text-align:center;color:var(--text-muted);padding:var(--space-2xl);">يرجى إضافة شركة أولاً.</p>';return}ze=t[0].id,e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">توحيد اليوميات</h1>
@@ -2151,8 +2164,8 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
     <div style="margin-top:var(--space-md);font-size:0.8rem;color:var(--text-secondary);line-height:1.6;">
       <p>💡 <b>ملاحظة:</b> لتسهيل عملية الدمج، يمكنك الضغط على أي اسم يومية في الجدول لنسخه كاسم موحد في الحقل أعلاه.</p>
     </div>
-  `;const r=t.querySelector("#check-all"),n=t.querySelectorAll(".row-checkbox"),o=t.querySelector("#selected-count"),i=t.querySelector("#btn-merge");function p(){const l=Array.from(n).filter(u=>u.checked).length;o.textContent=l,i.disabled=l===0,r.checked=l===n.length&&l>0}r.addEventListener("change",l=>{n.forEach(u=>{u.checked=l.target.checked}),p()}),n.forEach(l=>{l.addEventListener("change",p)});const c=t.querySelector("#target-journal-name");t.querySelectorAll(".clickable-name").forEach(l=>{l.addEventListener("click",()=>{c.value=l.dataset.val})}),i.addEventListener("click",async()=>{const l=Array.from(n).filter(g=>g.checked).map(g=>g.value),u=c.value.trim();if(!u){b("يرجى تحديد إسم موحد لدمج اليوميات المختارة","error"),c.focus();return}if(l.length===0||!confirm(`هل أنت متأكد من دمج ${l.length} يومية في اسم واحد: "${u}"؟
-سوف يتم تحديث جميع القيود المرتبطة فوراً.`))return;const d=i.innerHTML;i.innerHTML='<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> جاري الدمج...',i.disabled=!0;try{await h.mergeJournals({companyId:ze,sourceNames:l,targetName:u}),b("✅ تم توحيد اليوميات بنجاح","success"),await Ne(e)}catch(g){console.error(g),b(g.message||"خطأ في عملية الدمج","error"),i.innerHTML=d,p()}})}const Z=e=>v(e,2);async function _a(e){const t=S.get("companies")||[],s=(S.get("filterOptions")||{}).fiscalYears||[],r=s[s.length-1]||new Date().getFullYear().toString();e.innerHTML=`
+  `;const r=t.querySelector("#check-all"),o=t.querySelectorAll(".row-checkbox"),n=t.querySelector("#selected-count"),i=t.querySelector("#btn-merge");function p(){const l=Array.from(o).filter(u=>u.checked).length;n.textContent=l,i.disabled=l===0,r.checked=l===o.length&&l>0}r.addEventListener("change",l=>{o.forEach(u=>{u.checked=l.target.checked}),p()}),o.forEach(l=>{l.addEventListener("change",p)});const c=t.querySelector("#target-journal-name");t.querySelectorAll(".clickable-name").forEach(l=>{l.addEventListener("click",()=>{c.value=l.dataset.val})}),i.addEventListener("click",async()=>{const l=Array.from(o).filter(g=>g.checked).map(g=>g.value),u=c.value.trim();if(!u){y("يرجى تحديد إسم موحد لدمج اليوميات المختارة","error"),c.focus();return}if(l.length===0||!confirm(`هل أنت متأكد من دمج ${l.length} يومية في اسم واحد: "${u}"؟
+سوف يتم تحديث جميع القيود المرتبطة فوراً.`))return;const d=i.innerHTML;i.innerHTML='<span class="spinner" style="width:14px;height:14px;border-width:2px;"></span> جاري الدمج...',i.disabled=!0;try{await h.mergeJournals({companyId:ze,sourceNames:l,targetName:u}),y("✅ تم توحيد اليوميات بنجاح","success"),await Ne(e)}catch(g){console.error(g),y(g.message||"خطأ في عملية الدمج","error"),i.innerHTML=d,p()}})}const Z=e=>v(e,2);async function _a(e){const t=S.get("companies")||[],s=(S.get("filterOptions")||{}).fiscalYears||[],r=s[s.length-1]||new Date().getFullYear().toString();e.innerHTML=`
     <style>
       .as-page{padding:20px 24px;max-width:1500px;margin:0 auto;direction:rtl}
       .as-header{display:flex;align-items:center;gap:14px;margin-bottom:18px}
@@ -2264,11 +2277,11 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div class="as-empty">اختر شركة وحساب ثم اضغط "عرض"</div>
       </div>
     </div>
-  `;const n=e.querySelector("#as-account"),o=e.querySelector("#as-account-list"),i=e.querySelector("#as-partner");let p=[];e.querySelector("#as-company").addEventListener("change",async c=>{const l=c.target.value;if(n.value="",o.innerHTML="",i.innerHTML='<option value="">الكل</option>',!!l)try{const[u,d]=await Promise.all([h.getAccountStatementAccounts({companyId:l}),h.getAccountStatementPartners({companyId:l})]);p=u,o.innerHTML=u.map(g=>`<option value="${g.account_code} — ${g.account_name}"></option>`).join(""),i.innerHTML='<option value="">الكل ('+d.length+")</option>"+d.map(g=>`<option value="${g}">${g}</option>`).join("")}catch{b("خطأ في تحميل البيانات","error")}}),e.querySelector("#as-load").addEventListener("click",()=>Sa(e)),e.querySelector("#as-print").addEventListener("click",()=>window.print()),e.querySelector("#as-export").addEventListener("click",()=>qa(e))}let Ve=null,Je=null;async function Sa(e){const t=e.querySelector("#as-company").value,s=e.querySelector("#as-account").value.split("—")[0].split(" — ")[0].trim(),r=e.querySelector("#as-from").value,n=e.querySelector("#as-to").value,o=e.querySelector("#as-partner").value,i=e.querySelector("#as-result");if(!t||!s){b("اختر شركة وحساب","warning");return}i.innerHTML='<div class="as-empty">⏳ جاري تحميل الكشف...</div>';try{const p=await h.getAccountStatement({companyId:t,accountCode:s,dateFrom:r,dateTo:n});Ve=p,za(e,p,r,n,o),e.querySelector("#as-print").style.display="",e.querySelector("#as-export").style.display=""}catch(p){i.innerHTML=`<div class="as-empty" style="color:#f87171">❌ ${p.message}</div>`}}function za(e,t,a,s,r){const n=e.querySelector("#as-result"),{company:o,account:i,openingBalance:p,items:c,closingBalance:l}=t;let u=c;r&&(u=c.filter(w=>w.partner_name===r));let d=p;u=u.map(w=>(d+=(w.debit||0)-(w.credit||0),{...w,runningBalance:d}));const g=u.reduce((w,m)=>w+(m.debit||0),0),f=u.reduce((w,m)=>w+(m.credit||0),0),y=p+g-f;Je={filtered:u,totalDebit:g,totalCredit:f,closingBalance:y};const x=w=>w>=0?"bal-pos":"bal-neg",E=w=>w>0?"مدين":w<0?"دائن":"متزن";n.innerHTML=`
+  `;const o=e.querySelector("#as-account"),n=e.querySelector("#as-account-list"),i=e.querySelector("#as-partner");let p=[];e.querySelector("#as-company").addEventListener("change",async c=>{const l=c.target.value;if(o.value="",n.innerHTML="",i.innerHTML='<option value="">الكل</option>',!!l)try{const[u,d]=await Promise.all([h.getAccountStatementAccounts({companyId:l}),h.getAccountStatementPartners({companyId:l})]);p=u,n.innerHTML=u.map(g=>`<option value="${g.account_code} — ${g.account_name}"></option>`).join(""),i.innerHTML='<option value="">الكل ('+d.length+")</option>"+d.map(g=>`<option value="${g}">${g}</option>`).join("")}catch{y("خطأ في تحميل البيانات","error")}}),e.querySelector("#as-load").addEventListener("click",()=>Sa(e)),e.querySelector("#as-print").addEventListener("click",()=>window.print()),e.querySelector("#as-export").addEventListener("click",()=>qa(e))}let Ve=null,Je=null;async function Sa(e){const t=e.querySelector("#as-company").value,s=e.querySelector("#as-account").value.split("—")[0].split(" — ")[0].trim(),r=e.querySelector("#as-from").value,o=e.querySelector("#as-to").value,n=e.querySelector("#as-partner").value,i=e.querySelector("#as-result");if(!t||!s){y("اختر شركة وحساب","warning");return}i.innerHTML='<div class="as-empty">⏳ جاري تحميل الكشف...</div>';try{const p=await h.getAccountStatement({companyId:t,accountCode:s,dateFrom:r,dateTo:o});Ve=p,za(e,p,r,o,n),e.querySelector("#as-print").style.display="",e.querySelector("#as-export").style.display=""}catch(p){i.innerHTML=`<div class="as-empty" style="color:#f87171">❌ ${p.message}</div>`}}function za(e,t,a,s,r){const o=e.querySelector("#as-result"),{company:n,account:i,openingBalance:p,items:c,closingBalance:l}=t;let u=c;r&&(u=c.filter(w=>w.partner_name===r));let d=p;u=u.map(w=>(d+=(w.debit||0)-(w.credit||0),{...w,runningBalance:d}));const g=u.reduce((w,m)=>w+(m.debit||0),0),f=u.reduce((w,m)=>w+(m.credit||0),0),b=p+g-f;Je={filtered:u,totalDebit:g,totalCredit:f,closingBalance:b};const x=w=>w>=0?"bal-pos":"bal-neg",z=w=>w>0?"مدين":w<0?"دائن":"متزن";o.innerHTML=`
     <div class="as-info">
       <div class="as-info-card">
         <div class="as-info-label">الشركة</div>
-        <div class="as-info-value ar">${o.name}</div>
+        <div class="as-info-value ar">${n.name}</div>
       </div>
       <div class="as-info-card">
         <div class="as-info-label">الحساب</div>
@@ -2284,7 +2297,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       </div>
       <div class="as-info-card" style="border-color:rgba(139,92,246,0.3)">
         <div class="as-info-label">الرصيد النهائي</div>
-        <div class="as-info-value ${x(y)}" style="font-size:1.15rem">${Z(Math.abs(y))} <span class="nature">${E(y)}</span></div>
+        <div class="as-info-value ${x(b)}" style="font-size:1.15rem">${Z(Math.abs(b))} <span class="nature">${z(b)}</span></div>
       </div>
     </div>
 
@@ -2308,7 +2321,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
             <td colspan="4" style="text-align:center">📌 الرصيد الافتتاحي</td>
             <td class="num"></td>
             <td class="num"></td>
-            <td class="num ${x(p)}">${Z(Math.abs(p))} <small>${E(p)}</small></td>
+            <td class="num ${x(p)}">${Z(Math.abs(p))} <small>${z(p)}</small></td>
           </tr>
           ${u.length===0?'<tr><td colspan="8" class="as-empty" style="padding:30px">لا توجد حركات</td></tr>':""}
           ${u.map((w,m)=>`
@@ -2335,22 +2348,22 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
             <td colspan="4" style="text-align:center">📌 الرصيد الختامي</td>
             <td class="num"></td>
             <td class="num"></td>
-            <td class="num ${x(y)}" style="font-size:1.05rem">${Z(Math.abs(y))} <small>${E(y)}</small></td>
+            <td class="num ${x(b)}" style="font-size:1.05rem">${Z(Math.abs(b))} <small>${z(b)}</small></td>
           </tr>
         </tbody>
       </table>
     </div>
-    <div class="as-count">${u.length} rows · ${o.currency||"SAR"}</div>
-  `}function qa(e){if(!Ve||!Je)return;const{company:t,account:a,openingBalance:s}=Ve,{filtered:r,totalDebit:n,totalCredit:o,closingBalance:i}=Je,p=e.querySelector("#as-from").value,c=e.querySelector("#as-to").value;let l="\uFEFF";l+=`كشف حساب — ${t.name}
+    <div class="as-count">${u.length} rows · ${n.currency||"SAR"}</div>
+  `}function qa(e){if(!Ve||!Je)return;const{company:t,account:a,openingBalance:s}=Ve,{filtered:r,totalDebit:o,totalCredit:n,closingBalance:i}=Je,p=e.querySelector("#as-from").value,c=e.querySelector("#as-to").value;let l="\uFEFF";l+=`كشف حساب — ${t.name}
 `,l+=`الحساب: ${a.account_code} — ${a.account_name}
 `,l+=`الفترة: ${p} إلى ${c}
 
 `,l+=`#,التاريخ,رقم القيد,البيان,الطرف,مدين,دائن,الرصيد
 `,l+=`,,,الرصيد الافتتاحي,,,,"${s}"
-`,r.forEach((f,y)=>{const x=(f.label||f.move_ref||"").replace(/"/g,'""'),E=(f.partner_name||"").replace(/"/g,'""');l+=`${y+1},"${f.date}","${f.move_name||""}","${x}","${E}",${f.debit||0},${f.credit||0},${f.runningBalance}
-`}),l+=`,,,,إجمالي الحركات,${n},${o},
+`,r.forEach((f,b)=>{const x=(f.label||f.move_ref||"").replace(/"/g,'""'),z=(f.partner_name||"").replace(/"/g,'""');l+=`${b+1},"${f.date}","${f.move_name||""}","${x}","${z}",${f.debit||0},${f.credit||0},${f.runningBalance}
+`}),l+=`,,,,إجمالي الحركات,${o},${n},
 `,l+=`,,,,الرصيد الختامي,,,"${i}"
-`;const u=new Blob([l],{type:"text/csv;charset=utf-8;"}),d=URL.createObjectURL(u),g=document.createElement("a");g.href=d,g.download=`كشف_حساب_${a.account_code}_${p}_${c}.csv`,g.click(),URL.revokeObjectURL(d),b("✅ تم تصدير الكشف","success")}const ot="mizaniat_api_configs";async function La(e){var w;const t=`${window.location.origin}/api/external`;e.innerHTML=`
+`;const u=new Blob([l],{type:"text/csv;charset=utf-8;"}),d=URL.createObjectURL(u),g=document.createElement("a");g.href=d,g.download=`كشف_حساب_${a.account_code}_${p}_${c}.csv`,g.click(),URL.revokeObjectURL(d),y("✅ تم تصدير الكشف","success")}const nt="mizaniat_api_configs";async function La(e){var w;const t=`${window.location.origin}/api/external`;e.innerHTML=`
     <style>
       .api-mgr { padding:32px;max-width:1200px;margin:0 auto; }
       .api-mgr h1 { color:var(--text-white);margin:0;font-size:1.6rem; }
@@ -2475,7 +2488,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       </div>
     </div>
-  `;function a(m,$,_,q){var O;const k=document.getElementById(m);if(!k)return{getValues:()=>[],setValues:()=>{},clear:()=>{}};const L=k.querySelector(".ms-toggle"),j=k.querySelector(".ms-list"),T=k.querySelector(".ms-search input"),I=new Set,z=((O=L.querySelector(".ms-placeholder"))==null?void 0:O.textContent)||"اختر...";function M(C=""){const B=C.toLowerCase();j.innerHTML=$.filter(J=>!B||String(J[q]).toLowerCase().includes(B)).map(J=>{const R=String(J[_]),U=I.has(R);return`<div class="ms-item ${U?"selected":""}" data-val="${R}"><div class="ms-check">${U?"✓":""}</div><span>${J[q]}</span></div>`}).join(""),j.querySelectorAll(".ms-item").forEach(J=>{J.onclick=R=>{R.stopPropagation();const U=J.dataset.val;I.has(U)?I.delete(U):I.add(U),M(T.value),H()}})}function H(){if(I.size===0){L.innerHTML=`<span class="ms-placeholder">${z}</span>`;return}L.innerHTML=Array.from(I).map(C=>{const B=$.find(R=>String(R[_])===C);return`<span class="ms-tag">${B?B[q].length>20?B[q].substring(0,20)+"…":B[q]:C} <span class="ms-x" data-val="${C}">✕</span></span>`}).join(""),L.querySelectorAll(".ms-x").forEach(C=>{C.onclick=B=>{B.stopPropagation(),I.delete(C.dataset.val),M(T.value),H()}})}return L.onclick=C=>{C.stopPropagation(),k.classList.toggle("open"),k.classList.contains("open")&&T.focus()},T.onclick=C=>C.stopPropagation(),T.oninput=()=>M(T.value),document.addEventListener("click",()=>k.classList.remove("open")),M(),H(),{getValues:()=>Array.from(I),setValues:C=>{I.clear(),C.forEach(B=>I.add(String(B))),M(),H()},clear:()=>{I.clear(),M(),H()}}}function s(m,$,_,q,k){const L="ms-"+Math.random().toString(36).slice(2,8);return m.innerHTML=`<div class="multi-select" id="${L}"><div class="ms-toggle"><span class="ms-placeholder">${k}</span></div><div class="ms-dropdown"><div class="ms-search"><input placeholder="بحث..." /></div><div class="ms-list"></div></div></div>`,a(L,$,_,q)}let r=[],n=[],o=[],i;try{const[m,$,_]=await Promise.all([fetch("/api/external/companies").then(k=>k.json()),fetch("/api/external/groups").then(k=>k.json()),fetch("/api/external/cost-centers").then(k=>k.json())]);r=m.data||[],n=$.data||[];const q=new Set;o=(_.data||[]).filter(k=>q.has(k.name)?!1:(q.add(k.name),!0)),i=a("ms-companies",r,"id","name")}catch(m){console.error("Failed to load dropdown data:",m)}let p=0;const c=[];function l(m){const $=p++,_=document.createElement("div");_.className="period-row",_.id=`period-${$}`,_.innerHTML=`
+  `;function a(m,$,_,L){var O;const k=document.getElementById(m);if(!k)return{getValues:()=>[],setValues:()=>{},clear:()=>{}};const E=k.querySelector(".ms-toggle"),j=k.querySelector(".ms-list"),T=k.querySelector(".ms-search input"),I=new Set,q=((O=E.querySelector(".ms-placeholder"))==null?void 0:O.textContent)||"اختر...";function M(C=""){const B=C.toLowerCase();j.innerHTML=$.filter(J=>!B||String(J[L]).toLowerCase().includes(B)).map(J=>{const R=String(J[_]),U=I.has(R);return`<div class="ms-item ${U?"selected":""}" data-val="${R}"><div class="ms-check">${U?"✓":""}</div><span>${J[L]}</span></div>`}).join(""),j.querySelectorAll(".ms-item").forEach(J=>{J.onclick=R=>{R.stopPropagation();const U=J.dataset.val;I.has(U)?I.delete(U):I.add(U),M(T.value),H()}})}function H(){if(I.size===0){E.innerHTML=`<span class="ms-placeholder">${q}</span>`;return}E.innerHTML=Array.from(I).map(C=>{const B=$.find(R=>String(R[_])===C);return`<span class="ms-tag">${B?B[L].length>20?B[L].substring(0,20)+"…":B[L]:C} <span class="ms-x" data-val="${C}">✕</span></span>`}).join(""),E.querySelectorAll(".ms-x").forEach(C=>{C.onclick=B=>{B.stopPropagation(),I.delete(C.dataset.val),M(T.value),H()}})}return E.onclick=C=>{C.stopPropagation(),k.classList.toggle("open"),k.classList.contains("open")&&T.focus()},T.onclick=C=>C.stopPropagation(),T.oninput=()=>M(T.value),document.addEventListener("click",()=>k.classList.remove("open")),M(),H(),{getValues:()=>Array.from(I),setValues:C=>{I.clear(),C.forEach(B=>I.add(String(B))),M(),H()},clear:()=>{I.clear(),M(),H()}}}function s(m,$,_,L,k){const E="ms-"+Math.random().toString(36).slice(2,8);return m.innerHTML=`<div class="multi-select" id="${E}"><div class="ms-toggle"><span class="ms-placeholder">${k}</span></div><div class="ms-dropdown"><div class="ms-search"><input placeholder="بحث..." /></div><div class="ms-list"></div></div></div>`,a(E,$,_,L)}let r=[],o=[],n=[],i;try{const[m,$,_]=await Promise.all([fetch("/api/external/companies").then(k=>k.json()),fetch("/api/external/groups").then(k=>k.json()),fetch("/api/external/cost-centers").then(k=>k.json())]);r=m.data||[],o=$.data||[];const L=new Set;n=(_.data||[]).filter(k=>L.has(k.name)?!1:(L.add(k.name),!0)),i=a("ms-companies",r,"id","name")}catch(m){console.error("Failed to load dropdown data:",m)}let p=0;const c=[];function l(m){const $=p++,_=document.createElement("div");_.className="period-row",_.id=`period-${$}`,_.innerHTML=`
       <span class="period-num">${c.length+1}</span>
       <button class="period-del" data-idx="${$}">✕</button>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding-right:36px;">
@@ -2484,12 +2497,12 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div><label class="api-label">المجموعات</label><div class="period-groups"></div></div>
       </div>
       <div style="padding-right:36px;margin-top:10px;"><label class="api-label">مراكز التكلفة</label><div class="period-cc"></div></div>
-    `,document.getElementById("periods-container").appendChild(_);const q=s(_.querySelector(".period-groups"),n,"id","name","اختر المجموعات..."),k=s(_.querySelector(".period-cc"),o,"name","name","اختر مراكز التكلفة...");m!=null&&m.groupIds&&q.setValues(m.groupIds.map(String)),m!=null&&m.costCenters&&k.setValues(m.costCenters);const L={idx:$,div:_,msG:q,msCC:k};return c.push(L),_.querySelector(".period-del").onclick=()=>{_.remove();const j=c.findIndex(T=>T.idx===$);j>=0&&c.splice(j,1),u()},L}function u(){c.forEach((m,$)=>{m.div.querySelector(".period-num").textContent=$+1})}function d(){c.forEach(m=>m.div.remove()),c.length=0,p=0}l(),document.getElementById("btn-add-period").onclick=()=>l();function g(){const m=((i==null?void 0:i.getValues())||[]).map(Number),$=document.getElementById("test-monthly").checked,_=c.map(q=>{const k={};k.dateFrom=q.div.querySelector(".period-from").value;const L=q.div.querySelector(".period-to").value;L&&(k.dateTo=L);const j=q.msG.getValues().map(Number);j.length&&(k.groupIds=j);const T=q.msCC.getValues();return T.length&&(k.costCenters=T),k}).filter(q=>q.dateFrom||q.dateTo||q.groupIds||q.costCenters||c.length===1);return{companyIds:m,monthly:$,periods:_}}function f(m){var $;d(),m.companyIds&&(i==null||i.setValues(m.companyIds.map(String))),document.getElementById("test-monthly").checked=m.monthly!==!1,(m.periods||[]).forEach(_=>l(_)),($=m.periods)!=null&&$.length||l()}function y(){try{return JSON.parse(localStorage.getItem(ot)||"[]")}catch{return[]}}function x(m){localStorage.setItem(ot,JSON.stringify(m))}function E(){const m=y(),$=document.getElementById("saved-configs-card"),_=document.getElementById("saved-configs-list");if(m.length===0){$.style.display="none";return}$.style.display="",_.innerHTML=m.map((q,k)=>`
+    `,document.getElementById("periods-container").appendChild(_);const L=s(_.querySelector(".period-groups"),o,"id","name","اختر المجموعات..."),k=s(_.querySelector(".period-cc"),n,"name","name","اختر مراكز التكلفة...");m!=null&&m.groupIds&&L.setValues(m.groupIds.map(String)),m!=null&&m.costCenters&&k.setValues(m.costCenters);const E={idx:$,div:_,msG:L,msCC:k};return c.push(E),_.querySelector(".period-del").onclick=()=>{_.remove();const j=c.findIndex(T=>T.idx===$);j>=0&&c.splice(j,1),u()},E}function u(){c.forEach((m,$)=>{m.div.querySelector(".period-num").textContent=$+1})}function d(){c.forEach(m=>m.div.remove()),c.length=0,p=0}l(),document.getElementById("btn-add-period").onclick=()=>l();function g(){const m=((i==null?void 0:i.getValues())||[]).map(Number),$=document.getElementById("test-monthly").checked,_=c.map(L=>{const k={};k.dateFrom=L.div.querySelector(".period-from").value;const E=L.div.querySelector(".period-to").value;E&&(k.dateTo=E);const j=L.msG.getValues().map(Number);j.length&&(k.groupIds=j);const T=L.msCC.getValues();return T.length&&(k.costCenters=T),k}).filter(L=>L.dateFrom||L.dateTo||L.groupIds||L.costCenters||c.length===1);return{companyIds:m,monthly:$,periods:_}}function f(m){var $;d(),m.companyIds&&(i==null||i.setValues(m.companyIds.map(String))),document.getElementById("test-monthly").checked=m.monthly!==!1,(m.periods||[]).forEach(_=>l(_)),($=m.periods)!=null&&$.length||l()}function b(){try{return JSON.parse(localStorage.getItem(nt)||"[]")}catch{return[]}}function x(m){localStorage.setItem(nt,JSON.stringify(m))}function z(){const m=b(),$=document.getElementById("saved-configs-card"),_=document.getElementById("saved-configs-list");if(m.length===0){$.style.display="none";return}$.style.display="",_.innerHTML=m.map((L,k)=>`
       <div class="saved-chip" data-idx="${k}">
-        <span>📁 ${q.name}</span>
+        <span>📁 ${L.name}</span>
         <span class="chip-del" data-idx="${k}" title="حذف">✕</span>
       </div>
-    `).join(""),_.querySelectorAll(".saved-chip").forEach(q=>{q.onclick=k=>{if(k.target.classList.contains("chip-del")){const T=Number(k.target.dataset.idx),I=y();I.splice(T,1),x(I),E();return}const L=Number(q.dataset.idx),j=y()[L];j&&f(j.config)}})}document.getElementById("btn-save-config").onclick=()=>{const m=prompt("اسم الإعدادات:");if(!m)return;const $=y();$.push({name:m,config:g(),savedAt:new Date().toISOString()}),x($),E()},E(),document.getElementById("btn-update-fetch").onclick=()=>{c.forEach(m=>{m.div.querySelector(".period-to").value=""}),document.getElementById("btn-test").click()},(w=document.getElementById("btn-copy-base"))==null||w.addEventListener("click",()=>{navigator.clipboard.writeText(t)}),document.getElementById("btn-test").onclick=async()=>{var L,j;const m=document.getElementById("test-status"),$=document.getElementById("test-result"),_=document.getElementById("json-output-box"),q=document.getElementById("get-link-box");m.textContent="⏳ جاري الجلب...",m.style.color="#f59e0b",$.style.display="none",_.style.display="none",q.style.display="none";const k=g();if(!k.companyIds.length){m.textContent="❌ اختر شركة واحدة على الأقل",m.style.color="#ef4444";return}if(!k.periods.length){m.textContent="❌ أضف فترة واحدة على الأقل بالضغط على إضافة فترة",m.style.color="#ef4444";return}try{const T=performance.now(),I=await fetch("/api/external/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(k)}),z=Math.round(performance.now()-T),M=await I.json();if(!I.ok){m.textContent=`❌ ${I.status}: ${M.error||"Error"}`,m.style.color="#ef4444";return}m.textContent=`✅ OK — ${z}ms — ${((L=M.summary)==null?void 0:L.totalRows)||0} سطر`,m.style.color="#10b981";const H=btoa(unescape(encodeURIComponent(JSON.stringify(k)))),O=`${t}/expenses/query?config=${encodeURIComponent(H)}`;document.getElementById("get-link-url").textContent=O,q.style.display="",document.getElementById("btn-copy-link").onclick=()=>{navigator.clipboard.writeText(O);const N=document.getElementById("btn-copy-link");N.textContent="✅ تم!",setTimeout(()=>N.textContent="📋 نسخ الرابط",2e3)};const C=JSON.stringify(M.data,null,2);document.getElementById("data-json-output").textContent=C,document.getElementById("json-rows-count").textContent=`${((j=M.data)==null?void 0:j.length)||0} سطر — ${(C.length/1024).toFixed(1)} KB`,_.style.display="",document.getElementById("btn-copy-data-json").onclick=()=>{navigator.clipboard.writeText(C);const N=document.getElementById("btn-copy-data-json");N.textContent="✅ تم النسخ!",setTimeout(()=>N.textContent="📋 نسخ JSON",2e3)};const B=document.getElementById("result-summary"),J=M.summary||{};B.innerHTML=Object.entries(J).map(([N,de])=>`
+    `).join(""),_.querySelectorAll(".saved-chip").forEach(L=>{L.onclick=k=>{if(k.target.classList.contains("chip-del")){const T=Number(k.target.dataset.idx),I=b();I.splice(T,1),x(I),z();return}const E=Number(L.dataset.idx),j=b()[E];j&&f(j.config)}})}document.getElementById("btn-save-config").onclick=()=>{const m=prompt("اسم الإعدادات:");if(!m)return;const $=b();$.push({name:m,config:g(),savedAt:new Date().toISOString()}),x($),z()},z(),document.getElementById("btn-update-fetch").onclick=()=>{c.forEach(m=>{m.div.querySelector(".period-to").value=""}),document.getElementById("btn-test").click()},(w=document.getElementById("btn-copy-base"))==null||w.addEventListener("click",()=>{navigator.clipboard.writeText(t)}),document.getElementById("btn-test").onclick=async()=>{var E,j;const m=document.getElementById("test-status"),$=document.getElementById("test-result"),_=document.getElementById("json-output-box"),L=document.getElementById("get-link-box");m.textContent="⏳ جاري الجلب...",m.style.color="#f59e0b",$.style.display="none",_.style.display="none",L.style.display="none";const k=g();if(!k.companyIds.length){m.textContent="❌ اختر شركة واحدة على الأقل",m.style.color="#ef4444";return}if(!k.periods.length){m.textContent="❌ أضف فترة واحدة على الأقل بالضغط على إضافة فترة",m.style.color="#ef4444";return}try{const T=performance.now(),I=await fetch("/api/external/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(k)}),q=Math.round(performance.now()-T),M=await I.json();if(!I.ok){m.textContent=`❌ ${I.status}: ${M.error||"Error"}`,m.style.color="#ef4444";return}m.textContent=`✅ OK — ${q}ms — ${((E=M.summary)==null?void 0:E.totalRows)||0} سطر`,m.style.color="#10b981";const H=btoa(unescape(encodeURIComponent(JSON.stringify(k)))),O=`${t}/expenses/query?config=${encodeURIComponent(H)}`;document.getElementById("get-link-url").textContent=O,L.style.display="",document.getElementById("btn-copy-link").onclick=()=>{navigator.clipboard.writeText(O);const N=document.getElementById("btn-copy-link");N.textContent="✅ تم!",setTimeout(()=>N.textContent="📋 نسخ الرابط",2e3)};const C=JSON.stringify(M.data,null,2);document.getElementById("data-json-output").textContent=C,document.getElementById("json-rows-count").textContent=`${((j=M.data)==null?void 0:j.length)||0} سطر — ${(C.length/1024).toFixed(1)} KB`,_.style.display="",document.getElementById("btn-copy-data-json").onclick=()=>{navigator.clipboard.writeText(C);const N=document.getElementById("btn-copy-data-json");N.textContent="✅ تم النسخ!",setTimeout(()=>N.textContent="📋 نسخ JSON",2e3)};const B=document.getElementById("result-summary"),J=M.summary||{};B.innerHTML=Object.entries(J).map(([N,de])=>`
         <div style="background:rgba(16,185,129,0.06);border-radius:8px;padding:12px 16px;text-align:center;">
           <div style="color:var(--text-muted);font-size:0.78rem;">${N}</div>
           <div style="color:#10b981;font-size:1.15rem;font-weight:700;font-family:var(--font-en);">${typeof de=="number"?de.toLocaleString("en"):de}</div>
@@ -2645,12 +2658,12 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         <div style="padding:12px;border-radius:8px;background:rgba(239,68,68,0.15);color:var(--accent-red);font-size:0.85rem;">
           ❌ خطأ: ${u.message}
         </div>
-      `}t.disabled=!1,t.textContent="🔌 اختبار الاتصال"}),a.addEventListener("click",async()=>{let i=e.querySelector("#conn-url").value.trim();i&&!i.startsWith("http://")&&!i.startsWith("https://")&&(i="https://"+i);const p=e.querySelector("#conn-user").value.trim(),c=e.querySelector("#conn-pass").value.trim();a.disabled=!0,a.textContent="جاري الحفظ...";try{let l=i;try{l=new URL(i).hostname}catch{l=i.replace(/https?:\/\//,"").split("/")[0]}await h.sales.createInstance({name:"المبيعات - "+l,url:i,username:p,api_key:c}),b("تم حفظ الاتصال بنجاح ✅ — اربط الشركات به من قسم الشركات","success"),e.querySelector("#conn-url").value="",e.querySelector("#conn-user").value="",e.querySelector("#conn-pass").value="",e.querySelector("#conn-result").innerHTML="",a.disabled=!0,await se(e)}catch(l){b("خطأ في الحفظ: "+l.message,"error")}a.disabled=!1,a.textContent="💾 حفظ الاتصال"}),e.querySelector("#btn-add-company").addEventListener("click",()=>Pa(e)),e.querySelector("#btn-add-rule").addEventListener("click",()=>Ra(e)),e.querySelector("#btn-sync-all").addEventListener("click",async()=>{try{await h.sales.syncAll(),b("بدأت مزامنة جميع الشركات","info"),Ca(e)}catch(i){b("خطأ: "+i.message,"error")}});const s=e.querySelector("#sync-enabled"),r=e.querySelector("#sync-toggle-track"),n=e.querySelector("#sync-toggle-dot");function o(i){i?(r.style.background="#06b6d4",n.style.right="2px"):(r.style.background="rgba(255,255,255,0.1)",n.style.right="22px")}s.addEventListener("change",()=>{o(s.checked)}),e.querySelector("#btn-save-schedule").addEventListener("click",async()=>{const i=e.querySelector("#btn-save-schedule");i.disabled=!0,i.textContent="⏳ جاري الحفظ...";try{const p=await h.sales.updateSchedule({enabled:s.checked,intervalHours:parseInt(e.querySelector("#sync-interval").value)});b(p.running?`تم تفعيل المزامنة التلقائية — ${p.schedule}`:"تم إيقاف المزامنة التلقائية","success"),xt(e,p)}catch(p){b("خطأ: "+p.message,"error")}i.disabled=!1,i.textContent="💾 حفظ الإعدادات"}),e.querySelector("#btn-clear-notifs").addEventListener("click",async()=>{try{await h.sales.clearNotifications(),e.querySelector("#sync-notifications-list").innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>',b("تم مسح الإشعارات","info")}catch(i){b("خطأ: "+i.message,"error")}}),await se(e)}function xt(e,t){const a=e.querySelector("#schedule-status");a&&(t.running?a.innerHTML=`<span style="color:#10b981;">● نشطة</span> — <span style="font-family:var(--font-en);font-size:0.72rem;">${t.schedule}</span>`:a.innerHTML='<span style="color:var(--text-muted);">○ متوقفة</span>')}function Ia(e,t){if(!e)return;if(!t||t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>';return}const a={success:"background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.2)",warning:"background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.2)",error:"background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.2)"},s={success:"✅",warning:"⚠️",error:"❌"};e.innerHTML=`<div style="display:grid;gap:6px;">
-    ${t.map(r=>{const n=a[r.type]||a.success,o=s[r.type]||"✅",i=r.created_at?new Date(r.created_at+"Z").toLocaleString("ar-SA",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}):"";return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;border:1px solid;${n};font-size:0.8rem;">
-        <span>${o} ${r.message}</span>
+      `}t.disabled=!1,t.textContent="🔌 اختبار الاتصال"}),a.addEventListener("click",async()=>{let i=e.querySelector("#conn-url").value.trim();i&&!i.startsWith("http://")&&!i.startsWith("https://")&&(i="https://"+i);const p=e.querySelector("#conn-user").value.trim(),c=e.querySelector("#conn-pass").value.trim();a.disabled=!0,a.textContent="جاري الحفظ...";try{let l=i;try{l=new URL(i).hostname}catch{l=i.replace(/https?:\/\//,"").split("/")[0]}await h.sales.createInstance({name:"المبيعات - "+l,url:i,username:p,api_key:c}),y("تم حفظ الاتصال بنجاح ✅ — اربط الشركات به من قسم الشركات","success"),e.querySelector("#conn-url").value="",e.querySelector("#conn-user").value="",e.querySelector("#conn-pass").value="",e.querySelector("#conn-result").innerHTML="",a.disabled=!0,await se(e)}catch(l){y("خطأ في الحفظ: "+l.message,"error")}a.disabled=!1,a.textContent="💾 حفظ الاتصال"}),e.querySelector("#btn-add-company").addEventListener("click",()=>Pa(e)),e.querySelector("#btn-add-rule").addEventListener("click",()=>Ra(e)),e.querySelector("#btn-sync-all").addEventListener("click",async()=>{try{await h.sales.syncAll(),y("بدأت مزامنة جميع الشركات","info"),Ca(e)}catch(i){y("خطأ: "+i.message,"error")}});const s=e.querySelector("#sync-enabled"),r=e.querySelector("#sync-toggle-track"),o=e.querySelector("#sync-toggle-dot");function n(i){i?(r.style.background="#06b6d4",o.style.right="2px"):(r.style.background="rgba(255,255,255,0.1)",o.style.right="22px")}s.addEventListener("change",()=>{n(s.checked)}),e.querySelector("#btn-save-schedule").addEventListener("click",async()=>{const i=e.querySelector("#btn-save-schedule");i.disabled=!0,i.textContent="⏳ جاري الحفظ...";try{const p=await h.sales.updateSchedule({enabled:s.checked,intervalHours:parseInt(e.querySelector("#sync-interval").value)});y(p.running?`تم تفعيل المزامنة التلقائية — ${p.schedule}`:"تم إيقاف المزامنة التلقائية","success"),xt(e,p)}catch(p){y("خطأ: "+p.message,"error")}i.disabled=!1,i.textContent="💾 حفظ الإعدادات"}),e.querySelector("#btn-clear-notifs").addEventListener("click",async()=>{try{await h.sales.clearNotifications(),e.querySelector("#sync-notifications-list").innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>',y("تم مسح الإشعارات","info")}catch(i){y("خطأ: "+i.message,"error")}}),await se(e)}function xt(e,t){const a=e.querySelector("#schedule-status");a&&(t.running?a.innerHTML=`<span style="color:#10b981;">● نشطة</span> — <span style="font-family:var(--font-en);font-size:0.72rem;">${t.schedule}</span>`:a.innerHTML='<span style="color:var(--text-muted);">○ متوقفة</span>')}function Ia(e,t){if(!e)return;if(!t||t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.8rem;">لا توجد إشعارات</div>';return}const a={success:"background:rgba(16,185,129,0.12);color:#10b981;border-color:rgba(16,185,129,0.2)",warning:"background:rgba(245,158,11,0.12);color:#f59e0b;border-color:rgba(245,158,11,0.2)",error:"background:rgba(239,68,68,0.12);color:#ef4444;border-color:rgba(239,68,68,0.2)"},s={success:"✅",warning:"⚠️",error:"❌"};e.innerHTML=`<div style="display:grid;gap:6px;">
+    ${t.map(r=>{const o=a[r.type]||a.success,n=s[r.type]||"✅",i=r.created_at?new Date(r.created_at+"Z").toLocaleString("ar-SA",{hour:"2-digit",minute:"2-digit",day:"numeric",month:"short"}):"";return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-radius:8px;border:1px solid;${o};font-size:0.8rem;">
+        <span>${n} ${r.message}</span>
         <span style="font-family:var(--font-en);font-size:0.7rem;opacity:0.7;">${i}</span>
       </div>`}).join("")}
-  </div>`}async function se(e){try{const[t,a,s,r,n,o]=await Promise.all([h.sales.getInstances().catch(()=>[]),h.sales.getCompanies().catch(()=>[]),h.sales.getEliminationRules().catch(()=>[]),h.sales.getSyncStatus().catch(()=>[]),h.sales.getSchedule().catch(()=>({enabled:!1,intervalHours:2,running:!1})),h.sales.getNotifications().catch(()=>[])]);S.set("sales_companies",a||[]),ja(e.querySelector("#instances-list"),t,e),Ta(e.querySelector("#companies-list"),a,t,e),Ma(e.querySelector("#import-panel"),a),Ha(e.querySelector("#rules-list"),s),Ba(e.querySelector("#sync-log"),r);const i=e.querySelector("#sync-enabled");if(i){i.checked=n.enabled;const c=e.querySelector("#sync-toggle-track"),l=e.querySelector("#sync-toggle-dot");n.enabled?(c.style.background="#06b6d4",l.style.right="2px"):(c.style.background="rgba(255,255,255,0.1)",l.style.right="22px")}const p=e.querySelector("#sync-interval");p&&(p.value=String(n.intervalHours)),xt(e,n),Ia(e.querySelector("#sync-notifications-list"),o)}catch{b("خطأ في تحميل الإعدادات","error")}}function ja(e,t,a){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد اتصالات محفوظة — أضف اتصال من الخطوة 1</div>';return}e.innerHTML=`
+  </div>`}async function se(e){try{const[t,a,s,r,o,n]=await Promise.all([h.sales.getInstances().catch(()=>[]),h.sales.getCompanies().catch(()=>[]),h.sales.getEliminationRules().catch(()=>[]),h.sales.getSyncStatus().catch(()=>[]),h.sales.getSchedule().catch(()=>({enabled:!1,intervalHours:2,running:!1})),h.sales.getNotifications().catch(()=>[])]);S.set("sales_companies",a||[]),ja(e.querySelector("#instances-list"),t,e),Ta(e.querySelector("#companies-list"),a,t,e),Ma(e.querySelector("#import-panel"),a),Ha(e.querySelector("#rules-list"),s),Ba(e.querySelector("#sync-log"),r);const i=e.querySelector("#sync-enabled");if(i){i.checked=o.enabled;const c=e.querySelector("#sync-toggle-track"),l=e.querySelector("#sync-toggle-dot");o.enabled?(c.style.background="#06b6d4",l.style.right="2px"):(c.style.background="rgba(255,255,255,0.1)",l.style.right="22px")}const p=e.querySelector("#sync-interval");p&&(p.value=String(o.intervalHours)),xt(e,o),Ia(e.querySelector("#sync-notifications-list"),n)}catch{y("خطأ في تحميل الإعدادات","error")}}function ja(e,t,a){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد اتصالات محفوظة — أضف اتصال من الخطوة 1</div>';return}e.innerHTML=`
     <div style="display:grid;gap:var(--space-sm);">
       ${t.map(s=>`
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(139,92,246,0.06);border-radius:var(--radius-md);border:1px solid rgba(139,92,246,0.15);">
@@ -2666,36 +2679,36 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       `).join("")}
     </div>
-  `,e.querySelectorAll(".btn-delete-instance").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.id;if(confirm("هل تريد حذف هذا الاتصال؟"))try{await h.sales.deleteInstance(r),b("تم حذف الاتصال","success"),await se(a)}catch(n){b("خطأ: "+n.message,"error")}})})}function Ta(e,t,a,s){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">لا توجد شركات — أضف شركة جديدة</div>';return}const r={};for(const n of a)r[n.id]=n;e.innerHTML=`
+  `,e.querySelectorAll(".btn-delete-instance").forEach(s=>{s.addEventListener("click",async()=>{const r=s.dataset.id;if(confirm("هل تريد حذف هذا الاتصال؟"))try{await h.sales.deleteInstance(r),y("تم حذف الاتصال","success"),await se(a)}catch(o){y("خطأ: "+o.message,"error")}})})}function Ta(e,t,a,s){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">لا توجد شركات — أضف شركة جديدة</div>';return}const r={};for(const o of a)r[o.id]=o;e.innerHTML=`
     <div class="data-table-wrapper">
       <table class="data-table">
         <thead><tr><th>اسم الشركة</th><th>الخادم المربوط</th><th>Sales ID</th><th>عدد الفواتير</th><th>آخر فاتورة</th><th>الحالة</th><th>إجراء</th></tr></thead>
         <tbody>
-          ${t.map(n=>{const o=r[n.sales_instance_id],i=a.map(p=>`<option value="${p.id}" ${p.id===n.sales_instance_id?"selected":""}>${p.name}</option>`).join("");return`
+          ${t.map(o=>{const n=r[o.sales_instance_id],i=a.map(p=>`<option value="${p.id}" ${p.id===o.sales_instance_id?"selected":""}>${p.name}</option>`).join("");return`
             <tr>
               <td>
-                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${n.color||"#3b82f6"};margin-left:8px;"></span>
-                ${n.name}
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${o.color||"#3b82f6"};margin-left:8px;"></span>
+                ${o.name}
               </td>
               <td>
-                <select class="filter-select company-instance-select" data-company-id="${n.id}" style="font-size:0.78rem;padding:4px 8px;min-width:180px;">
+                <select class="filter-select company-instance-select" data-company-id="${o.id}" style="font-size:0.78rem;padding:4px 8px;min-width:180px;">
                   ${i}
                 </select>
-                ${o?`<div style="font-family:var(--font-en);font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${o.url} — ${o.username}</div>`:""}
+                ${n?`<div style="font-family:var(--font-en);font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${n.url} — ${n.username}</div>`:""}
               </td>
-              <td style="font-family:var(--font-en);">${n.sales_company_id}</td>
-              <td style="font-family:var(--font-en);font-weight:600;">${v(n.item_count||0)}</td>
-              <td style="font-family:var(--font-en);font-size:0.8em;">${n.last_entry_date||"--"}</td>
-              <td><span class="badge ${n.is_active?"badge-success":"badge-danger"}">${n.is_active?"نشط":"معطل"}</span></td>
+              <td style="font-family:var(--font-en);">${o.sales_company_id}</td>
+              <td style="font-family:var(--font-en);font-weight:600;">${v(o.item_count||0)}</td>
+              <td style="font-family:var(--font-en);font-size:0.8em;">${o.last_entry_date||"--"}</td>
+              <td><span class="badge ${o.is_active?"badge-success":"badge-danger"}">${o.is_active?"نشط":"معطل"}</span></td>
               <td>
-                <button class="btn btn-sm btn-delete-company" data-id="${n.id}" style="background:rgba(239,68,68,0.1);color:var(--accent-red);border:1px solid rgba(239,68,68,0.2);font-size:0.75rem;padding:3px 8px;">🗑️</button>
+                <button class="btn btn-sm btn-delete-company" data-id="${o.id}" style="background:rgba(239,68,68,0.1);color:var(--accent-red);border:1px solid rgba(239,68,68,0.2);font-size:0.75rem;padding:3px 8px;">🗑️</button>
               </td>
             </tr>
           `}).join("")}
         </tbody>
       </table>
     </div>
-  `,e.querySelectorAll(".company-instance-select").forEach(n=>{n.addEventListener("change",async()=>{const o=n.dataset.companyId,i=parseInt(n.value);try{await h.sales.updateCompany(o,{sales_instance_id:i}),b("تم تحديث الخادم المربوط ✅","success"),await se(s)}catch(p){b("خطأ: "+p.message,"error")}})}),e.querySelectorAll(".btn-delete-company").forEach(n=>{n.addEventListener("click",async()=>{const o=n.dataset.id;if(confirm("هل أنت متأكد من حذف هذه الشركة وحذف جميع بيانات الفواتير المرتبطة بها نهائياً؟"))try{await h.sales.deleteCompany(o),b("تم حذف الشركة بنجاح","success"),await se(s)}catch(i){b("خطأ: "+i.message,"error")}})})}function Ma(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">أضف شركات أولاً ثم ابدأ الاستيراد</div>';return}e.innerHTML=t.map(a=>`
+  `,e.querySelectorAll(".company-instance-select").forEach(o=>{o.addEventListener("change",async()=>{const n=o.dataset.companyId,i=parseInt(o.value);try{await h.sales.updateCompany(n,{sales_instance_id:i}),y("تم تحديث الخادم المربوط ✅","success"),await se(s)}catch(p){y("خطأ: "+p.message,"error")}})}),e.querySelectorAll(".btn-delete-company").forEach(o=>{o.addEventListener("click",async()=>{const n=o.dataset.id;if(confirm("هل أنت متأكد من حذف هذه الشركة وحذف جميع بيانات الفواتير المرتبطة بها نهائياً؟"))try{await h.sales.deleteCompany(n),y("تم حذف الشركة بنجاح","success"),await se(s)}catch(i){y("خطأ: "+i.message,"error")}})})}function Ma(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">أضف شركات أولاً ثم ابدأ الاستيراد</div>';return}e.innerHTML=t.map(a=>`
     <div class="card" style="margin-bottom:var(--space-md);border:1px solid rgba(255,255,255,0.05);padding:var(--space-md);" id="import-card-${a.id}">
       <div style="display:flex;justify-content:space-between;align-items:center;">
         <div>
@@ -2716,7 +2729,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
         </div>
       </div>
     </div>
-  `).join(""),e.querySelectorAll(".btn-import").forEach(a=>{a.addEventListener("click",async()=>{const s=parseInt(a.dataset.companyId);a.disabled=!0,a.textContent="⏳ جاري...";try{await h.sales.syncCompany(s),b("بدأت عملية الاستيراد","info"),$t(s)}catch(r){b("خطأ: "+r.message,"error"),a.disabled=!1,a.textContent="📥 استيراد"}})})}function $t(e){const t=document.getElementById(`progress-${e}`);t&&(t.style.display="block"),ue[e]&&clearInterval(ue[e]),ue[e]=setInterval(async()=>{try{const a=await h.sales.getSyncProgress(e);if(Aa(e,a),a.status==="completed"||a.status==="failed"){clearInterval(ue[e]),delete ue[e];const s=document.querySelector(`[data-company-id="${e}"]`);if(s&&(s.disabled=!1,s.textContent=a.status==="completed"?"✅ تم":"📥 إعادة الاستيراد"),a.status==="completed"){b(`تم استيراد ${v(a.inserted)} فاتورة بنجاح ✅`,"success");const r=await h.sales.getCompanies();S.set("sales_companies",r)}else b(`فشل الاستيراد: ${a.phase}`,"error")}}catch(a){console.error("Progress poll error:",a)}},1500)}async function Ca(e){let t=S.get("sales_companies");(!t||!Array.isArray(t))&&(t=await h.sales.getCompanies(),S.set("sales_companies",t));for(const a of t||[])$t(a.id)}function Aa(e,t){const a=document.getElementById(`progress-text-${e}`),s=document.getElementById(`progress-pct-${e}`),r=document.getElementById(`progress-bar-${e}`),n=document.getElementById(`progress-${e}`);if(!(!a||!s||!r)){if(n.style.display="block",a.textContent=t.phase||"",t.total>0){const o=Math.round(t.inserted/t.total*100);s.textContent=`${o}%`,r.style.width=`${o}%`}t.status==="completed"?(r.style.background="var(--accent-emerald)",r.style.width="100%",s.textContent="100%"):t.status==="failed"&&(r.style.background="var(--accent-red)")}}function Ha(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد قواعد استبعاد</div>';return}e.innerHTML=`
+  `).join(""),e.querySelectorAll(".btn-import").forEach(a=>{a.addEventListener("click",async()=>{const s=parseInt(a.dataset.companyId);a.disabled=!0,a.textContent="⏳ جاري...";try{await h.sales.syncCompany(s),y("بدأت عملية الاستيراد","info"),$t(s)}catch(r){y("خطأ: "+r.message,"error"),a.disabled=!1,a.textContent="📥 استيراد"}})})}function $t(e){const t=document.getElementById(`progress-${e}`);t&&(t.style.display="block"),ue[e]&&clearInterval(ue[e]),ue[e]=setInterval(async()=>{try{const a=await h.sales.getSyncProgress(e);if(Aa(e,a),a.status==="completed"||a.status==="failed"){clearInterval(ue[e]),delete ue[e];const s=document.querySelector(`[data-company-id="${e}"]`);if(s&&(s.disabled=!1,s.textContent=a.status==="completed"?"✅ تم":"📥 إعادة الاستيراد"),a.status==="completed"){y(`تم استيراد ${v(a.inserted)} فاتورة بنجاح ✅`,"success");const r=await h.sales.getCompanies();S.set("sales_companies",r)}else y(`فشل الاستيراد: ${a.phase}`,"error")}}catch(a){console.error("Progress poll error:",a)}},1500)}async function Ca(e){let t=S.get("sales_companies");(!t||!Array.isArray(t))&&(t=await h.sales.getCompanies(),S.set("sales_companies",t));for(const a of t||[])$t(a.id)}function Aa(e,t){const a=document.getElementById(`progress-text-${e}`),s=document.getElementById(`progress-pct-${e}`),r=document.getElementById(`progress-bar-${e}`),o=document.getElementById(`progress-${e}`);if(!(!a||!s||!r)){if(o.style.display="block",a.textContent=t.phase||"",t.total>0){const n=Math.round(t.inserted/t.total*100);s.textContent=`${n}%`,r.style.width=`${n}%`}t.status==="completed"?(r.style.background="var(--accent-emerald)",r.style.width="100%",s.textContent="100%"):t.status==="failed"&&(r.style.background="var(--accent-red)")}}function Ha(e,t){if(t.length===0){e.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:15px;font-size:0.85rem;">لا توجد قواعد استبعاد</div>';return}e.innerHTML=`
     <div class="data-table-wrapper">
       <table class="data-table">
         <thead><tr><th>القاعدة</th><th>الشركة المصدر</th><th>الشركة الهدف</th><th>حساب المصدر</th><th>حساب الهدف</th></tr></thead>
@@ -2781,7 +2794,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <button class="btn btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">إلغاء</button>
       <button class="btn btn-primary" id="btn-save-company">حفظ</button>
     </div>
-  `),h.sales.getInstances().then(t=>{const a=document.getElementById("comp-instance");t.length===0?a.innerHTML="<option disabled>⚠️ أضف اتصال المبيعات أولاً</option>":a.innerHTML=t.map(s=>`<option value="${s.id}">${s.name} (${s.url})</option>`).join("")}),document.getElementById("btn-save-company").addEventListener("click",async()=>{const t=document.getElementById("comp-name").value,a=parseInt(document.getElementById("comp-sales-id").value),s=parseInt(document.getElementById("comp-instance").value);if(!t||!a){b("يرجى تعبئة الاسم ومعرف الشركة","warning");return}try{await h.sales.createCompany({name:t,sales_company_id:a,sales_instance_id:s,currency:document.getElementById("comp-currency").value||"SAR",color:document.getElementById("comp-color").value}),fe(),b("تم إضافة الشركة بنجاح ✅","success");const r=await h.sales.getCompanies();S.set("sales_companies",r),await se(e)}catch(r){b("خطأ: "+r.message,"error")}})}function Ra(e){const t=S.get("sales_companies");ve("إضافة قاعدة استبعاد",`
+  `),h.sales.getInstances().then(t=>{const a=document.getElementById("comp-instance");t.length===0?a.innerHTML="<option disabled>⚠️ أضف اتصال المبيعات أولاً</option>":a.innerHTML=t.map(s=>`<option value="${s.id}">${s.name} (${s.url})</option>`).join("")}),document.getElementById("btn-save-company").addEventListener("click",async()=>{const t=document.getElementById("comp-name").value,a=parseInt(document.getElementById("comp-sales-id").value),s=parseInt(document.getElementById("comp-instance").value);if(!t||!a){y("يرجى تعبئة الاسم ومعرف الشركة","warning");return}try{await h.sales.createCompany({name:t,sales_company_id:a,sales_instance_id:s,currency:document.getElementById("comp-currency").value||"SAR",color:document.getElementById("comp-color").value}),fe(),y("تم إضافة الشركة بنجاح ✅","success");const r=await h.sales.getCompanies();S.set("sales_companies",r),await se(e)}catch(r){y("خطأ: "+r.message,"error")}})}function Ra(e){const t=S.get("sales_companies");ve("إضافة قاعدة استبعاد",`
     <div class="form-group">
       <label class="form-label">اسم القاعدة</label>
       <input type="text" class="form-input" id="rule-name" dir="rtl" placeholder="مثل: استبعاد إيرادات المقاولات بين الشركات" />
@@ -2810,7 +2823,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <button class="btn btn-secondary" onclick="document.getElementById('modal-overlay').classList.remove('active')">إلغاء</button>
       <button class="btn btn-primary" id="btn-save-rule">حفظ</button>
     </div>
-  `),document.getElementById("btn-save-rule").addEventListener("click",async()=>{try{await h.sales.createEliminationRule({name:document.getElementById("rule-name").value,source_company_id:parseInt(document.getElementById("rule-source").value),target_company_id:parseInt(document.getElementById("rule-target").value),source_account_code:document.getElementById("rule-src-acc").value,target_account_code:document.getElementById("rule-tgt-acc").value}),fe(),b("تم إضافة القاعدة بنجاح ✅","success"),await se(e)}catch(a){b("خطأ: "+a.message,"error")}})}let P=0;const _e=50;let Ue=[],oe="date",ge="DESC";const We=[{key:"company_name",label:"الشركة",type:"text",default:!0},{key:"date",label:"التاريخ",type:"date",default:!0},{key:"name",label:"رقم الفاتورة",type:"code",default:!0},{key:"partner_name",label:"العميل",type:"text",default:!0},{key:"state",label:"الحالة",type:"badge",default:!0},{key:"amount_total",label:"المبلغ الإجمالي",type:"money",default:!0},{key:"journal_name",label:"اسم اليومية",type:"text",default:!1,isRaw:!0},{key:"payment_status",label:"حالة الدفع",type:"badge",default:!1,isRaw:!0},{key:"move_type",label:"نوع الحركة",type:"text",default:!1,isRaw:!0},{key:"amount_untaxed",label:"المبلغ (قبل الضريبة)",type:"money",default:!1,isRaw:!0},{key:"amount_tax_signed",label:"الضريبة",type:"money",default:!1,isRaw:!0},{key:"total_paid",label:"إجمالي المدفوع",type:"money",default:!1,isRaw:!0},{key:"amount_residual",label:"المبلغ المتبقي",type:"residual",default:!1},{key:"reference",label:"المرجع",type:"text",default:!1,isRaw:!0},{key:"created_at",label:"تاريخ المزامنة",type:"date",default:!0},{key:"raw_data",label:"البيانات الخام",type:"actions",default:!0}];let V=[];try{const e=localStorage.getItem("sales_preview_cols");e&&(V=JSON.parse(e))}catch{}(!V||V.length===0)&&(V=We.filter(e=>e.default).map(e=>e.key));async function Da(e){let t=S.get("sales_companies");if(!t||t.length===0)try{t=await h.sales.getCompanies(),S.set("sales_companies",t)}catch{t=[]}e.innerHTML=`
+  `),document.getElementById("btn-save-rule").addEventListener("click",async()=>{try{await h.sales.createEliminationRule({name:document.getElementById("rule-name").value,source_company_id:parseInt(document.getElementById("rule-source").value),target_company_id:parseInt(document.getElementById("rule-target").value),source_account_code:document.getElementById("rule-src-acc").value,target_account_code:document.getElementById("rule-tgt-acc").value}),fe(),y("تم إضافة القاعدة بنجاح ✅","success"),await se(e)}catch(a){y("خطأ: "+a.message,"error")}})}let P=0;const _e=50;let Ue=[],ne="date",ge="DESC";const We=[{key:"company_name",label:"الشركة",type:"text",default:!0},{key:"date",label:"التاريخ",type:"date",default:!0},{key:"name",label:"رقم الفاتورة",type:"code",default:!0},{key:"partner_name",label:"العميل",type:"text",default:!0},{key:"state",label:"الحالة",type:"badge",default:!0},{key:"amount_total",label:"المبلغ الإجمالي",type:"money",default:!0},{key:"journal_name",label:"اسم اليومية",type:"text",default:!1,isRaw:!0},{key:"payment_status",label:"حالة الدفع",type:"badge",default:!1,isRaw:!0},{key:"move_type",label:"نوع الحركة",type:"text",default:!1,isRaw:!0},{key:"amount_untaxed",label:"المبلغ (قبل الضريبة)",type:"money",default:!1,isRaw:!0},{key:"amount_tax_signed",label:"الضريبة",type:"money",default:!1,isRaw:!0},{key:"total_paid",label:"إجمالي المدفوع",type:"money",default:!1,isRaw:!0},{key:"amount_residual",label:"المبلغ المتبقي",type:"residual",default:!1},{key:"reference",label:"المرجع",type:"text",default:!1,isRaw:!0},{key:"created_at",label:"تاريخ المزامنة",type:"date",default:!0},{key:"raw_data",label:"البيانات الخام",type:"actions",default:!0}];let V=[];try{const e=localStorage.getItem("sales_preview_cols");e&&(V=JSON.parse(e))}catch{}(!V||V.length===0)&&(V=We.filter(e=>e.default).map(e=>e.key));async function Da(e){let t=S.get("sales_companies");if(!t||t.length===0)try{t=await h.sales.getCompanies(),S.set("sales_companies",t)}catch{t=[]}e.innerHTML=`
     <div class="page-header">
       <div>
         <h1 class="page-title">🛍️ معاينة المبيعات</h1>
@@ -2835,7 +2848,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           <label class="form-label" style="font-size:0.75rem;">🏢 الشركة</label>
           <select class="filter-select" id="dp-company" style="width:100%;">
             <option value="">— الكل —</option>
-            ${t.map(n=>`<option value="${n.id}">${n.name}</option>`).join("")}
+            ${t.map(o=>`<option value="${o.id}">${o.name}</option>`).join("")}
           </select>
         </div>
         <div class="form-group" style="margin:0;">
@@ -2868,10 +2881,10 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <div style="position:relative;" id="col-chooser-container">
         <button class="btn btn-secondary btn-sm" id="btn-col-chooser" style="background:var(--surface-color);border:1px solid var(--border-color);">⚙️ الأعمدة</button>
         <div id="col-chooser-dropdown" style="display:none;position:absolute;top:100%;left:0;background:var(--surface-color);border:1px solid var(--border-color);border-radius:8px;padding:10px;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,0.1);width:220px;max-height:300px;overflow-y:auto;text-align:right;">
-           ${We.map(n=>`
+           ${We.map(o=>`
              <label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;font-size:0.8rem;color:var(--text-primary);">
-               <input type="checkbox" class="col-toggle" value="${n.key}" ${V.includes(n.key)?"checked":""}>
-               ${n.label}
+               <input type="checkbox" class="col-toggle" value="${o.key}" ${V.includes(o.key)?"checked":""}>
+               ${o.label}
              </label>
            `).join("")}
         </div>
@@ -2893,7 +2906,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       </div>
       <div id="dp-page-info" style="color:var(--text-muted);font-size:0.8rem;font-family:var(--font-en);"></div>
     </div>
-  `,e.querySelector("#dp-apply").addEventListener("click",()=>{P=0,te(e)}),e.querySelector("#dp-reset").addEventListener("click",()=>{e.querySelector("#dp-search").value="",e.querySelector("#dp-company").value="",e.querySelector("#dp-state").value="",e.querySelector("#dp-datefrom").value="",e.querySelector("#dp-dateto").value="",P=0,te(e)}),e.querySelector("#dp-prev").addEventListener("click",()=>{P>0&&(P--,te(e))}),e.querySelector("#dp-next").addEventListener("click",()=>{P++,te(e)}),e.querySelector("#dp-search").addEventListener("keydown",n=>{n.key==="Enter"&&(P=0,te(e))});const a=e.querySelector("#btn-col-chooser"),s=e.querySelector("#col-chooser-dropdown");a.addEventListener("click",n=>{n.stopPropagation(),s.style.display=s.style.display==="none"?"block":"none"}),document.addEventListener("click",n=>{e.querySelector("#col-chooser-container").contains(n.target)||(s.style.display="none")});const r=e.querySelectorAll(".col-toggle");r.forEach(n=>{n.addEventListener("change",()=>{V=Array.from(r).filter(o=>o.checked).map(o=>o.value),V.length===0&&(V=["name","company_name"],r.forEach(o=>{V.includes(o.value)&&(o.checked=!0)})),localStorage.setItem("sales_preview_cols",JSON.stringify(V)),wt(e.querySelector("#dp-table-wrapper"),Ue)})}),P=0,await te(e)}async function te(e){const t=e.querySelector("#dp-search").value.trim(),a=e.querySelector("#dp-company").value,s=e.querySelector("#dp-state").value,r=e.querySelector("#dp-datefrom").value,n=e.querySelector("#dp-dateto").value,o={limit:_e,offset:P*_e,orderBy:oe,orderDir:ge};t&&(o.search=t),a&&(o.companyIds=a),s&&(o.state=s),r&&(o.dateFrom=r),n&&(o.dateTo=n);try{const i=await h.sales.getInvoices(o);if(i.states&&i.states.length>0){const u=e.querySelector("#dp-state"),d=u.value;u.options.length<=1&&(i.states.forEach(g=>{const f=document.createElement("option");f.value=g,f.textContent=g,u.appendChild(f)}),d&&(u.value=d))}const p=i.totals||{amount_total:0,amount_untaxed:0,total_paid:0},c=p.total_paid-p.amount_total;e.querySelector("#dp-summary-cards").innerHTML=`
+  `,e.querySelector("#dp-apply").addEventListener("click",()=>{P=0,te(e)}),e.querySelector("#dp-reset").addEventListener("click",()=>{e.querySelector("#dp-search").value="",e.querySelector("#dp-company").value="",e.querySelector("#dp-state").value="",e.querySelector("#dp-datefrom").value="",e.querySelector("#dp-dateto").value="",P=0,te(e)}),e.querySelector("#dp-prev").addEventListener("click",()=>{P>0&&(P--,te(e))}),e.querySelector("#dp-next").addEventListener("click",()=>{P++,te(e)}),e.querySelector("#dp-search").addEventListener("keydown",o=>{o.key==="Enter"&&(P=0,te(e))});const a=e.querySelector("#btn-col-chooser"),s=e.querySelector("#col-chooser-dropdown");a.addEventListener("click",o=>{o.stopPropagation(),s.style.display=s.style.display==="none"?"block":"none"}),document.addEventListener("click",o=>{e.querySelector("#col-chooser-container").contains(o.target)||(s.style.display="none")});const r=e.querySelectorAll(".col-toggle");r.forEach(o=>{o.addEventListener("change",()=>{V=Array.from(r).filter(n=>n.checked).map(n=>n.value),V.length===0&&(V=["name","company_name"],r.forEach(n=>{V.includes(n.value)&&(n.checked=!0)})),localStorage.setItem("sales_preview_cols",JSON.stringify(V)),wt(e.querySelector("#dp-table-wrapper"),Ue)})}),P=0,await te(e)}async function te(e){const t=e.querySelector("#dp-search").value.trim(),a=e.querySelector("#dp-company").value,s=e.querySelector("#dp-state").value,r=e.querySelector("#dp-datefrom").value,o=e.querySelector("#dp-dateto").value,n={limit:_e,offset:P*_e,orderBy:ne,orderDir:ge};t&&(n.search=t),a&&(n.companyIds=a),s&&(n.state=s),r&&(n.dateFrom=r),o&&(n.dateTo=o);try{const i=await h.sales.getInvoices(n);if(i.states&&i.states.length>0){const u=e.querySelector("#dp-state"),d=u.value;u.options.length<=1&&(i.states.forEach(g=>{const f=document.createElement("option");f.value=g,f.textContent=g,u.appendChild(f)}),d&&(u.value=d))}const p=i.totals||{amount_total:0,amount_untaxed:0,total_paid:0},c=p.total_paid-p.amount_total;e.querySelector("#dp-summary-cards").innerHTML=`
       <div class="card" style="padding:var(--space-md);display:flex;align-items:center;gap:16px;">
         <div style="background:rgba(59,130,246,0.1);color:var(--accent-blue);width:45px;height:45px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;">🧾</div>
         <div>
@@ -2927,40 +2940,40 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <thead>
         <tr>
           <th style="position:sticky;top:0;z-index:2;font-size:0.7rem;white-space:nowrap;width:30px;">#</th>
-          ${a.map(r=>{const n=r.key!=="actions"&&r.key!=="raw_data";let o='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>';return oe===r.key&&(o=ge==="ASC"?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 15l7-7 7 7"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>'),`
-               <th style="position:sticky;top:0;z-index:2;font-size:0.75rem;white-space:nowrap;cursor:${n?"pointer":"default"};background:var(--surface-color);"
-                   ${n?`class="sort-header hover-bg" data-key="${r.key}"`:""}>
+          ${a.map(r=>{const o=r.key!=="actions"&&r.key!=="raw_data";let n='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"/></svg>';return ne===r.key&&(n=ge==="ASC"?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 15l7-7 7 7"/></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>'),`
+               <th style="position:sticky;top:0;z-index:2;font-size:0.75rem;white-space:nowrap;cursor:${o?"pointer":"default"};background:var(--surface-color);"
+                   ${o?`class="sort-header hover-bg" data-key="${r.key}"`:""}>
                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 4px;">
                    <span>${r.label}</span>
-                   ${n?`<span class="sort-icon" style="color:${oe===r.key?"var(--accent-blue)":"var(--text-muted)"}; opacity:${oe===r.key?"1":"0.4"}; display:flex; align-items:center;">${o}</span>`:""}
+                   ${o?`<span class="sort-icon" style="color:${ne===r.key?"var(--accent-blue)":"var(--text-muted)"}; opacity:${ne===r.key?"1":"0.4"}; display:flex; align-items:center;">${n}</span>`:""}
                  </div>
                </th>
              `}).join("")}
         </tr>
       </thead>
       <tbody>
-        ${t.map((r,n)=>`
+        ${t.map((r,o)=>`
           <tr>
-            <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.7rem;">${P*_e+n+1}</td>
-            ${a.map(o=>Fa(r,o,n)).join("")}
+            <td style="font-family:var(--font-en);color:var(--text-muted);font-size:0.7rem;">${P*_e+o+1}</td>
+            ${a.map(n=>Fa(r,n,o)).join("")}
           </tr>
         `).join("")}
       </tbody>
     </table>
-  `,e.querySelectorAll(".btn-view-raw").forEach(r=>{r.addEventListener("click",n=>{const o=n.currentTarget.getAttribute("data-idx"),i=t[o];alert(`البيانات الخام للفاتورة:
+  `,e.querySelectorAll(".btn-view-raw").forEach(r=>{r.addEventListener("click",o=>{const n=o.currentTarget.getAttribute("data-idx"),i=t[n];alert(`البيانات الخام للفاتورة:
 
-`+(i.raw_data?JSON.stringify(JSON.parse(i.raw_data),null,2):"لا توجد بيانات خام"))})}),e.querySelectorAll(".sort-header").forEach(r=>{r.addEventListener("click",n=>{const o=n.currentTarget.closest(".sort-header").getAttribute("data-key");oe===o?ge=ge==="ASC"?"DESC":"ASC":(oe=o,ge="DESC"),P=0;const i=e.parentElement.parentElement;i&&te(i)})})}function Fa(e,t,a){let s=e[t.key];if(t.isRaw)try{s=(e.raw_data?JSON.parse(e.raw_data):{})[t.key]}catch{s=""}switch(t.type){case"residual":{let p=0;try{const d=e.raw_data?JSON.parse(e.raw_data):{};p=parseFloat(d.total_paid)||0}catch{}const c=parseFloat(e.amount_total)||0,l=p-c;return!l||l===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${l<0?"var(--accent-red)":"var(--text-primary)"};">${v(l,2)}</td>`}case"money":return!s||s===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${s<0?"var(--accent-red)":"var(--text-primary)"};">${v(s,2)}</td>`;case"date":return`<td style="font-family:var(--font-en);font-size:0.75rem;white-space:nowrap;">${s?s.split(" ")[0]:""}</td>`;case"code":return`<td style="font-family:var(--font-en);font-size:0.75rem;color:var(--accent-blue);font-weight:600;">${s||""}</td>`;case"badge":if(!s)return"<td></td>";const n=s==="posted";return`<td><span style="background:${n?"rgba(16,185,129,0.15)":"rgba(245,158,11,0.15)"};color:${n?"var(--accent-green)":"var(--accent-orange)"};padding:2px 6px;border-radius:4px;font-size:0.68rem;white-space:nowrap;">${s}</span></td>`;case"actions":return`<td>
+`+(i.raw_data?JSON.stringify(JSON.parse(i.raw_data),null,2):"لا توجد بيانات خام"))})}),e.querySelectorAll(".sort-header").forEach(r=>{r.addEventListener("click",o=>{const n=o.currentTarget.closest(".sort-header").getAttribute("data-key");ne===n?ge=ge==="ASC"?"DESC":"ASC":(ne=n,ge="DESC"),P=0;const i=e.parentElement.parentElement;i&&te(i)})})}function Fa(e,t,a){let s=e[t.key];if(t.isRaw)try{s=(e.raw_data?JSON.parse(e.raw_data):{})[t.key]}catch{s=""}switch(t.type){case"residual":{let p=0;try{const d=e.raw_data?JSON.parse(e.raw_data):{};p=parseFloat(d.total_paid)||0}catch{}const c=parseFloat(e.amount_total)||0,l=p-c;return!l||l===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${l<0?"var(--accent-red)":"var(--text-primary)"};">${v(l,2)}</td>`}case"money":return!s||s===0?'<td style="font-family:var(--font-en);color:var(--text-muted);">0</td>':`<td style="font-family:var(--font-en);font-weight:500;color:${s<0?"var(--accent-red)":"var(--text-primary)"};">${v(s,2)}</td>`;case"date":return`<td style="font-family:var(--font-en);font-size:0.75rem;white-space:nowrap;">${s?s.split(" ")[0]:""}</td>`;case"code":return`<td style="font-family:var(--font-en);font-size:0.75rem;color:var(--accent-blue);font-weight:600;">${s||""}</td>`;case"badge":if(!s)return"<td></td>";const o=s==="posted";return`<td><span style="background:${o?"rgba(16,185,129,0.15)":"rgba(245,158,11,0.15)"};color:${o?"var(--accent-green)":"var(--accent-orange)"};padding:2px 6px;border-radius:4px;font-size:0.68rem;white-space:nowrap;">${s}</span></td>`;case"actions":return`<td>
          <button class="btn btn-secondary btn-sm btn-view-raw" data-idx="${a}" style="padding:4px 8px;font-size:0.7rem;">
            عرض JSON
          </button>
-      </td>`;default:return`<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(s||"").toString().replace(/"/g,"&quot;")}">${s||""}</td>`}}async function Oa(e){e.innerHTML='<div class="bi-empty">جاري تحميل مصمم التقرير الضريبي...</div>';try{let f=function(w,m,$,_,q){w.innerHTML="",m.forEach(k=>{const L=$(k),j=document.createElement("option");j.value=L,j.innerText=_(k),q&&q.includes(L)&&(j.selected=!0),w.appendChild(j)})},y=function(w){return w?Array.from(w.selectedOptions||[]).map(m=>m.value):[]},E=function(w){var I;if(!w||!w.periods||w.periods.length===0){d.innerHTML='<div class="bi-empty">لا توجد حركات ضريبية مطابقة لهذه الإعدادات.</div>';return}const m=w.summary,$=m.totalNet>=0?"#ef4444":"#10b981",_=m.totalNet>=0?"مستحقة للهيئة":"مستردة",q=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],k={Q1:"الربع الأول",Q2:"الربع الثاني",Q3:"الربع الثالث",Q4:"الربع الرابع"};function L(z){return z.includes("-Q")?k[z.split("-")[1]]||z:z.length===7&&q[parseInt(z.split("-")[1])-1]||z}const T=w.periods.flatMap(z=>(z.items||[]).map(M=>({...M,periodKey:z.period}))).map(z=>{const M=z.type==="input"?'<span style="color:#10b981;">مشتريات</span>':'<span style="color:#ef4444;">مبيعات</span>',O=z.refundAmount>0?'<span style="color:#f59e0b; font-size:0.75rem; background:rgba(245, 158, 11, 0.1); padding:2px 4px; border-radius:4px; margin-right:6px;">مرتجع</span>':"",C=z.type==="input"?"#10b981":"#ef4444";return`
-          <tr class="vat-detail-row-custom" data-period="${z.periodKey}" style="display:none;background:rgba(255,255,255,0.02);">
-            <td>${z.date}</td>
-            <td style="font-size:0.9rem;">${z.company.length>25?z.company.substring(0,25)+"…":z.company}</td>
+      </td>`;default:return`<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${(s||"").toString().replace(/"/g,"&quot;")}">${s||""}</td>`}}async function Oa(e){e.innerHTML='<div class="bi-empty">جاري تحميل مصمم التقرير الضريبي...</div>';try{let f=function(w,m,$,_,L){w.innerHTML="",m.forEach(k=>{const E=$(k),j=document.createElement("option");j.value=E,j.innerText=_(k),L&&L.includes(E)&&(j.selected=!0),w.appendChild(j)})},b=function(w){return w?Array.from(w.selectedOptions||[]).map(m=>m.value):[]},z=function(w){var I;if(!w||!w.periods||w.periods.length===0){d.innerHTML='<div class="bi-empty">لا توجد حركات ضريبية مطابقة لهذه الإعدادات.</div>';return}const m=w.summary,$=m.totalNet>=0?"#ef4444":"#10b981",_=m.totalNet>=0?"مستحقة للهيئة":"مستردة",L=["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"],k={Q1:"الربع الأول",Q2:"الربع الثاني",Q3:"الربع الثالث",Q4:"الربع الرابع"};function E(q){return q.includes("-Q")?k[q.split("-")[1]]||q:q.length===7&&L[parseInt(q.split("-")[1])-1]||q}const T=w.periods.flatMap(q=>(q.items||[]).map(M=>({...M,periodKey:q.period}))).map(q=>{const M=q.type==="input"?'<span style="color:#10b981;">مشتريات</span>':'<span style="color:#ef4444;">مبيعات</span>',O=q.refundAmount>0?'<span style="color:#f59e0b; font-size:0.75rem; background:rgba(245, 158, 11, 0.1); padding:2px 4px; border-radius:4px; margin-right:6px;">مرتجع</span>':"",C=q.type==="input"?"#10b981":"#ef4444";return`
+          <tr class="vat-detail-row-custom" data-period="${q.periodKey}" style="display:none;background:rgba(255,255,255,0.02);">
+            <td>${q.date}</td>
+            <td style="font-size:0.9rem;">${q.company.length>25?q.company.substring(0,25)+"…":q.company}</td>
             <td>${M} ${O}</td>
-            <td style="font-size:0.85rem;color:rgba(255,255,255,0.6);">${z.journalEntry}</td>
-            <td style="font-size:0.85rem;">${z.label} ${z.partner?'<br><span style="color:#3b82f6;">'+z.partner+"</span>":""}</td>
-            <td class="n" style="color:${C};font-weight:600;">${x(Math.abs(z.netAmount))}</td>
+            <td style="font-size:0.85rem;color:rgba(255,255,255,0.6);">${q.journalEntry}</td>
+            <td style="font-size:0.85rem;">${q.label} ${q.partner?'<br><span style="color:#3b82f6;">'+q.partner+"</span>":""}</td>
+            <td class="n" style="color:${C};font-weight:600;">${x(Math.abs(q.netAmount))}</td>
           </tr>
         `}).join("");d.innerHTML=`
         <!-- KPI Cards -->
@@ -3000,16 +3013,16 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
                 </tr>
               </thead>
               <tbody>
-                ${w.periods.map(z=>{const M=z.netVAT>=0?"#ef4444":"#10b981",H=z.netVAT>=0?"مستحقة":"مستردة";return`<tr>
-                    <td style="font-weight:700;">${L(z.period)}</td>
-                    <td class="n" style="color:rgba(239, 68, 68, 0.7);">${x(z.outputBase)}</td>
-                    <td class="n" style="color:rgba(239, 68, 68, 0.5);">${x(z.outputRefund)}</td>
-                    <td class="n" style="color:#ef4444;font-weight:700">${x(z.outputVAT)}</td>
-                    <td class="n" style="color:rgba(16, 185, 129, 0.7);">${x(z.inputBase)}</td>
-                    <td class="n" style="color:rgba(16, 185, 129, 0.5);">${x(z.inputRefund)}</td>
-                    <td class="n" style="color:#10b981;font-weight:700">${x(z.inputVAT)}</td>
-                    <td class="n" style="color:${M};font-weight:800;">${x(Math.abs(z.netVAT))} <span style="font-size:0.75rem;font-weight:normal;">(${H})</span></td>
-                    <td><button class="btn btn-show-details-custom" data-period="${z.period}" style="font-size:0.8rem;padding:6px 12px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;cursor:pointer;">عرض القيود</button></td>
+                ${w.periods.map(q=>{const M=q.netVAT>=0?"#ef4444":"#10b981",H=q.netVAT>=0?"مستحقة":"مستردة";return`<tr>
+                    <td style="font-weight:700;">${E(q.period)}</td>
+                    <td class="n" style="color:rgba(239, 68, 68, 0.7);">${x(q.outputBase)}</td>
+                    <td class="n" style="color:rgba(239, 68, 68, 0.5);">${x(q.outputRefund)}</td>
+                    <td class="n" style="color:#ef4444;font-weight:700">${x(q.outputVAT)}</td>
+                    <td class="n" style="color:rgba(16, 185, 129, 0.7);">${x(q.inputBase)}</td>
+                    <td class="n" style="color:rgba(16, 185, 129, 0.5);">${x(q.inputRefund)}</td>
+                    <td class="n" style="color:#10b981;font-weight:700">${x(q.inputVAT)}</td>
+                    <td class="n" style="color:${M};font-weight:800;">${x(Math.abs(q.netVAT))} <span style="font-size:0.75rem;font-weight:normal;">(${H})</span></td>
+                    <td><button class="btn btn-show-details-custom" data-period="${q.period}" style="font-size:0.8rem;padding:6px 12px;background:rgba(59,130,246,0.15);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);border-radius:6px;cursor:pointer;">عرض القيود</button></td>
                   </tr>`}).join("")}
               </tbody>
               <tfoot>
@@ -3057,7 +3070,7 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
           </div>
 
         </div>
-      `,d.querySelectorAll(".btn-show-details-custom").forEach(z=>{z.addEventListener("click",()=>{const M=z.dataset.period;d.querySelector("#custom-details-period-label").innerText=L(M),d.querySelector("#custom-details-container").style.display="block";let H=!1;d.querySelectorAll(".vat-detail-row-custom").forEach(O=>{O.dataset.period===M?(O.style.display="table-row",H=!0):O.style.display="none"}),d.querySelector("#custom-details-empty").style.display=H?"none":"table-row-group"})}),(I=d.querySelector("#custom-details-close"))==null||I.addEventListener("click",()=>{d.querySelector("#custom-details-container").style.display="none"})};const t=await h.getCompanies();if(!t||t.length===0){e.innerHTML='<div class="bi-empty">لم يتم العثور على شركات.</div>';return}let a=t[0].id,s=new Date().getFullYear().toString(),r="monthly",n={vatAccounts:[],journals:[],moveNames:[]},o={inputAccounts:[],outputAccounts:[],excludedJournals:[],excludedMoveNames:[]};e.innerHTML=`
+      `,d.querySelectorAll(".btn-show-details-custom").forEach(q=>{q.addEventListener("click",()=>{const M=q.dataset.period;d.querySelector("#custom-details-period-label").innerText=E(M),d.querySelector("#custom-details-container").style.display="block";let H=!1;d.querySelectorAll(".vat-detail-row-custom").forEach(O=>{O.dataset.period===M?(O.style.display="table-row",H=!0):O.style.display="none"}),d.querySelector("#custom-details-empty").style.display=H?"none":"table-row-group"})}),(I=d.querySelector("#custom-details-close"))==null||I.addEventListener("click",()=>{d.querySelector("#custom-details-container").style.display="none"})};const t=await h.getCompanies();if(!t||t.length===0){e.innerHTML='<div class="bi-empty">لم يتم العثور على شركات.</div>';return}let a=t[0].id,s=new Date().getFullYear().toString(),r="monthly",o={vatAccounts:[],journals:[],moveNames:[]},n={inputAccounts:[],outputAccounts:[],excludedJournals:[],excludedMoveNames:[]};e.innerHTML=`
       <div class="bi-header">
         <h1 class="bi-title">مصمم التقرير الضريبي</h1>
         <div class="bi-actions">
@@ -3113,14 +3126,14 @@ import{s as S,a as b,b as h,f as v,g as Ze,c as ve,d as fe,h as it,E as lt,_ as 
       <div id="builder-results" style="margin-top: 30px;">
         <!-- Results will appear here -->
       </div>
-    `;const i=document.getElementById("builder-co-select"),p=document.getElementById("builder-year-select"),c=document.getElementById("builder-period-select"),l=document.getElementById("builder-input-accs"),u=document.getElementById("builder-output-accs"),d=document.getElementById("builder-results");async function g(){try{const w=await h.getTaxReportConfig(a);n=w.options,o=w.config,f(document.getElementById("builder-input-accs"),n.vatAccounts,m=>m.account_name,m=>`${m.account_code} - ${m.account_name}`,o.inputAccounts),f(document.getElementById("builder-output-accs"),n.vatAccounts,m=>m.account_name,m=>`${m.account_code} - ${m.account_name}`,o.outputAccounts)}catch(w){console.error(w),alert("خطأ في تحميل الإعدادات: "+w.message)}}document.getElementById("btn-save-config").addEventListener("click",async()=>{const w={companyId:a,inputAccounts:y(document.getElementById("builder-input-accs")),outputAccounts:y(document.getElementById("builder-output-accs"))};try{(await h.saveTaxReportConfig(w)).success&&alert("تم حفظ الإعدادات بنجاح!")}catch(m){alert("خطأ أثناء الحفظ: "+m.message)}}),document.getElementById("btn-run-report").addEventListener("click",async()=>{d.innerHTML='<div class="bi-empty">جاري بناء التقرير...</div>';const w={companyId:a,year:p.value,period:c.value,inputAccounts:y(document.getElementById("builder-input-accs")),outputAccounts:y(document.getElementById("builder-output-accs"))};try{const m=await h.generateCustomTaxReport(w);E(m)}catch(m){d.innerHTML=`<div class="bi-empty" style="color:#ef4444;">خطأ: ${m.message}</div>`}});const x=w=>new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(w||0);i.addEventListener("change",()=>{a=i.value,g()}),p.addEventListener("change",()=>{s=p.value}),c.addEventListener("change",()=>{r=c.value}),document.getElementById("btn-load-config").addEventListener("click",g),g()}catch(t){console.error("Builder init error:",t),e.innerHTML=`<div class="bi-empty" style="color:#ef4444">خطأ في التهيئة: ${t.message}</div>`}}const Ae={dashboard:Et,"income-statement":Tt,"balance-sheet":Ct,"cash-flow":Ht,pivot:Pt,"journal-items":Ft,mapping:Nt,"journal-mapping":wa,settings:Gt,"data-preview":oa,"trial-balance":la,"detailed-trial-balance":pa,"closing-entries":ba,"analytic-accounts":fa,presentation:qt,"account-statement":_a,guarantees:zt,"api-manager":La,"sales-settings":Ea,"sales-data-preview":Da,"tax-builder":Oa};let $e=!1,kt=null;async function rt(e){const t=document.getElementById("main-content");if(window.isViewerMode()&&e!=="presentation"){console.warn(`[RouteGuard] Viewer is restricted to presentation. Blocked: ${e}`),e="presentation",S.set("currentPage","presentation");const r=new URL(window.location);r.searchParams.get("page")!=="presentation"&&(r.searchParams.set("page","presentation"),window.history.replaceState({},"",r))}if($e)return;$e=!0,kt=e;let s=Ae[e];if(e==="special-expenses"&&!s){const r=await Ke(()=>import("./special-expenses-P9N5less.js"),__vite__mapDeps([0,1,2]));Ae["special-expenses"]=r.renderSpecialExpenses,s=r.renderSpecialExpenses}if(e==="viewers-management"&&!s){const r=await Ke(()=>import("./viewers-management-DpahoSB4.js"),__vite__mapDeps([3,1,2]));Ae["viewers-management"]=r.renderViewersManagement,s=r.renderViewersManagement}if(s){t.innerHTML='<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;"><div class="spinner"></div></div>';try{await s(t)}catch(r){console.error(`Error rendering ${e}:`,r),t.innerHTML=`
+    `;const i=document.getElementById("builder-co-select"),p=document.getElementById("builder-year-select"),c=document.getElementById("builder-period-select"),l=document.getElementById("builder-input-accs"),u=document.getElementById("builder-output-accs"),d=document.getElementById("builder-results");async function g(){try{const w=await h.getTaxReportConfig(a);o=w.options,n=w.config,f(document.getElementById("builder-input-accs"),o.vatAccounts,m=>m.account_name,m=>`${m.account_code} - ${m.account_name}`,n.inputAccounts),f(document.getElementById("builder-output-accs"),o.vatAccounts,m=>m.account_name,m=>`${m.account_code} - ${m.account_name}`,n.outputAccounts)}catch(w){console.error(w),alert("خطأ في تحميل الإعدادات: "+w.message)}}document.getElementById("btn-save-config").addEventListener("click",async()=>{const w={companyId:a,inputAccounts:b(document.getElementById("builder-input-accs")),outputAccounts:b(document.getElementById("builder-output-accs"))};try{(await h.saveTaxReportConfig(w)).success&&alert("تم حفظ الإعدادات بنجاح!")}catch(m){alert("خطأ أثناء الحفظ: "+m.message)}}),document.getElementById("btn-run-report").addEventListener("click",async()=>{d.innerHTML='<div class="bi-empty">جاري بناء التقرير...</div>';const w={companyId:a,year:p.value,period:c.value,inputAccounts:b(document.getElementById("builder-input-accs")),outputAccounts:b(document.getElementById("builder-output-accs"))};try{const m=await h.generateCustomTaxReport(w);z(m)}catch(m){d.innerHTML=`<div class="bi-empty" style="color:#ef4444;">خطأ: ${m.message}</div>`}});const x=w=>new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(w||0);i.addEventListener("change",()=>{a=i.value,g()}),p.addEventListener("change",()=>{s=p.value}),c.addEventListener("change",()=>{r=c.value}),document.getElementById("btn-load-config").addEventListener("click",g),g()}catch(t){console.error("Builder init error:",t),e.innerHTML=`<div class="bi-empty" style="color:#ef4444">خطأ في التهيئة: ${t.message}</div>`}}const Ae={dashboard:Et,"income-statement":Tt,"balance-sheet":Ct,"cash-flow":Ht,pivot:Pt,"journal-items":Ft,mapping:Nt,"journal-mapping":wa,settings:Gt,"data-preview":na,"trial-balance":la,"detailed-trial-balance":pa,"closing-entries":ba,"analytic-accounts":fa,presentation:qt,"account-statement":_a,guarantees:zt,"api-manager":La,"sales-settings":Ea,"sales-data-preview":Da,"tax-builder":Oa};let $e=!1,kt=null;async function rt(e){const t=document.getElementById("main-content");if(window.isViewerMode()&&e!=="presentation"){console.warn(`[RouteGuard] Viewer is restricted to presentation. Blocked: ${e}`),e="presentation",S.set("currentPage","presentation");const r=new URL(window.location);r.searchParams.get("page")!=="presentation"&&(r.searchParams.set("page","presentation"),window.history.replaceState({},"",r))}if($e)return;$e=!0,kt=e;let s=Ae[e];if(e==="special-expenses"&&!s){const r=await Ke(()=>import("./special-expenses-P9N5less.js"),__vite__mapDeps([0,1,2]));Ae["special-expenses"]=r.renderSpecialExpenses,s=r.renderSpecialExpenses}if(e==="viewers-management"&&!s){const r=await Ke(()=>import("./viewers-management-DpahoSB4.js"),__vite__mapDeps([3,1,2]));Ae["viewers-management"]=r.renderViewersManagement,s=r.renderViewersManagement}if(s){t.innerHTML='<div style="display:flex;align-items:center;justify-content:center;min-height:60vh;"><div class="spinner"></div></div>';try{await s(t)}catch(r){console.error(`Error rendering ${e}:`,r),t.innerHTML=`
         <div style="text-align:center;padding:60px;">
           <div style="font-size:2rem;margin-bottom:16px;">⚠️</div>
           <h2 style="color:var(--text-white);margin-bottom:8px;">حدث خطأ</h2>
           <p style="color:var(--text-muted);">${r.message}</p>
           <button class="btn btn-primary" style="margin-top:16px;" onclick="location.reload()">إعادة المحاولة</button>
         </div>
-      `}finally{$e=!1}}else $e=!1;dt()}window.mizaniatLogout=function(){localStorage.removeItem("mizaniat_admin_token"),localStorage.removeItem("mizaniat_admin_info"),localStorage.removeItem("mizaniat_viewer_mode"),localStorage.removeItem("mizaniat_viewer_token"),sessionStorage.removeItem("mizaniat_viewer_token"),localStorage.removeItem("mizaniat_viewer_info"),window.location.href="/login.html"};window.isViewerMode=()=>!localStorage.getItem("mizaniat_admin_token")&&localStorage.getItem("mizaniat_viewer_mode")==="true";async function Na(){const e=window.isViewerMode();if(e){const t=localStorage.getItem("mizaniat_viewer_token")||sessionStorage.getItem("mizaniat_viewer_token");if(!t){window.location.href="/login.html";return}try{if(!(await fetch("/api/auth/viewer/verify",{headers:{"x-viewer-token":t}})).ok){window.mizaniatLogout();return}}catch{}}else{const t=localStorage.getItem("mizaniat_admin_token");if(!t){window.location.href="/login.html";return}try{if(!(await fetch("/api/auth/admin/me",{headers:{Authorization:`Bearer ${t}`}})).ok){window.mizaniatLogout();return}}catch{}}console.log(e?"👁️ Mizaniat BI Viewer mode":"🚀 Mizaniat BI initializing...");try{const t=await h.getCompanies();S.set("companies",t),await Lt(),dt();let s=new URLSearchParams(window.location.search).get("page")||(e?"presentation":"dashboard");if(e&&s!=="presentation"){s="presentation";const r=new URL(window.location);r.searchParams.set("page","presentation"),window.history.replaceState({},"",r)}S.set("currentPage",s),S.subscribe(r=>{if(r==="currentPage"){const n=S.get("currentPage");n!==kt&&rt(n)}}),await rt(s),console.log("✅ Mizaniat BI ready")}catch(t){console.error("Init error:",t),document.getElementById("main-content").innerHTML=`
+      `}finally{$e=!1}}else $e=!1;dt()}window.mizaniatLogout=function(){localStorage.removeItem("mizaniat_admin_token"),localStorage.removeItem("mizaniat_admin_info"),localStorage.removeItem("mizaniat_viewer_mode"),localStorage.removeItem("mizaniat_viewer_token"),sessionStorage.removeItem("mizaniat_viewer_token"),localStorage.removeItem("mizaniat_viewer_info"),window.location.href="/login.html"};window.isViewerMode=()=>!localStorage.getItem("mizaniat_admin_token")&&localStorage.getItem("mizaniat_viewer_mode")==="true";async function Na(){const e=window.isViewerMode();if(e){const t=localStorage.getItem("mizaniat_viewer_token")||sessionStorage.getItem("mizaniat_viewer_token");if(!t){window.location.href="/login.html";return}try{if(!(await fetch("/api/auth/viewer/verify",{headers:{"x-viewer-token":t}})).ok){window.mizaniatLogout();return}}catch{}}else{const t=localStorage.getItem("mizaniat_admin_token");if(!t){window.location.href="/login.html";return}try{if(!(await fetch("/api/auth/admin/me",{headers:{Authorization:`Bearer ${t}`}})).ok){window.mizaniatLogout();return}}catch{}}console.log(e?"👁️ Mizaniat BI Viewer mode":"🚀 Mizaniat BI initializing...");try{const t=await h.getCompanies();S.set("companies",t),await Lt(),dt();let s=new URLSearchParams(window.location.search).get("page")||(e?"presentation":"dashboard");if(e&&s!=="presentation"){s="presentation";const r=new URL(window.location);r.searchParams.set("page","presentation"),window.history.replaceState({},"",r)}S.set("currentPage",s),S.subscribe(r=>{if(r==="currentPage"){const o=S.get("currentPage");o!==kt&&rt(o)}}),await rt(s),console.log("✅ Mizaniat BI ready")}catch(t){console.error("Init error:",t),document.getElementById("main-content").innerHTML=`
       <div style="text-align:center;padding:80px;">
         <div style="font-size:3rem;margin-bottom:24px;">📊</div>
         <h1 style="color:var(--text-white);margin-bottom:12px;">تقارير مالية</h1>

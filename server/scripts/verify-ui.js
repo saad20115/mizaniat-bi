@@ -3711,7 +3711,64 @@ async function runVerifyUI() {
     }
     assert(cc1Before && Array.isArray(cc1Before.journals), 'CC1-UI: /api/attribution/conflicts answers for the admin');
     assert(cc1Rows === (cc1Before.journals || []).length, `CC1-UI: the settings page lists every ambiguous journal (${cc1Rows} rows, API ${(cc1Before.journals || []).length})`);
-    const cc1FirstKey = await cdp.eval('document.querySelector("#cc-conflicts-journals tbody tr td:nth-child(2) div")?.textContent || ""');
+    const cc1FirstKey = await cdp.eval('document.querySelector("#cc-conflicts-journals tbody tr .cc-key")?.textContent || ""');
+
+    // Real geometry at 1280 and 1440: no horizontal scroll in the conflicts table, every select
+    // inside its card and every «اعتماد القرار» button fully inside the viewport.
+    const cc1SetWidth = async (width, height) => {
+      await cdp.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+      const t0 = Date.now();
+      while (Date.now() - t0 < 2000) {
+        if (await cdp.eval('window.innerWidth') === width) break;
+        await sleep(50);
+      }
+      await sleep(300);
+    };
+    const cc1Geometry = (tableSel, buttonSel, firstInView) => cdp.eval(`(() => {
+      const table = document.querySelector(${JSON.stringify(tableSel)});
+      if (!table) return { found: false };
+      const wrap = table.parentElement;
+      const card = wrap.closest('.glass-card');
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const wr = wrap.getBoundingClientRect();
+      const out = { found: true, wrapScroll: wrap.scrollWidth, wrapClient: wrap.clientWidth,
+        tableScroll: table.scrollWidth, tableClient: table.clientWidth,
+        cardScroll: card ? card.scrollWidth : 0, cardClient: card ? card.clientWidth : 0,
+        badControls: [], badButtons: [], buttons: 0 };
+      table.querySelectorAll('select, button').forEach((el, i) => {
+        const r = el.getBoundingClientRect();
+        const minW = el.tagName === 'SELECT' ? 80 : 24;
+        if (r.left < wr.left - 0.5 || r.right > wr.right + 0.5 || r.width < minW) out.badControls.push(el.tagName + i + ':' + Math.round(r.left) + '-' + Math.round(r.right));
+      });
+      // Every button must lie horizontally inside the viewport as laid out (no sideways scroll
+      // anywhere). Vertically, rows below the fold are reached by the normal page scroll: the
+      // button must sit inside the page (top >= 0, bottom <= document height) and the first
+      // row's button must be fully inside the first screen. (Under device-metrics emulation the
+      // headless window is taller than the emulated viewport, so the page cannot be scrolled
+      // programmatically; vertical reachability is therefore checked against the document.)
+      const docH = document.scrollingElement.scrollHeight;
+      let sideways = false;
+      for (let p = table.parentElement; p; p = p.parentElement) if (p.scrollLeft !== 0 || p.scrollWidth > p.clientWidth + 1 && getComputedStyle(p).overflowX !== 'visible' && p !== document.documentElement && p !== document.body) sideways = true;
+      table.querySelectorAll(${JSON.stringify(buttonSel)}).forEach((b, i) => {
+        out.buttons++;
+        const r = b.getBoundingClientRect();
+        const top = r.top + window.scrollY, bottom = r.bottom + window.scrollY;
+        const insideX = r.left >= 0 && r.right <= vw && r.width > 0;
+        const insideY = top >= 0 && bottom <= docH && (i > 0 || !${firstInView ? 'true' : 'false'} || bottom <= vh);
+        if (!insideX || !insideY || sideways) out.badButtons.push(i + ':' + Math.round(r.left) + '-' + Math.round(r.right) + ' @' + Math.round(top) + '-' + Math.round(bottom) + (sideways ? ' (sideways scroll present)' : ''));
+      });
+      return out;
+    })()`);
+    for (const [w, h] of [[1280, 800], [1440, 900]]) {
+      await cc1SetWidth(w, h);
+      const g = await cc1Geometry('#cc-conflicts-journals', '.cc-decide', true);
+      assert(g.found && g.wrapScroll <= g.wrapClient && g.tableScroll <= g.tableClient && g.cardScroll <= g.cardClient,
+        `CC1-UI @${w}: conflicts table has no horizontal scroll (wrap ${g.wrapScroll}/${g.wrapClient}, table ${g.tableScroll}/${g.tableClient}, card ${g.cardScroll}/${g.cardClient})`);
+      assert(g.found && g.badControls.length === 0, `CC1-UI @${w}: both selects and the button of every row sit inside the table (${(g.badControls || []).join(' ') || 'ok'})`);
+      assert(g.found && g.buttons === cc1Rows && g.badButtons.length === 0, `CC1-UI @${w}: every «اعتماد القرار» button is inside the viewport (${g.buttons} buttons${g.badButtons && g.badButtons.length ? ', off: ' + g.badButtons.join(' ') : ''})`);
+    }
+    await cdp.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+    await sleep(300);
     assert(cc1Rows === 0 || /^j:\d+$/.test(cc1FirstKey.trim()), `CC1-UI: an ambiguous journal stays on its own row until decided (${cc1FirstKey.trim()})`);
     if (cc1Rows > 0) {
       const target = cc1Before.journals[cc1Rows - 1];
@@ -3754,6 +3811,14 @@ async function runVerifyUI() {
         if (jdRows > 0) break;
       }
       assert(jdRows > 0, `CC1-UI: the journal defaults table lists the company's journals (${jdRows})`);
+      for (const [w, h] of [[1280, 800], [1440, 900]]) {
+        await cc1SetWidth(w, h);
+        const g = await cc1Geometry('#journal-defaults-table', '.jd-save', false);
+        assert(g.found && g.wrapScroll <= g.wrapClient && g.tableScroll <= g.tableClient && g.badControls.length === 0 && g.badButtons.length === 0,
+          `CC1-UI @${w}: journal defaults table fits without horizontal scroll, controls and save buttons visible (wrap ${g.wrapScroll}/${g.wrapClient}, off ${[...(g.badControls || []), ...(g.badButtons || [])].join(' ') || 'none'})`);
+      }
+      await cdp.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+      await sleep(300);
       const journalColumn = await cdp.eval('document.querySelectorAll(".account-journal-select").length');
       assert(journalColumn === 0, 'CC1-UI: analytic mapping rows no longer carry a journal (journal defaults are a separate setting)');
     }

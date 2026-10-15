@@ -156,7 +156,7 @@ export async function renderAnalyticAccounts(container) {
 
 function groupSelectHtml(cls, selectedId, extra = '') {
   return `
-    <select class="filter-select ${cls}" ${extra} style="font-size:0.78rem;padding:4px 8px;width:100%;">
+    <select class="filter-select ${cls}" ${extra} style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
       <option value="">— بدون قسم (يبقى في صفّه) —</option>
       ${groups.map(g => `<option value="${g.id}"${String(g.id) === String(selectedId) ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}
     </select>`;
@@ -195,19 +195,20 @@ async function loadConflicts(container) {
     }
     el.innerHTML = `
       ${journals.length ? `
-      <div class="data-table-wrapper">
-        <table class="data-table" id="cc-conflicts-journals" style="font-size:0.8rem;min-width:1280px;">
+      <div class="data-table-wrapper" id="cc-conflicts-wrap">
+        <!-- Three fixed columns (journal · candidates and amounts · decision) so the table never
+             needs a horizontal scroll; the two selects and the button are stacked in the last one. -->
+        <table class="data-table" id="cc-conflicts-journals" style="font-size:0.8rem;table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:28%;">
+            <col style="width:40%;">
+            <col style="width:32%;">
+          </colgroup>
           <thead>
             <tr>
-              <th style="text-align:right;min-width:170px;">الشركة</th>
-              <th style="text-align:right;min-width:170px;">الدفتر</th>
-              <th style="text-align:right;min-width:140px;">التعارض</th>
-              <th style="text-align:right;min-width:190px;">المرشحون</th>
-              <th style="text-align:center;min-width:110px;">فواتير على صفّ الدفتر</th>
-              <th style="text-align:center;min-width:110px;">إيراد/مصروف غير موسوم</th>
-              <th style="width:170px;text-align:center;">القسم</th>
-              <th style="width:190px;text-align:center;">مركز التكلفة للسطور غير الموسومة</th>
-              <th style="width:100px;"></th>
+              <th style="text-align:right;">الدفتر والتعارض</th>
+              <th style="text-align:right;">المرشحون والمبالغ</th>
+              <th style="text-align:right;">القرار</th>
             </tr>
           </thead>
           <tbody>
@@ -215,27 +216,37 @@ async function loadConflicts(container) {
               const ledger = (j.ledger_by_year || []).reduce((s, y) => ({ rev: s.rev + (y.revenue || 0), exp: s.exp + (y.expense || 0) }), { rev: 0, exp: 0 });
               const curGroup = j.current_default ? j.current_default.group_id : '';
               const curAnalytic = j.current_default ? j.current_default.analytic_id : '';
+              const cell = 'vertical-align:top;white-space:normal;overflow-wrap:anywhere;';
+              const muted = 'font-size:0.72rem;color:var(--text-muted);';
               return `
               <tr data-idx="${i}">
-                <td>${esc(j.company_name)}</td>
-                <td><strong>${esc(j.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">${esc(j.cost_center_key)}</div></td>
-                <td>${j.kind === 'department' ? 'مرتبط بأكثر من قسم' : 'مرتبط بأكثر من مركز تكلفة'}${j.current_default && j.current_default.group_id ? `<div style="font-size:0.7rem;color:var(--text-muted);">القسم المرحّل: ${esc(j.current_default.group_name || '')}</div>` : ''}</td>
-                <td style="font-size:0.75rem;">
-                  <div>الأقسام: ${j.candidate_departments.map(d => esc(d.name)).join(' / ') || '—'}</div>
-                  <details><summary>${j.candidate_analytics.length} مركز تكلفة</summary>
-                    ${j.candidate_analytics.map(a => `<div>${esc(a.name)}${a.department_name ? ` <span style="color:var(--text-muted);">(${esc(a.department_name)})</span>` : ''}</div>`).join('')}
-                  </details>
+                <td style="${cell}">
+                  <strong>${esc(j.journal_name)}</strong>
+                  <div class="cc-key" style="${muted}">${esc(j.cost_center_key)}</div>
+                  <div style="${muted}">${esc(j.company_name)}</div>
+                  <div style="margin-top:4px;color:var(--accent-amber);font-size:0.75rem;">${j.kind === 'department' ? 'مرتبط بأكثر من قسم' : 'مرتبط بأكثر من مركز تكلفة'}</div>
+                  ${j.current_default && j.current_default.group_id ? `<div style="${muted}">القسم المرحّل: ${esc(j.current_default.group_name || '')}</div>` : ''}
                 </td>
-                <td style="text-align:center;">${j.invoices}<div style="font-size:0.7rem;color:var(--text-muted);">${fmt(j.invoices_untaxed)} قبل الضريبة</div></td>
-                <td style="text-align:center;">${fmt(ledger.rev)} / ${fmt(ledger.exp)}</td>
-                <td>${groupSelectHtml('cc-group-select', curGroup)}</td>
-                <td>
-                  <select class="filter-select cc-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                <td style="${cell}font-size:0.76rem;">
+                  <div><span style="color:var(--text-muted);">الأقسام:</span> ${j.candidate_departments.map(d => esc(d.name)).join(' / ') || '—'}</div>
+                  <details style="margin-top:4px;"><summary style="cursor:pointer;">${j.candidate_analytics.length} مركز تكلفة مرشح</summary>
+                    <ul style="margin:4px 0 0;padding-right:16px;max-height:180px;overflow-y:auto;">
+                      ${j.candidate_analytics.map(a => `<li>${esc(a.name)}${a.department_name ? ` <span style="color:var(--text-muted);">(${esc(a.department_name)})</span>` : ''}</li>`).join('')}
+                    </ul>
+                  </details>
+                  <div style="margin-top:6px;"><span style="color:var(--text-muted);">فواتير على صفّ الدفتر:</span> ${j.invoices} <span style="${muted}">(${fmt(j.invoices_untaxed)} قبل الضريبة)</span></div>
+                  <div><span style="color:var(--text-muted);">إيراد / مصروف غير موسوم:</span> ${fmt(ledger.rev)} / ${fmt(ledger.exp)}</div>
+                </td>
+                <td style="${cell}">
+                  <label style="display:block;${muted}margin-bottom:2px;">القسم</label>
+                  ${groupSelectHtml('cc-group-select', curGroup)}
+                  <label style="display:block;${muted}margin:6px 0 2px;">مركز التكلفة للسطور غير الموسومة</label>
+                  <select class="filter-select cc-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
                     <option value="">— بدون (صفّ الدفتر المستقل) —</option>
                     ${j.candidate_analytics.filter(a => a.analytic_id).map(a => `<option value="${a.analytic_id}"${String(a.analytic_id) === String(curAnalytic) ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}
                   </select>
+                  <button class="btn btn-primary cc-decide" style="margin-top:8px;font-size:0.75rem;padding:5px 12px;">اعتماد القرار</button>
                 </td>
-                <td><button class="btn btn-primary cc-decide" style="font-size:0.75rem;padding:4px 10px;">اعتماد القرار</button></td>
               </tr>`;
             }).join('')}
           </tbody>
@@ -298,15 +309,19 @@ async function loadJournalDefaults(container, companyId) {
       .map(a => `<option value="${a.id}"${String(a.id) === String(selected) ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
     el.innerHTML = `
       <div class="data-table-wrapper">
-        <table class="data-table" id="journal-defaults-table" style="font-size:0.8rem;">
+        <table class="data-table" id="journal-defaults-table" style="font-size:0.8rem;table-layout:fixed;width:100%;">
+          <colgroup>
+            <col style="width:24%;"><col style="width:8%;"><col style="width:11%;">
+            <col style="width:22%;"><col style="width:23%;"><col style="width:12%;">
+          </colgroup>
           <thead>
             <tr>
               <th style="text-align:right;">الدفتر</th>
               <th style="text-align:center;">الفواتير</th>
               <th style="text-align:center;">الحالة</th>
-              <th style="width:200px;text-align:center;">القسم</th>
-              <th style="width:230px;text-align:center;">مركز التكلفة للسطور غير الموسومة</th>
-              <th style="width:150px;"></th>
+              <th style="text-align:center;">القسم</th>
+              <th style="text-align:center;white-space:normal;">مركز التكلفة للسطور غير الموسومة</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -316,19 +331,19 @@ async function loadJournalDefaults(container, companyId) {
                 : (j.source === 'seed' ? '<span style="color:var(--accent-blue);">مُرحّلة</span>' : (j.flagged ? '<span style="color:var(--accent-amber);">تحتاج قرارًا</span>' : '<span style="color:var(--text-muted);">بلا إعداد</span>'));
               return `
               <tr data-idx="${i}">
-                <td><strong>${esc(j.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">j:${j.journal_id}</div></td>
+                <td style="white-space:normal;overflow-wrap:anywhere;"><strong>${esc(j.journal_name)}</strong><div style="font-size:0.7rem;color:var(--text-muted);">j:${j.journal_id}</div></td>
                 <td style="text-align:center;">${j.invoices}</td>
-                <td style="text-align:center;">${status}</td>
+                <td style="text-align:center;white-space:normal;">${status}</td>
                 <td>${groupSelectHtml('jd-group-select', j.group_id || '')}</td>
                 <td>
-                  <select class="filter-select jd-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;">
+                  <select class="filter-select jd-analytic-select" style="font-size:0.78rem;padding:4px 8px;width:100%;max-width:100%;box-sizing:border-box;">
                     <option value="">— بدون (صفّ الدفتر المستقل) —</option>
                     ${analyticOptions(j.analytic_id || '')}
                   </select>
                 </td>
-                <td style="white-space:nowrap;">
-                  <button class="btn btn-primary jd-save" style="font-size:0.72rem;padding:4px 8px;">حفظ</button>
-                  ${j.group_id || j.analytic_id || j.decided_by_user ? '<button class="btn jd-clear" style="font-size:0.72rem;padding:4px 8px;">إلغاء</button>' : ''}
+                <td style="white-space:normal;">
+                  <button class="btn btn-primary jd-save" style="font-size:0.72rem;padding:4px 8px;margin:2px;">حفظ</button>
+                  ${j.group_id || j.analytic_id || j.decided_by_user ? '<button class="btn jd-clear" style="font-size:0.72rem;padding:4px 8px;margin:2px;">إلغاء</button>' : ''}
                 </td>
               </tr>`;
             }).join('')}
